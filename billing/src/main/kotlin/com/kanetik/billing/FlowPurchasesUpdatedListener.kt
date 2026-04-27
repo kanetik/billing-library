@@ -7,7 +7,7 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import kotlinx.coroutines.flow.MutableSharedFlow
 
-class FlowPurchasesUpdatedListener(
+internal class FlowPurchasesUpdatedListener(
     private val updateSubject: MutableSharedFlow<PurchasesUpdate>
 ) : PurchasesUpdatedListener {
 

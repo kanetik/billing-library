@@ -36,7 +36,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
-class EasyBillingRepository(
+internal class EasyBillingRepository(
     private val billingClientStorage: BillingClientStorage,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : BillingRepository {

@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 
-class CoroutinesBillingConnectionFactory(
+internal class CoroutinesBillingConnectionFactory(
     private val context: Context,
     private val billingClientFactory: BillingClientFactory = DefaultBillingClientFactory()
 ) : BillingConnectionFactory {

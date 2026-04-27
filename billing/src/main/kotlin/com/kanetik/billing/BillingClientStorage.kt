@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.shareIn
 
-class BillingClientStorage(
+internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
     connectionShareScope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope
 ) {

@@ -5,7 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.PurchasesUpdatedListener
 
-class DefaultBillingClientFactory : BillingClientFactory {
+internal class DefaultBillingClientFactory : BillingClientFactory {
 
     override fun createBillingClient(
         context: Context,
