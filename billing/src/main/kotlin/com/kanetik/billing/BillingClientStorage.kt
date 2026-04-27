@@ -40,11 +40,11 @@ internal class BillingClientStorage(
      * Goal: Reduce rapid connect/disconnect cycles while still allowing the connection to release
      * after periods of genuine inactivity (less “greedy” than always-on eager collection).
      *
-     * Approach: SharingStarted.WhileSubscribed with a 30s stopTimeoutMillis grace window.
+     * Approach: SharingStarted.WhileSubscribed with a 60s stopTimeoutMillis grace window.
      * - First subscriber starts the upstream (establishes billing connection).
-     * - After the last subscriber disappears, we keep the connection alive for up to 30 seconds.
+     * - After the last subscriber disappears, we keep the connection alive for up to 60 seconds.
      *   If a new subscriber arrives inside that window we avoid a disconnect/reconnect cycle.
-     * - After 30s of zero subscribers, the upstream is cancelled, allowing a clean disconnect.
+     * - After 60s of zero subscribers, the upstream is cancelled, allowing a clean disconnect.
      *
      * replay = 1 is retained so newcomers during an active period (or within the grace window)
      * immediately get the latest emission (e.g., connection state / cached info) without forcing
