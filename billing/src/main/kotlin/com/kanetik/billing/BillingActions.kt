@@ -71,6 +71,29 @@ public interface BillingActions {
     public suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams)
 
     /**
+     * Convenience overload that acknowledges [purchase] only if it isn't already
+     * acknowledged.
+     *
+     * Calling [acknowledgePurchase] on an already-acknowledged purchase produces
+     * a [BillingException.DeveloperErrorException][com.kanetik.billing.exception.BillingException.DeveloperErrorException]
+     * from Play. Google's integration guide explicitly recommends checking
+     * [Purchase.isAcknowledged] first; this overload bakes that check in so
+     * callers don't have to remember.
+     *
+     * Builds [AcknowledgePurchaseParams] from [purchase]'s purchase token and
+     * delegates to the params-based [acknowledgePurchase]. No-ops silently if
+     * [purchase] is already acknowledged.
+     */
+    @AnyThread
+    public suspend fun acknowledgePurchase(purchase: Purchase) {
+        if (purchase.isAcknowledged) return
+        val params = AcknowledgePurchaseParams.newBuilder()
+            .setPurchaseToken(purchase.purchaseToken)
+            .build()
+        acknowledgePurchase(params)
+    }
+
+    /**
      * Launches the Play Billing purchase flow.
      *
      * Must be called on the main thread. The returned coroutine completes once Play

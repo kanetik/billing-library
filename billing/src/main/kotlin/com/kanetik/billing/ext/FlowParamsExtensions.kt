@@ -13,25 +13,51 @@ import com.android.billingclient.api.ProductDetails
  * fails with `DEVELOPER_ERROR`. This is the #1 footgun developers hit when upgrading
  * from PBL 7.x → 8.x.
  *
- * This extension picks the first available offer detail's token (the auto-migrated
- * one for legacy products) and sets it. If no list is present (very old PBL pre-8
- * artifacts), it falls back to no offer token — keeping things working for any
+ * Picks an offer via [offerSelector] and sets its `offerToken` on the flow params.
+ * If no offer list is present (very old PBL pre-8 artifacts) or the selector
+ * returns `null`, falls back to no offer token — keeping things working for any
  * hypothetical product that wasn't migrated.
  *
  * For subscriptions, use the dedicated subscription flow params — this helper is
  * one-time-product only. (Subscription helpers are planned for v0.2.0; until then,
  * build subscription flow params directly via `BillingFlowParams.newBuilder()`.)
  *
+ * ## Offer selection
+ *
+ * PBL 8.0+ supports one-time products with **multiple offers** (e.g. pre-orders,
+ * alternative price tiers). The default [offerSelector] picks the first available
+ * offer, which is correct for the dominant case where a product has a single
+ * auto-migrated offer entry.
+ *
+ * For products configured with multiple offers, override [offerSelector] to pick
+ * the right one — e.g. matching by `offerId`, picking a pre-order over a
+ * standard purchase, or applying region-specific logic:
+ *
+ * ```
+ * productDetails.toOneTimeFlowParams(
+ *     offerSelector = { offers ->
+ *         offers.firstOrNull { it.offerId == "spring-promo" }
+ *             ?: offers.firstOrNull()
+ *     },
+ *     obfuscatedAccountId = userId
+ * )
+ * ```
+ *
  * @receiver The [ProductDetails] for a one-time product (queried via
  *   [com.kanetik.billing.BillingActions.queryProductDetails]).
  * @param obfuscatedAccountId Optional stable per-install identifier passed to Play
  *   for fraud-detection correlation. Should be a stable opaque ID (UUID is fine);
  *   must contain no PII per Google's policy. Leave null to omit.
+ * @param offerSelector Strategy for picking which one-time-purchase offer's token
+ *   to set on the flow params. Receives the full list of offers Play returned for
+ *   the product; returns the chosen offer (or `null` to omit `setOfferToken`).
+ *   Defaults to picking the first available offer.
  */
 public fun ProductDetails.toOneTimeFlowParams(
-    obfuscatedAccountId: String? = null
+    obfuscatedAccountId: String? = null,
+    offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
 ): BillingFlowParams {
-    val offerToken = oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
+    val offerToken = oneTimePurchaseOfferDetailsList?.let(offerSelector)?.offerToken
     val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams
         .newBuilder()
         .setProductDetails(this)
