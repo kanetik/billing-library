@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy.factory
+package com.kanetik.billing.factory
 
 import android.content.Context
 import com.android.billingclient.api.BillingClient

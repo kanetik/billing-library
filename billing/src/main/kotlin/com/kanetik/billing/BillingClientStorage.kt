@@ -1,8 +1,8 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import com.luszczuk.makebillingeasy.factory.BillingConnectionFactory
+import com.kanetik.billing.factory.BillingConnectionFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow

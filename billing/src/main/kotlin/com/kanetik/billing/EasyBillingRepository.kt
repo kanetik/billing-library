@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import android.app.Activity
 import android.util.Log
@@ -22,7 +22,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
 import com.android.billingclient.api.consumePurchase
 import com.android.billingclient.api.queryPurchasesAsync
-import com.luszczuk.makebillingeasy.exception.BillingException
+import com.kanetik.billing.exception.BillingException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

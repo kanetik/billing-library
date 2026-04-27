@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import android.util.Log
 import com.android.billingclient.api.BillingClient.BillingResponseCode

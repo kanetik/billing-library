@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 enum class ResultStatus {
     PENDING,

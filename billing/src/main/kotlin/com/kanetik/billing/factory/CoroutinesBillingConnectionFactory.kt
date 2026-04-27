@@ -1,12 +1,12 @@
-package com.luszczuk.makebillingeasy.factory
+package com.kanetik.billing.factory
 
 import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PurchasesUpdatedListener
-import com.luszczuk.makebillingeasy.BillingConnectionResult
-import com.luszczuk.makebillingeasy.exception.BillingException
+import com.kanetik.billing.BillingConnectionResult
+import com.kanetik.billing.exception.BillingException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow

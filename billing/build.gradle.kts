@@ -7,8 +7,7 @@ kotlin {
 }
 
 android {
-    // Phase 2 will rename this to com.kanetik.billing along with the package rename.
-    namespace = "com.luszczuk.makebillingeasy"
+    namespace = "com.kanetik.billing"
     compileSdk = 36
 
     defaultConfig {

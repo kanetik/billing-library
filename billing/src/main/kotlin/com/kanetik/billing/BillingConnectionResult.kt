@@ -1,7 +1,7 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import com.android.billingclient.api.BillingClient
-import com.luszczuk.makebillingeasy.exception.BillingException
+import com.kanetik.billing.exception.BillingException
 
 sealed class BillingConnectionResult {
     data class Success(val client: BillingClient) : BillingConnectionResult()

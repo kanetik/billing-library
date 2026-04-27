@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import android.app.Activity
 import androidx.annotation.AnyThread

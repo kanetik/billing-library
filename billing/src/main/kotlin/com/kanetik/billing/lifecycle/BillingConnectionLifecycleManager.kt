@@ -1,8 +1,8 @@
-package com.luszczuk.makebillingeasy.lifecycle
+package com.kanetik.billing.lifecycle
 
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import com.luszczuk.makebillingeasy.BillingConnector
+import com.kanetik.billing.BillingConnector
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

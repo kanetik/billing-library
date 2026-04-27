@@ -1,7 +1,7 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import android.content.Context
-import com.luszczuk.makebillingeasy.factory.CoroutinesBillingConnectionFactory
+import com.kanetik.billing.factory.CoroutinesBillingConnectionFactory
 
 object DefaultEasyBillingRepositoryCreator {
 

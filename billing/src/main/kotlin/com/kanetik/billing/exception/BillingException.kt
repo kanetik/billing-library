@@ -1,9 +1,9 @@
-package com.luszczuk.makebillingeasy.exception
+package com.kanetik.billing.exception
 
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingResult
-import com.luszczuk.makebillingeasy.BillingLoggingUtils
-import com.luszczuk.makebillingeasy.RetryType
+import com.kanetik.billing.BillingLoggingUtils
+import com.kanetik.billing.RetryType
 
 sealed class BillingException(
     val result: BillingResult?,

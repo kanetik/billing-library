@@ -1,4 +1,4 @@
-package com.luszczuk.makebillingeasy
+package com.kanetik.billing
 
 import com.android.billingclient.api.Purchase
 
