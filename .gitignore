@@ -1,0 +1,58 @@
+# Built artifacts
+*.apk
+*.aar
+*.ap_
+*.aab
+*.hprof
+*.dex
+*.class
+
+# Generated
+bin/
+gen/
+out/
+
+# Gradle
+.gradle/
+build/
+build-cache/
+local.properties
+
+# IntelliJ / Android Studio
+*.iml
+.idea/
+.kotlin/
+captures/
+.navigation/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Lint
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+
+# Logs
+*.log
+
+# Keystores (none should be committed)
+*.jks
+*.keystore
+
+# External native build
+.externalNativeBuild
+.cxx/
+
+# Secrets / signing material — NEVER commit
+secrets/
+*.gpg
+secring.gpg
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/settings.local.json

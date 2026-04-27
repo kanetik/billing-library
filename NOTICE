@@ -1,0 +1,14 @@
+Kanetik Billing Library
+Copyright 2026 Kanetik
+
+This product includes software derived from MakeBillingEasy
+(https://github.com/michal-luszczuk/MakeBillingEasy)
+Copyright 2022 Michal Luszczuk
+Licensed under the Apache License, Version 2.0.
+
+The Kanetik Billing Library is a substantial rewrite of MakeBillingEasy,
+upgraded to Google Play Billing Library 8.x with a typed exception
+hierarchy, lifecycle-aware connection sharing, exponential backoff retry
+logic, hardened error mapping, and a pluggable logger interface. The
+original MakeBillingEasy attribution is preserved here per
+Apache License 2.0 §4.
