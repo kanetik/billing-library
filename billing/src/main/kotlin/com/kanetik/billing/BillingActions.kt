@@ -12,34 +12,77 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryProductDetailsResult
 import com.android.billingclient.api.QueryPurchasesParams
+import com.kanetik.billing.exception.BillingException
 
-interface BillingActions {
+/**
+ * Suspend-style operations against Google Play Billing.
+ *
+ * Every method waits for the underlying [com.android.billingclient.api.BillingClient]
+ * connection (see [BillingConnector]), runs with internal retry / backoff for transient
+ * failures, and surfaces hard failures as a typed [BillingException] subtype so
+ * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
+ */
+public interface BillingActions {
 
+    /**
+     * @return true if the underlying [BillingClient] reports the [feature] is supported
+     * on the current device + Play Store install.
+     */
     @AnyThread
-    suspend fun isFeatureSupported(@BillingClient.FeatureType feature: String): Boolean
+    public suspend fun isFeatureSupported(@BillingClient.FeatureType feature: String): Boolean
 
+    /**
+     * Returns the user's currently-owned purchases for the [params]-specified product type.
+     * Pass [BillingClient.ProductType.INAPP] for one-time products,
+     * [BillingClient.ProductType.SUBS] for subscriptions.
+     */
     @AnyThread
-    suspend fun queryPurchases(params: QueryPurchasesParams): List<Purchase>
+    public suspend fun queryPurchases(params: QueryPurchasesParams): List<Purchase>
 
+    /**
+     * Resolves [params] to product details. Products that Play could not fetch (typo'd
+     * IDs, geo-restricted, etc.) are silently dropped from the returned list — use
+     * [queryProductDetailsWithUnfetched] to diagnose them.
+     */
     @AnyThread
-    suspend fun queryProductDetails(params: QueryProductDetailsParams): List<ProductDetails>
+    public suspend fun queryProductDetails(params: QueryProductDetailsParams): List<ProductDetails>
 
     /**
      * Same as [queryProductDetails] but also exposes the list of products Play Billing
-     * could not fetch (typo'd product IDs, geo-restricted, etc.). The Kotlin coroutine
-     * extension provided by billing-ktx 8.x returns the legacy `ProductDetailsResult`,
-     * which discards this information — use this when you need diagnostics on missing
-     * products.
+     * could not fetch. The Kotlin coroutine extension shipped by `billing-ktx` 8.x
+     * returns the legacy `ProductDetailsResult`, which discards this information — use
+     * this overload when you need diagnostics on missing products.
      */
     @AnyThread
-    suspend fun queryProductDetailsWithUnfetched(params: QueryProductDetailsParams): QueryProductDetailsResult
+    public suspend fun queryProductDetailsWithUnfetched(params: QueryProductDetailsParams): QueryProductDetailsResult
 
+    /**
+     * Consumes a one-time consumable purchase, allowing the user to buy it again.
+     * @return the consumed purchase token, or `null` if the underlying call returned no token.
+     */
     @AnyThread
-    suspend fun consumePurchase(params: ConsumeParams): String?
+    public suspend fun consumePurchase(params: ConsumeParams): String?
 
+    /**
+     * Acknowledges a non-consumable purchase. Play requires acknowledgement within
+     * 3 days of purchase or the transaction is auto-refunded.
+     */
     @AnyThread
-    suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams)
+    public suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams)
 
+    /**
+     * Launches the Play Billing purchase flow.
+     *
+     * Must be called on the main thread. The returned coroutine completes once Play
+     * has shown the purchase UI; the actual purchase outcome arrives separately via
+     * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] (and may take seconds to
+     * minutes — pending purchases can sit unresolved indefinitely).
+     *
+     * For one-time products, prefer [com.kanetik.billing.ext.toOneTimeFlowParams] to
+     * build [params] correctly under PBL 8's offer-token rules. For higher-level
+     * orchestration (in-flight guard, watchdog, typed result), see
+     * [com.kanetik.billing.ext.PurchaseFlowCoordinator].
+     */
     @MainThread
-    suspend fun launchFlow(activity: Activity, params: BillingFlowParams)
+    public suspend fun launchFlow(activity: Activity, params: BillingFlowParams)
 }

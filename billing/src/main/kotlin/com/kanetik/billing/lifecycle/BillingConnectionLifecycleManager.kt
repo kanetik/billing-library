@@ -11,22 +11,51 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-class BillingConnectionLifecycleManager(
+/**
+ * Keeps the Play Billing connection warm while a [LifecycleOwner] is started.
+ *
+ * Attach to an [androidx.activity.ComponentActivity] (or any LifecycleOwner) when
+ * your screen needs to query products / launch flows / observe updates without
+ * paying connection-startup latency on every action:
+ *
+ * ```
+ * class UpgradeActivity : ComponentActivity() {
+ *     @Inject lateinit var billing: BillingRepository
+ *
+ *     override fun onCreate(state: Bundle?) {
+ *         super.onCreate(state)
+ *         lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
+ *     }
+ * }
+ * ```
+ *
+ * `onStart` collects [BillingConnector.connectToBilling] (no-op consumer; the act
+ * of collecting holds the shared connection upstream alive). `onStop` cancels the
+ * collection, allowing the upstream's `WhileSubscribed` grace window to release the
+ * underlying `BillingClient` after the configured timeout.
+ *
+ * @param connectable Typically the [BillingRepository][com.kanetik.billing.BillingRepository]
+ *   itself or any narrower [BillingConnector] view of it.
+ */
+public class BillingConnectionLifecycleManager(
     private val connectable: BillingConnector
 ) : DefaultLifecycleObserver, CoroutineScope {
 
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext
         get() = job + Dispatchers.Main + CoroutineExceptionHandler { _, _ ->
-            // if you want to handle/log connection exceptions here
+            // Connection-level exceptions surface to consumers via
+            // BillingConnectionResult.Error on collection of connectToBilling().
+            // The lifecycle-collector intentionally swallows them here so a
+            // transient connection error doesn't crash the host activity.
         }
-
 
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         launch {
             connectable.connectToBilling().collect {
-                // just holding the connection to the billing client
+                // No-op — collection itself is the side effect that keeps the
+                // shared connection upstream alive.
             }
         }
     }
