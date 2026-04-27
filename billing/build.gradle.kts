@@ -11,7 +11,10 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 21
+        // PBL 8.1.0 raised the minimum supported SDK to 23 (Android 6.0). We pin
+        // to PBL 8.3.0, so 23 is the floor — going lower would let consumers hit
+        // a runtime crash on API 21–22 devices.
+        minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
     }
 
