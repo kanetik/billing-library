@@ -1,22 +1,21 @@
 package com.kanetik.billing
 
-import android.util.Log
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingClient.OnPurchasesUpdatedSubResponseCode
 import com.android.billingclient.api.BillingResult
+import com.kanetik.billing.logging.BillingLogger
 
 /**
- * Enhanced logging utilities for Billing Library 8 that provide detailed context
- * for billing failures to aid in troubleshooting purchase issues.
- *
- * Includes support for sub-response codes introduced in Billing Library 8.0.0
- * which provide more specific reasons for billing failures.
+ * Internal logging helpers for Billing Library 8 that build detailed context
+ * strings for billing failures, including sub-response codes introduced in
+ * PBL 8.0.0. All output flows through a [BillingLogger] supplied by the caller —
+ * the consumer's logger decides whether anything is actually emitted.
  */
-object BillingLoggingUtils {
+internal object BillingLoggingUtils {
 
     /**
-     * Creates a detailed billing failure context string with enhanced information
-     * available in Billing Library 8, including sub-response codes.
+     * Builds a detailed billing failure context string with the enhanced information
+     * available in Billing Library 8 (response code, sub-response code, debug message).
      */
     fun createDetailedBillingContext(
         billingResult: BillingResult,
@@ -43,11 +42,10 @@ object BillingLoggingUtils {
     }
 
     /**
-     * Logs billing failures with enhanced context for better troubleshooting.
-     * Uses the detailed context available in Billing Library 8, including sub-response codes.
+     * Logs billing failures with enhanced PBL 8 context (sub-response codes etc.) at warn level.
      */
     fun logBillingFailure(
-        tag: String,
+        logger: BillingLogger,
         billingResult: BillingResult,
         attemptCount: Int = 0,
         operationContext: String? = null,
@@ -57,7 +55,6 @@ object BillingLoggingUtils {
 
         val fullContextBuilder = StringBuilder(baseContext)
 
-        // Add any additional context provided
         if (!additionalContext.isNullOrEmpty()) {
             val additionalInfo = additionalContext.entries
                 .filter { it.value != null }
@@ -68,38 +65,31 @@ object BillingLoggingUtils {
             }
         }
 
-        Log.w(tag, "Billing failure - $fullContextBuilder")
+        logger.w("Billing failure - $fullContextBuilder")
     }
 
     /**
-     * Logs billing flow launch failures with special emphasis on sub-response codes
-     * that provide more specific context about why the billing flow failed.
-     * This is particularly useful for launchBillingFlow() failures in Billing Library 8.
+     * Logs billing-flow launch failures with extra emphasis on sub-response codes
+     * that explain why the flow failed (e.g. insufficient funds).
      */
     fun logBillingFlowFailure(
-        tag: String,
+        logger: BillingLogger,
         billingResult: BillingResult,
         additionalContext: Map<String, Any?>? = null
     ) {
-        // Use specific operation context for billing flow launches
         logBillingFailure(
-            tag = tag,
+            logger = logger,
             billingResult = billingResult,
             operationContext = "Launch Billing Flow",
             additionalContext = additionalContext
         )
 
-        // Log additional information if sub-response code provides specific details
         val subResponseCode = billingResult.onPurchasesUpdatedSubResponseCode
         if (subResponseCode == OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS) {
-            Log.w(tag, "Billing flow failed due to insufficient funds - user may need to add payment method or check balance")
+            logger.w("Billing flow failed due to insufficient funds - user may need to add payment method or check balance")
         }
     }
 
-    /**
-     * Provides human-readable descriptions for billing response codes
-     * to make logs more understandable for troubleshooting.
-     */
     private fun getResponseCodeDescription(responseCode: Int): String {
         return when (responseCode) {
             BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Feature Not Supported"
@@ -118,10 +108,6 @@ object BillingLoggingUtils {
         }
     }
 
-    /**
-     * Provides human-readable descriptions for sub-response codes introduced in Billing Library 8
-     * to provide more specific context for billing failures.
-     */
     private fun getSubResponseCodeDescription(subResponseCode: Int): String {
         return when (subResponseCode) {
             OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS ->

@@ -1,14 +1,15 @@
 package com.kanetik.billing
 
-import android.util.Log
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
+import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 internal class FlowPurchasesUpdatedListener(
-    private val updateSubject: MutableSharedFlow<PurchasesUpdate>
+    private val updateSubject: MutableSharedFlow<PurchasesUpdate>,
+    private val logger: BillingLogger = BillingLogger.Noop
 ) : PurchasesUpdatedListener {
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
@@ -20,8 +21,7 @@ internal class FlowPurchasesUpdatedListener(
             // identifiers — the full PurchasesUpdate contains purchaseToken and signature,
             // which must not leak to logcat or Crashlytics.
             val productIds = safePurchases.flatMap { it.products }.distinct()
-            Log.e(
-                "MakeBillingEasy",
+            logger.e(
                 "Purchase update dropped — buffer exhausted. " +
                     "responseCode=${result.responseCode} " +
                     "purchaseCount=${safePurchases.size} " +

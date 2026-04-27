@@ -3,6 +3,7 @@ package com.kanetik.billing
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.kanetik.billing.factory.BillingConnectionFactory
+import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.shareIn
 
 internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
+    logger: BillingLogger = BillingLogger.Noop,
     connectionShareScope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope
 ) {
     /*
@@ -61,7 +63,7 @@ internal class BillingClientStorage(
      *   More resource conservation          -> decrease stopTimeoutMillis (watch for churn/crash)
      */
     val connectionFlow = billingFactory
-        .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_purchasesUpdateFlow))
+        .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_purchasesUpdateFlow, logger))
         .shareIn(
             scope = connectionShareScope,
             replay = 1,

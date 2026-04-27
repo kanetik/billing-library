@@ -1,7 +1,6 @@
 package com.kanetik.billing
 
 import android.app.Activity
-import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import com.android.billingclient.api.AcknowledgePurchaseParams
@@ -23,6 +22,7 @@ import com.android.billingclient.api.acknowledgePurchase
 import com.android.billingclient.api.consumePurchase
 import com.android.billingclient.api.queryPurchasesAsync
 import com.kanetik.billing.exception.BillingException
+import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +38,7 @@ import kotlin.coroutines.resume
 
 internal class EasyBillingRepository(
     private val billingClientStorage: BillingClientStorage,
+    private val logger: BillingLogger = BillingLogger.Noop,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : BillingRepository {
     private val connectionFlowable
@@ -99,7 +100,7 @@ internal class EasyBillingRepository(
                     try {
                         cont.resume(QueryProductDetailsResultWithBilling(billingResult, queryProductDetailsResult))
                     } catch (e: IllegalStateException) {
-                        Log.w("MakeBillingEasy", "queryProductDetailsAsync callback fired after continuation was already resumed", e)
+                        logger.w("queryProductDetailsAsync callback fired after continuation was already resumed", e)
                     }
                 }
             }
@@ -126,7 +127,7 @@ internal class EasyBillingRepository(
         try {
             // Check that activity is still valid before launching billing flow
             if (activity.isFinishing || activity.isDestroyed) {
-                Log.w("MakeBillingEasy", "Cannot launch billing flow - activity is no longer valid")
+                logger.w("Cannot launch billing flow - activity is no longer valid")
                 val billingResult = BillingResult.newBuilder()
                     .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
                     .setDebugMessage("Attempted to launch billing flow with an invalid activity")
@@ -151,7 +152,7 @@ internal class EasyBillingRepository(
                     .build()
 
                 BillingLoggingUtils.logBillingFlowFailure(
-                    tag = "MakeBillingEasy",
+                    logger = logger,
                     billingResult = billingResult,
                     additionalContext = mapOf(
                         "ExceptionType" to e::class.simpleName,
@@ -189,14 +190,14 @@ internal class EasyBillingRepository(
                 do {
                     attemptCount++
 
-                    Log.d("MakeBillingEasy", "attempt $attemptCount starting")
+                    logger.d("attempt $attemptCount starting")
 
                     result = operation(client)
                     billingResult = getBillingResult(result)
                     resultStatus = getResultStatus(billingResult.responseCode)
 
                     if (resultStatus != ResultStatus.SUCCESS && resultStatus != ResultStatus.CANCELED) {
-                        Log.d("MakeBillingEasy", "attempt $attemptCount failed")
+                        logger.d("attempt $attemptCount failed")
 
                         retryType = BillingException.fromResult(billingResult).retryType
                         prerequisiteSuccessful = handleRetryPrerequisite(retryType, exponentialDelay, dispatcher)
@@ -206,15 +207,15 @@ internal class EasyBillingRepository(
                     }
                 } while (retryType != RetryType.NONE && attemptCount < EXPONENTIAL_RETRY_MAX_TRIES && prerequisiteSuccessful)
 
-                Log.d("MakeBillingEasy", "call completed")
+                logger.d("call completed")
 
                 if (resultStatus == ResultStatus.SUCCESS) {
-                    Log.d("MakeBillingEasy", "Success: Operation successful")
+                    logger.d("Success: Operation successful")
 
                     result
                 } else {
                     BillingLoggingUtils.logBillingFailure(
-                        tag = "MakeBillingEasy",
+                        logger = logger,
                         billingResult = billingResult,
                         attemptCount = attemptCount,
                         operationContext = "Billing Operation",
@@ -248,20 +249,20 @@ internal class EasyBillingRepository(
 
         when (retryType) {
             RetryType.SIMPLE_RETRY -> {
-                Log.d("MakeBillingEasy", "Simple Retry")
+                logger.d("Simple Retry")
                 delay(SIMPLE_RETRY_DELAY)
                 retryPrerequisiteSuccessful = true
             }
 
             RetryType.EXPONENTIAL_RETRY -> {
-                Log.d("MakeBillingEasy", "Exponential Retry")
+                logger.d("Exponential Retry")
                 delay(currentExponentialDelay)
 
                 retryPrerequisiteSuccessful = true
             }
 
             RetryType.REQUERY_PURCHASE_RETRY -> {
-                Log.d("MakeBillingEasy", "Requery Purchase Retry")
+                logger.d("Requery Purchase Retry")
 
                 val inAppPurchasesParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
                 val subscriptionsParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
@@ -273,7 +274,7 @@ internal class EasyBillingRepository(
 
                         retryPrerequisiteSuccessful = true
 
-                        Log.d("MakeBillingEasy", "Requery Purchase Success")
+                        logger.d("Requery Purchase Success")
                     } catch (ex: Exception) {
                         retryPrerequisiteSuccessful = false
 
@@ -281,16 +282,16 @@ internal class EasyBillingRepository(
                         if (ex is BillingException) {
                             ex.result?.let { billingResult ->
                                 BillingLoggingUtils.logBillingFailure(
-                                    tag = "MakeBillingEasy",
+                                    logger = logger,
                                     billingResult = billingResult,
                                     operationContext = "Requery Purchase Retry",
                                     additionalContext = mapOf(
                                         "RetryType" to RetryType.REQUERY_PURCHASE_RETRY.name
                                     )
                                 )
-                            } ?: Log.w("MakeBillingEasy", "Requery Purchase Failure: BillingException with null result", ex)
+                            } ?: logger.w("Requery Purchase Failure: BillingException with null result", ex)
                         } else {
-                            Log.w("MakeBillingEasy", "Requery Purchase Failure", ex)
+                            logger.w("Requery Purchase Failure", ex)
                         }
                     }
                 }
