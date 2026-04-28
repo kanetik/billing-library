@@ -1,4 +1,4 @@
-package com.kanetik.billing.ext
+package com.kanetik.billing.security
 
 import android.util.Base64
 import com.android.billingclient.api.Purchase
@@ -39,7 +39,7 @@ import java.security.spec.X509EncodedKeySpec
  *         // Reject — possible tampering or misconfigured key.
  *         return
  *     }
- *     billing.acknowledgePurchase(...)
+ *     billing.acknowledgePurchase(purchase)
  * }
  * ```
  *
@@ -53,10 +53,28 @@ import java.security.spec.X509EncodedKeySpec
  * is missing in debug builds"), wrap [PurchaseVerifier] in your own helper that
  * checks the key before constructing — don't construct with a blank key and
  * expect graceful fall-through.
+ *
+ * ## Signature algorithm
+ *
+ * Defaults to `SHA1withRSA`, which is what Play Store currently uses to sign
+ * purchase data (per Play Console's Licensing docs). SHA-1 for signature use is
+ * formally deprecated by NIST and Android's security documentation; if Google
+ * ever migrates to `SHA256withRSA` (which they have signaled), pass the new
+ * algorithm name as [signatureAlgorithm] without waiting for a library release:
+ *
+ * ```
+ * PurchaseVerifier(key, logger, signatureAlgorithm = "SHA256withRSA")
+ * ```
+ *
+ * @param base64PublicKey RSA public key from Play Console, Base64-encoded.
+ * @param logger Optional sink for diagnostic messages. Defaults to [BillingLogger.Noop].
+ * @param signatureAlgorithm JCA signature algorithm name. Defaults to the
+ *   Play-current `SHA1withRSA`.
  */
 public class PurchaseVerifier(
     private val base64PublicKey: String,
-    private val logger: BillingLogger = BillingLogger.Noop
+    private val logger: BillingLogger = BillingLogger.Noop,
+    private val signatureAlgorithm: String = DEFAULT_SIGNATURE_ALGORITHM
 ) {
 
     /**
@@ -87,7 +105,7 @@ public class PurchaseVerifier(
             return false
         }
         return try {
-            val sig = Signature.getInstance(SIGNATURE_ALGORITHM).apply {
+            val sig = Signature.getInstance(signatureAlgorithm).apply {
                 initVerify(publicKey)
                 // Play Store signs purchase JSON as UTF-8; the implicit platform default
                 // would work in practice on Android but is a latent portability bug.
@@ -121,8 +139,14 @@ public class PurchaseVerifier(
         }
     }
 
-    private companion object {
+    public companion object {
+        /**
+         * Play Store's current signature algorithm. SHA-1 + RSA. If Google ever
+         * migrates, pass the new algorithm name to [PurchaseVerifier]'s
+         * [signatureAlgorithm] parameter without waiting for a library release.
+         */
+        public const val DEFAULT_SIGNATURE_ALGORITHM: String = "SHA1withRSA"
+
         private const val KEY_FACTORY_ALGORITHM = "RSA"
-        private const val SIGNATURE_ALGORITHM = "SHA1withRSA"
     }
 }
