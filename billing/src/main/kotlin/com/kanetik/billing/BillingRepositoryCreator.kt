@@ -74,7 +74,7 @@ public object BillingRepositoryCreator {
         scope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
         uiDispatcher: CoroutineDispatcher = Dispatchers.Main
-    ): BillingRepository = EasyBillingRepository(
+    ): BillingRepository = DefaultBillingRepository(
         billingClientStorage = BillingClientStorage(
             billingFactory = CoroutinesBillingConnectionFactory(
                 context = context,

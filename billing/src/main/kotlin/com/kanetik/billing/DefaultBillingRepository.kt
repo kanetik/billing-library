@@ -35,7 +35,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
-internal class EasyBillingRepository(
+internal class DefaultBillingRepository(
     private val billingClientStorage: BillingClientStorage,
     private val logger: BillingLogger = BillingLogger.Noop,
     // ioDispatcher carries every non-UI billing operation (queries, consume,

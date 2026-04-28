@@ -52,7 +52,7 @@ internal class BillingClientStorage(
     private val sharingStrategy = SharingStarted.WhileSubscribed(stopTimeoutMillis = 60_000)
 
     /**
-     * Internal: live-client-bearing flow used by [EasyBillingRepository] to obtain the
+     * Internal: live-client-bearing flow used by [DefaultBillingRepository] to obtain the
      * underlying [com.android.billingclient.api.BillingClient] for in-library calls.
      */
     val connectionFlow: SharedFlow<InternalConnectionState> = billingFactory
