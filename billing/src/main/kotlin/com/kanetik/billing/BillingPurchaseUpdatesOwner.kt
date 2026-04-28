@@ -1,6 +1,6 @@
 package com.kanetik.billing
 
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharedFlow
 
 /**
  * Stream of purchase updates pushed by Play Billing — the coroutine-side analogue of
@@ -11,11 +11,12 @@ import kotlinx.coroutines.flow.Flow
  * Both one-time and subscription updates flow through the same stream — branch on the
  * sealed [PurchasesUpdate] subtype.
  *
- * The flow is conflated with a generous buffer (32 slots) so a slow collector can't
- * drop a real purchase update. Collection survives across [BillingConnector]
- * disconnects/reconnects.
+ * Returned as [SharedFlow] to communicate that this is a hot, shared stream — every
+ * collector sees the same emissions, and there's a generous 32-slot buffer so a slow
+ * collector can't drop a real purchase update. Collection survives across
+ * [BillingConnector] disconnects/reconnects.
  */
 public interface BillingPurchaseUpdatesOwner {
 
-    public fun observePurchaseUpdates(): Flow<PurchasesUpdate>
+    public fun observePurchaseUpdates(): SharedFlow<PurchasesUpdate>
 }

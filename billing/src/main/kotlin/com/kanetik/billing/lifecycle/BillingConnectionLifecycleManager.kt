@@ -64,4 +64,13 @@ public class BillingConnectionLifecycleManager(
         super.onStop(owner)
         coroutineContext.cancelChildren()
     }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        super.onDestroy(owner)
+        // Cancel the SupervisorJob itself (cancelChildren in onStop only kills
+        // active coroutines, leaving the parent job — and its captured exception
+        // handler closure — alive until the host's own GC). On activity destroy,
+        // the manager is permanently done; release the job too.
+        job.cancel()
+    }
 }

@@ -25,15 +25,14 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
 internal class EasyBillingRepository(
@@ -49,11 +48,13 @@ internal class EasyBillingRepository(
         return billingClientStorage.connectionResultFlow
     }
 
-    @ExperimentalCoroutinesApi
-    override fun observePurchaseUpdates(): Flow<PurchasesUpdate> {
-        return billingClientStorage.connectionFlow.flatMapConcat {
-            billingClientStorage.purchasesUpdateFlow
-        }
+    override fun observePurchaseUpdates(): SharedFlow<PurchasesUpdate> {
+        // The purchase-update SharedFlow is hot at the listener level — PBL fires the
+        // PurchasesUpdatedListener regardless of whether anyone's collecting our
+        // connection flow. Returning the flow directly avoids the re-subscription
+        // window that flatMapConcat over connectionFlow would introduce (where a
+        // PurchasesUpdate could fire mid-reconnect and be missed).
+        return billingClientStorage.purchasesUpdateFlow
     }
 
     @AnyThread
@@ -141,7 +142,14 @@ internal class EasyBillingRepository(
                 throw BillingException.fromResult(billingResult)
             }
 
-            executeBillingOperation({ client -> client.launchBillingFlow(activity, params) }, uiDispatcher)
+            // launchFlow is a UI-initiated action; silently retrying the billing sheet
+            // behind the user's back risks surprise pop-ups after they've moved on.
+            // Single attempt — the user can tap Buy again if it didn't take.
+            executeBillingOperation(
+                operation = { client -> client.launchBillingFlow(activity, params) },
+                dispatcher = uiDispatcher,
+                maxAttempts = 1
+            )
         } catch (e: Exception) {
             // Re-throw the exception if it's already a BillingException, otherwise wrap it
             if (e !is BillingException) {
@@ -177,7 +185,8 @@ internal class EasyBillingRepository(
     @AnyThread
     private suspend fun <T> executeBillingOperation(
         operation: suspend (client: BillingClient) -> T,
-        dispatcher: CoroutineDispatcher = ioDispatcher
+        dispatcher: CoroutineDispatcher = ioDispatcher,
+        maxAttempts: Int = EXPONENTIAL_RETRY_MAX_TRIES
     ): T {
         return connectToClientAndCall { client ->
             withContext(dispatcher) {
@@ -211,7 +220,7 @@ internal class EasyBillingRepository(
                             exponentialDelay *= EXPONENTIAL_RETRY_FACTOR
                         }
                     }
-                } while (retryType != RetryType.NONE && attemptCount < EXPONENTIAL_RETRY_MAX_TRIES && prerequisiteSuccessful)
+                } while (retryType != RetryType.NONE && attemptCount < maxAttempts && prerequisiteSuccessful)
 
                 logger.d("call completed")
 
@@ -240,7 +249,21 @@ internal class EasyBillingRepository(
     private suspend fun <X : Any?> connectToClientAndCall(
         onSuccessfulConnection: suspend ((client: BillingClient) -> X)
     ): X {
-        return when (val state = billingClientStorage.connectionFlow.first()) {
+        // withTimeout guards against the SharedFlow's upstream completing without
+        // emitting (e.g. scope cancellation that bypasses the .catch handler). Without
+        // this, first() would suspend forever with no error and no recovery path.
+        val state = try {
+            withTimeout(CONNECTION_TIMEOUT_MS) {
+                billingClientStorage.connectionFlow.first()
+            }
+        } catch (e: TimeoutCancellationException) {
+            val timeoutResult = BillingResult.newBuilder()
+                .setResponseCode(BillingResponseCode.SERVICE_UNAVAILABLE)
+                .setDebugMessage("Billing connection didn't resolve within ${CONNECTION_TIMEOUT_MS}ms")
+                .build()
+            throw BillingException.fromResult(timeoutResult)
+        }
+        return when (state) {
             is InternalConnectionState.Failed -> throw state.exception
             is InternalConnectionState.Connected -> onSuccessfulConnection(state.client)
         }
@@ -349,5 +372,9 @@ internal class EasyBillingRepository(
         private const val EXPONENTIAL_RETRY_FACTOR: Int = 2
 
         private const val SIMPLE_RETRY_DELAY: Long = 500L
+
+        // Generous enough for slow Play Billing setups, short enough to surface a
+        // hung connection rather than suspending the caller forever.
+        private const val CONNECTION_TIMEOUT_MS: Long = 30_000L
     }
 }

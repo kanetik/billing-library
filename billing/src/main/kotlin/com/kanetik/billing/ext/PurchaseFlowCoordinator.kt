@@ -149,8 +149,10 @@ public class PurchaseFlowCoordinator(
     private fun startWatchdog(correlationId: String) {
         scope.launch {
             delay(watchdogTimeoutMs)
-            if (isPurchaseFlowInProgress.get()) {
-                isPurchaseFlowInProgress.set(false)
+            // compareAndSet — atomic check-and-clear. Prevents a TOCTOU race where
+            // markComplete() (or a new launch attempt) clears/reasserts the flag
+            // between a non-atomic get() and set().
+            if (isPurchaseFlowInProgress.compareAndSet(true, false)) {
                 logger.w("PurchaseFlow[$correlationId]: watchdog reset triggered after ${watchdogTimeoutMs}ms")
             }
         }
