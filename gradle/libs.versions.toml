@@ -1,4 +1,8 @@
 [versions]
+# Kotlin compiler/runtime version is supplied by AGP 9.2.0's bundled Kotlin
+# (no separate kotlin-android plugin needed under AGP 9). To force a different
+# Kotlin version, add `kotlin = "X.Y.Z"` here plus a `kotlin-android` entry in
+# [plugins] and apply it in billing/build.gradle.kts.
 androidGradlePlugin = "9.2.0"
 playBillingKtx = "8.3.0"
 kotlinxCoroutines = "1.10.2"

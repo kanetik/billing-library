@@ -3,7 +3,10 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(21)
+    // JVM 11 keeps the AAR consumable by any Android consumer on JDK 11+.
+    // We use no JDK 17+ language or API features; bumping higher would only
+    // shrink the consumer pool with no upside.
+    jvmToolchain(11)
 }
 
 android {
@@ -29,8 +32,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility(JavaVersion.VERSION_21)
-        targetCompatibility(JavaVersion.VERSION_21)
+        sourceCompatibility(JavaVersion.VERSION_11)
+        targetCompatibility(JavaVersion.VERSION_11)
     }
 }
 
