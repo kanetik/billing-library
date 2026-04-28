@@ -171,9 +171,9 @@ public class PurchaseFlowCoordinator(
  * [com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates].
  */
 public sealed class PurchaseFlowResult {
-    public object Success : PurchaseFlowResult()
-    public object AlreadyInProgress : PurchaseFlowResult()
-    public object InvalidActivityState : PurchaseFlowResult()
-    public object BillingUnavailable : PurchaseFlowResult()
+    public data object Success : PurchaseFlowResult()
+    public data object AlreadyInProgress : PurchaseFlowResult()
+    public data object InvalidActivityState : PurchaseFlowResult()
+    public data object BillingUnavailable : PurchaseFlowResult()
     public data class Error(val cause: Throwable) : PurchaseFlowResult()
 }

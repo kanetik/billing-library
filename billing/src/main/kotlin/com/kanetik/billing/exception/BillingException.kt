@@ -25,11 +25,30 @@ import com.kanetik.billing.RetryType
 public sealed class BillingException(
     public val result: BillingResult?,
     public val retryType: RetryType = RetryType.NONE
-) : Exception(
-    result?.let {
-        BillingLoggingUtils.createDetailedBillingContext(it, operationContext = "Exception Creation")
-    } ?: "Billing exception with null result"
-) {
+) : Exception() {
+
+    /**
+     * Built lazily so a [BillingException] instance constructed but never thrown
+     * doesn't pay the cost of building the context string. In practice most
+     * exceptions get their message read by Crashlytics/Timber/error UIs, so
+     * laziness is mostly a hygiene improvement — but it keeps construction cheap.
+     */
+    override val message: String? by lazy {
+        result?.let {
+            BillingLoggingUtils.createDetailedBillingContext(it, operationContext = "Exception Creation")
+        } ?: "Billing exception with null result"
+    }
+
+    /**
+     * Class-aware [toString] so logs show the concrete subtype name plus the
+     * full context string (response code, sub-response, debug message,
+     * retryType). PBL's [BillingResult] lacks content-based equality, so
+     * [equals] / [hashCode] stay identity-based — comparing two instances by
+     * value is rarely useful for exceptions anyway.
+     */
+    override fun toString(): String =
+        "${this::class.simpleName}(retryType=$retryType, message=$message)"
+
 
     public companion object {
         /**
