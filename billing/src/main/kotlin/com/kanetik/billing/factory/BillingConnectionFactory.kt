@@ -1,20 +1,24 @@
 package com.kanetik.billing.factory
 
 import com.android.billingclient.api.PurchasesUpdatedListener
-import com.kanetik.billing.BillingConnectionResult
+import com.kanetik.billing.InternalConnectionState
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Strategy for turning a [BillingClient][com.android.billingclient.api.BillingClient]
- * lifecycle into a coroutine [Flow] of [BillingConnectionResult]s.
+ * Internal strategy for turning a
+ * [BillingClient][com.android.billingclient.api.BillingClient] lifecycle into a
+ * coroutine [Flow] of [InternalConnectionState]. The library uses
+ * [CoroutinesBillingConnectionFactory] as the only impl in v0.1.0; the
+ * interface exists so the upcoming `:billing-testing` artifact (v0.2.0) can
+ * substitute a fake.
  *
- * The default implementation uses [kotlinx.coroutines.flow.callbackFlow] to bridge
- * Play's [com.android.billingclient.api.BillingClientStateListener] callbacks. Replace
- * it only if you need a custom connection model (e.g. a fake for testing).
+ * Consumers do not implement this. To customize the underlying
+ * [com.android.billingclient.api.BillingClient], provide a [BillingClientFactory]
+ * to [BillingRepositoryCreator.create][com.kanetik.billing.BillingRepositoryCreator.create].
  */
-public interface BillingConnectionFactory {
+internal interface BillingConnectionFactory {
 
-    public fun createBillingConnectionFlow(
+    fun createBillingConnectionFlow(
         listener: PurchasesUpdatedListener
-    ): Flow<BillingConnectionResult>
+    ): Flow<InternalConnectionState>
 }

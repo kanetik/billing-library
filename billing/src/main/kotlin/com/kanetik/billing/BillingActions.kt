@@ -10,7 +10,6 @@ import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
-import com.android.billingclient.api.QueryProductDetailsResult
 import com.android.billingclient.api.QueryPurchasesParams
 import com.kanetik.billing.exception.BillingException
 
@@ -54,7 +53,7 @@ public interface BillingActions {
      * this overload when you need diagnostics on missing products.
      */
     @AnyThread
-    public suspend fun queryProductDetailsWithUnfetched(params: QueryProductDetailsParams): QueryProductDetailsResult
+    public suspend fun queryProductDetailsWithUnfetched(params: QueryProductDetailsParams): ProductDetailsQuery
 
     /**
      * Consumes a one-time consumable purchase, allowing the user to buy it again.

@@ -34,10 +34,13 @@ public sealed class BillingException(
     public companion object {
         /**
          * Maps a [BillingResult] to the matching [BillingException] subtype.
-         * The library uses this internally; consumers shouldn't typically need
-         * to call it.
+         *
+         * Library-internal: the public [BillingException] subtypes have public
+         * constructors if a consumer providing a custom
+         * [com.kanetik.billing.factory.BillingClientFactory] needs to throw a
+         * specific type directly.
          */
-        public fun fromResult(result: BillingResult): BillingException {
+        internal fun fromResult(result: BillingResult): BillingException {
             return when (result.responseCode) {
                 BillingResponseCode.NETWORK_ERROR -> NetworkErrorException(result)
                 BillingResponseCode.FEATURE_NOT_SUPPORTED -> FeatureNotSupportedException(result)

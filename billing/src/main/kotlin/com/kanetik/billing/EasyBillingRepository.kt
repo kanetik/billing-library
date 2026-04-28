@@ -39,18 +39,19 @@ import kotlin.coroutines.resume
 internal class EasyBillingRepository(
     private val billingClientStorage: BillingClientStorage,
     private val logger: BillingLogger = BillingLogger.Noop,
-    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
+    // ioDispatcher carries every non-UI billing operation (queries, consume,
+    // acknowledge) and the surrounding retry/backoff loop. uiDispatcher is
+    // used only by launchFlow because PBL requires launchBillingFlow on Main.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val uiDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : BillingRepository {
-    private val connectionFlowable
-        get() = billingClientStorage.connectionFlow
-
     override fun connectToBilling(): SharedFlow<BillingConnectionResult> {
-        return connectionFlowable
+        return billingClientStorage.connectionResultFlow
     }
 
     @ExperimentalCoroutinesApi
     override fun observePurchaseUpdates(): Flow<PurchasesUpdate> {
-        return connectionFlowable.flatMapConcat {
+        return billingClientStorage.connectionFlow.flatMapConcat {
             billingClientStorage.purchasesUpdateFlow
         }
     }
@@ -72,13 +73,13 @@ internal class EasyBillingRepository(
         // Delegates to the unfetched-aware variant, which has strictly more information.
         // The list returned here omits any products Play couldn't fetch; callers that care
         // about diagnosing missing products should use [queryProductDetailsWithUnfetched].
-        return queryProductDetailsWithUnfetched(params).productDetailsList
+        return queryProductDetailsWithUnfetched(params).productDetails
     }
 
     @AnyThread
     override suspend fun queryProductDetailsWithUnfetched(
         params: QueryProductDetailsParams
-    ): QueryProductDetailsResult {
+    ): ProductDetailsQuery {
         // Wraps the callback-based queryProductDetailsAsync directly because the
         // billing-ktx 8.x suspend extension returns the legacy ProductDetailsResult,
         // which omits the unfetched list. Handed through executeBillingOperation so it
@@ -94,7 +95,7 @@ internal class EasyBillingRepository(
         //     cheap to defend against. Narrow try/catch here rather than opting into
         //     @InternalCoroutinesApi (tryResume/completeResume) keeps us off the
         //     internal-API treadmill.
-        return executeBillingOperation({ client ->
+        val raw = executeBillingOperation({ client ->
             suspendCancellableCoroutine { cont ->
                 client.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
                     try {
@@ -104,7 +105,12 @@ internal class EasyBillingRepository(
                     }
                 }
             }
-        }, mainDispatcher).queryProductDetailsResult
+        }).queryProductDetailsResult
+
+        return ProductDetailsQuery(
+            productDetails = raw.productDetailsList,
+            unfetchedProducts = raw.unfetchedProductList
+        )
     }
 
     private data class QueryProductDetailsResultWithBilling(
@@ -135,7 +141,7 @@ internal class EasyBillingRepository(
                 throw BillingException.fromResult(billingResult)
             }
 
-            executeBillingOperation({ client -> client.launchBillingFlow(activity, params) }, mainDispatcher)
+            executeBillingOperation({ client -> client.launchBillingFlow(activity, params) }, uiDispatcher)
         } catch (e: Exception) {
             // Re-throw the exception if it's already a BillingException, otherwise wrap it
             if (e !is BillingException) {
@@ -171,7 +177,7 @@ internal class EasyBillingRepository(
     @AnyThread
     private suspend fun <T> executeBillingOperation(
         operation: suspend (client: BillingClient) -> T,
-        dispatcher: CoroutineDispatcher = mainDispatcher
+        dispatcher: CoroutineDispatcher = ioDispatcher
     ): T {
         return connectToClientAndCall { client ->
             withContext(dispatcher) {
@@ -234,9 +240,9 @@ internal class EasyBillingRepository(
     private suspend fun <X : Any?> connectToClientAndCall(
         onSuccessfulConnection: suspend ((client: BillingClient) -> X)
     ): X {
-        return when (val result = connectionFlowable.first()) {
-            is BillingConnectionResult.Error -> throw result.exception
-            is BillingConnectionResult.Success -> onSuccessfulConnection(result.client)
+        return when (val state = billingClientStorage.connectionFlow.first()) {
+            is InternalConnectionState.Failed -> throw state.exception
+            is InternalConnectionState.Connected -> onSuccessfulConnection(state.client)
         }
     }
 

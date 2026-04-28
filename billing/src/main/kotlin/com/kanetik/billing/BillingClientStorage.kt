@@ -1,7 +1,5 @@
 package com.kanetik.billing
 
-import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineScope
@@ -9,12 +7,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 
 internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
-    logger: BillingLogger = BillingLogger.Noop,
-    connectionShareScope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope
+    logger: BillingLogger,
+    connectionShareScope: CoroutineScope
 ) {
     /*
      * Buffer capacity is intentionally generous. Purchase updates are too important to
@@ -38,7 +37,7 @@ internal class BillingClientStorage(
      * triggering overlapping or closely sequenced connection attempts.
      *
      * Goal: Reduce rapid connect/disconnect cycles while still allowing the connection to release
-     * after periods of genuine inactivity (less “greedy” than always-on eager collection).
+     * after periods of genuine inactivity (less "greedy" than always-on eager collection).
      *
      * Approach: SharingStarted.WhileSubscribed with a 60s stopTimeoutMillis grace window.
      * - First subscriber starts the upstream (establishes billing connection).
@@ -49,26 +48,29 @@ internal class BillingClientStorage(
      * replay = 1 is retained so newcomers during an active period (or within the grace window)
      * immediately get the latest emission (e.g., connection state / cached info) without forcing
      * a new start.
-     *
-     * Monitoring / follow-up:
-     * - Track Crashlytics for recurrence of the stopwatch IllegalStateException. If it returns,
-     *   consider increasing stopTimeoutMillis (e.g. 60_000) or reverting to Eagerly.
-     * - If battery/network usage appears unnecessarily high, consider reducing the timeout or
-     *   instrumenting actual idle gap distribution to tune precisely.
-     * - If usage becomes extremely sparse (minutes between operations) and churn is not causing
-     *   issues, a shorter timeout (5–10s) might be acceptable.
-     *
-     * Adjustment guide:
-     *   More stability (fewer reconnects)  -> increase stopTimeoutMillis or use Eagerly
-     *   More resource conservation          -> decrease stopTimeoutMillis (watch for churn/crash)
      */
-    val connectionFlow = billingFactory
+    private val sharingStrategy = SharingStarted.WhileSubscribed(stopTimeoutMillis = 60_000)
+
+    /**
+     * Internal: live-client-bearing flow used by [EasyBillingRepository] to obtain the
+     * underlying [com.android.billingclient.api.BillingClient] for in-library calls.
+     */
+    val connectionFlow: SharedFlow<InternalConnectionState> = billingFactory
         .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_purchasesUpdateFlow, logger))
-        .shareIn(
-            scope = connectionShareScope,
-            replay = 1,
-            started = SharingStarted.WhileSubscribed(
-                stopTimeoutMillis = 60_000 // 60s grace to smooth transient gaps
-            )
-        )
+        .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
+
+    /**
+     * Public-facing connection state for [BillingConnector.connectToBilling]. Mapped from
+     * [connectionFlow] so the live [com.android.billingclient.api.BillingClient] doesn't
+     * leak into the consumer-facing API. Re-shared so it carries proper SharedFlow
+     * semantics (replay/buffering) independent of [connectionFlow]'s upstream.
+     */
+    val connectionResultFlow: SharedFlow<BillingConnectionResult> = connectionFlow
+        .map { state ->
+            when (state) {
+                is InternalConnectionState.Connected -> BillingConnectionResult.Success
+                is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
+            }
+        }
+        .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 }

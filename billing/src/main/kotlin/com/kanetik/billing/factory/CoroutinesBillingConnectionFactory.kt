@@ -5,7 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PurchasesUpdatedListener
-import com.kanetik.billing.BillingConnectionResult
+import com.kanetik.billing.InternalConnectionState
 import com.kanetik.billing.exception.BillingException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +13,18 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 
+/**
+ * The default (and currently only) [BillingConnectionFactory] used internally
+ * by the library to bridge PBL's
+ * [com.android.billingclient.api.BillingClientStateListener] callbacks into a
+ * coroutine [Flow] of [InternalConnectionState].
+ *
+ * The interface exists for v0.2.0 testing-artifact substitution; consumers have
+ * no need to swap it. For real customization of the underlying
+ * [com.android.billingclient.api.BillingClient] builder, provide a custom
+ * [BillingClientFactory] to
+ * [BillingRepositoryCreator.create][com.kanetik.billing.BillingRepositoryCreator.create].
+ */
 internal class CoroutinesBillingConnectionFactory(
     private val context: Context,
     private val billingClientFactory: BillingClientFactory = DefaultBillingClientFactory()
@@ -20,8 +32,8 @@ internal class CoroutinesBillingConnectionFactory(
 
     override fun createBillingConnectionFlow(
         listener: PurchasesUpdatedListener
-    ): Flow<BillingConnectionResult> {
-        return callbackFlow<BillingConnectionResult> {
+    ): Flow<InternalConnectionState> {
+        return callbackFlow<InternalConnectionState> {
             val billingClient = billingClientFactory.createBillingClient(context, listener)
 
             billingClient.startConnection(object : BillingClientStateListener {
@@ -34,7 +46,7 @@ internal class CoroutinesBillingConnectionFactory(
                 override fun onBillingSetupFinished(result: BillingResult) {
                     if (isActive) {
                         if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                            trySend(BillingConnectionResult.Success(billingClient))
+                            trySend(InternalConnectionState.Connected(billingClient))
                         } else {
                             close(BillingException.fromResult(result))
                         }
@@ -51,15 +63,10 @@ internal class CoroutinesBillingConnectionFactory(
         }
     }
 
-    private fun convertExceptionIntoErrorResult(error: Throwable) = BillingConnectionResult.Error(
+    private fun convertExceptionIntoErrorResult(error: Throwable) = InternalConnectionState.Failed(
         exception = when (error) {
-            is BillingException -> {
-                error
-            }
-
-            else -> {
-                BillingException.UnknownException(BillingResult())
-            }
+            is BillingException -> error
+            else -> BillingException.UnknownException(BillingResult())
         }
     )
 
