@@ -14,28 +14,51 @@ internal class FlowPurchasesUpdatedListener(
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
         val safePurchases = purchases.orEmpty()
-        val emitted = updateSubject.tryEmit(convertToUpdate(result, safePurchases))
-        if (!emitted) {
-            // Should never happen given the 32-slot buffer in BillingClientStorage. If it
-            // does, a slow collector dropped a real purchase update. Log only non-sensitive
-            // identifiers — the full PurchasesUpdate contains purchaseToken and signature,
-            // which must not leak to logcat or Crashlytics.
-            val productIds = safePurchases.flatMap { it.products }.distinct()
-            logger.e(
-                "Purchase update dropped — buffer exhausted. " +
-                    "responseCode=${result.responseCode} " +
-                    "purchaseCount=${safePurchases.size} " +
-                    "productIds=$productIds"
-            )
+        val updates = computeUpdates(result, safePurchases)
+        for (update in updates) {
+            val emitted = updateSubject.tryEmit(update)
+            if (!emitted) {
+                // Should never happen given the 32-slot buffer in BillingClientStorage. If it
+                // does, a slow collector dropped a real purchase update. Log only non-sensitive
+                // identifiers — the full PurchasesUpdate contains purchaseToken and signature,
+                // which must not leak to logcat or Crashlytics.
+                val productIds = safePurchases.flatMap { it.products }.distinct()
+                logger.e(
+                    "Purchase update dropped — buffer exhausted. " +
+                        "responseCode=${result.responseCode} " +
+                        "purchaseCount=${safePurchases.size} " +
+                        "productIds=$productIds"
+                )
+            }
         }
     }
 
-    private fun convertToUpdate(result: BillingResult, purchases: List<Purchase>): PurchasesUpdate =
-        when (val responseCode = result.responseCode) {
-            BillingResponseCode.OK -> PurchasesUpdate.Success(purchases)
-            BillingResponseCode.USER_CANCELED -> PurchasesUpdate.Canceled(purchases)
-            BillingResponseCode.ITEM_ALREADY_OWNED -> PurchasesUpdate.ItemAlreadyOwned(purchases)
-            BillingResponseCode.ITEM_UNAVAILABLE -> PurchasesUpdate.ItemUnavailable(purchases)
-            else -> PurchasesUpdate.UnknownResponse(responseCode, purchases)
+    private fun computeUpdates(result: BillingResult, purchases: List<Purchase>): List<PurchasesUpdate> {
+        return when (val responseCode = result.responseCode) {
+            BillingResponseCode.OK -> {
+                // Split by Purchase.purchaseState so consumers see Pending purchases as
+                // a distinct sealed variant rather than buried inside Success. PBL
+                // typically delivers one purchase per callback, but mixed batches are
+                // possible and produce two emissions here (one Success, one Pending).
+                val (pending, settled) = purchases.partition {
+                    it.purchaseState == Purchase.PurchaseState.PENDING
+                }
+                buildList {
+                    if (settled.isNotEmpty() || pending.isEmpty()) {
+                        // Empty-purchases callback (rare, but handled) flows through
+                        // Success with an empty list — preserves the prior contract for
+                        // "OK with no purchases" callers.
+                        add(PurchasesUpdate.Success(settled))
+                    }
+                    if (pending.isNotEmpty()) {
+                        add(PurchasesUpdate.Pending(pending))
+                    }
+                }
+            }
+            BillingResponseCode.USER_CANCELED -> listOf(PurchasesUpdate.Canceled(purchases))
+            BillingResponseCode.ITEM_ALREADY_OWNED -> listOf(PurchasesUpdate.ItemAlreadyOwned(purchases))
+            BillingResponseCode.ITEM_UNAVAILABLE -> listOf(PurchasesUpdate.ItemUnavailable(purchases))
+            else -> listOf(PurchasesUpdate.UnknownResponse(responseCode, purchases))
         }
+    }
 }
