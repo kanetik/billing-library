@@ -9,12 +9,20 @@ import androidx.lifecycle.LifecycleOwner
  *
  * Specifically, the activity must:
  *  - not be finishing or destroyed, and
- *  - if it's a [LifecycleOwner], be at least in the [Lifecycle.State.STARTED] state.
+ *  - if it's a [LifecycleOwner], be at least in the [Lifecycle.State.RESUMED] state.
  *
  * Calling [com.kanetik.billing.BillingActions.launchFlow] against a finishing /
- * destroyed / not-yet-started activity is one of the most common sources of crashes
- * in Play Billing integrations (the underlying `ProxyBillingActivity` can NPE on a
- * stale window). This guard is cheap and prevents the foot-gun.
+ * destroyed / not-fully-resumed activity is one of the most common sources of
+ * crashes in Play Billing integrations: the underlying `ProxyBillingActivity` can
+ * NPE on a stale window, and on API 29+ Android's background-activity-start
+ * restrictions can silently no-op the launch from a non-RESUMED activity.
+ *
+ * `RESUMED` (rather than `STARTED`) is the conservative gate — it's the only
+ * lifecycle state that guarantees the activity's window is in the foreground and
+ * interactive, which is what `launchBillingFlow` requires. The cost of being
+ * conservative is near-zero (purchase clicks happen from RESUMED activities
+ * essentially 100% of the time); the cost of being too permissive is silent
+ * purchase failures on certain device/API combinations.
  *
  * Use it from the call-site that decides whether to start a purchase, e.g. an
  * `onClick` handler that has navigated through a coroutine pause:
@@ -30,7 +38,7 @@ public fun validatePurchaseActivity(activity: Activity): Boolean {
     if (activity.isFinishing || activity.isDestroyed) return false
     if (activity is LifecycleOwner) {
         val state = activity.lifecycle.currentState
-        if (!state.isAtLeast(Lifecycle.State.STARTED)) return false
+        if (!state.isAtLeast(Lifecycle.State.RESUMED)) return false
     }
     return true
 }

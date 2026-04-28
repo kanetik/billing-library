@@ -57,10 +57,12 @@ public interface BillingActions {
 
     /**
      * Consumes a one-time consumable purchase, allowing the user to buy it again.
-     * @return the consumed purchase token, or `null` if the underlying call returned no token.
+     * @return the consumed purchase token. Always present on a successful consume —
+     *   PBL guarantees this. The library throws a [BillingException] subtype if the
+     *   underlying call fails, so this method never returns under failure.
      */
     @AnyThread
-    public suspend fun consumePurchase(params: ConsumeParams): String?
+    public suspend fun consumePurchase(params: ConsumeParams): String
 
     /**
      * Acknowledges a non-consumable purchase. Play requires acknowledgement within

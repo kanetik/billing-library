@@ -120,8 +120,12 @@ internal class DefaultBillingRepository(
     )
 
     @AnyThread
-    override suspend fun consumePurchase(params: ConsumeParams): String? {
-        return executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken
+    override suspend fun consumePurchase(params: ConsumeParams): String {
+        // executeBillingOperation throws BillingException on non-success — if we get
+        // a result back the consume succeeded, and PBL guarantees the token is set
+        // on success. The !! guards against an unexpected PBL contract violation
+        // by failing loudly rather than returning a phantom null.
+        return executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
     }
 
     @AnyThread
