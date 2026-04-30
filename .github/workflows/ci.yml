@@ -1,0 +1,64 @@
+name: CI
+
+# Runs on every PR and on every push to main.
+# Job: build the release AAR, run lint, run unit tests.
+# No publishing — that's publish.yml on tag push.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to keep the queue moving when
+# someone force-pushes a PR or pushes multiple commits in quick succession.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build + lint + test (JDK 11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          # Temurin is the AdoptOpenJDK successor; matches the JDK developers
+          # are most likely to have locally and is well-tested with AGP 9.
+          distribution: temurin
+          java-version: 11
+
+      - name: Set up Gradle
+        # Handles wrapper validation, dep cache, and Gradle daemon configuration.
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # Cache only on the default branch — PR caches eat the GH Actions
+          # cache budget without much hit-rate benefit.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Assemble release AAR
+        run: ./gradlew :billing:assembleRelease
+
+      - name: Lint
+        run: ./gradlew :billing:lint
+
+      - name: Unit tests
+        run: ./gradlew :billing:test
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: billing/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7

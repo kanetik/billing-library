@@ -1,0 +1,75 @@
+name: Publish to Maven Central
+
+# Triggered on any tag matching `v*`. The tag drives the version:
+#   v0.1.0       -> publishes 0.1.0 (GA)
+#   v0.1.0-beta1 -> publishes 0.1.0-beta1 (pre-release; same coordinate, suffix preserved)
+#
+# Both go to the same staging repository on Sonatype Central Portal.
+# A human must click "Release" in the Portal UI to actually promote the
+# artifact to public — `publishToMavenCentral` only uploads to staging.
+# (Switch to `publishAndReleaseToMavenCentral` once the pipeline is trusted.)
+#
+# Required GitHub Actions secrets — set these once at repo level before tagging:
+#   MAVEN_CENTRAL_USERNAME      Sonatype Central Portal user-token username
+#   MAVEN_CENTRAL_PASSWORD      Sonatype Central Portal user-token password
+#   SIGNING_KEY                 ASCII-armored GPG private key
+#                               (`gpg --armor --export-secret-keys <keyid>`)
+#   SIGNING_PASSWORD            Passphrase that unlocks the GPG private key
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish artifact to Maven Central staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the workflow can derive a release-notes diff
+          # if we add that step later. Cheap on a small repo.
+          fetch-depth: 0
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          # Strip the leading 'v' from the tag (`v0.1.0-beta1` -> `0.1.0-beta1`).
+          # Maven Central is fine with the `-betaN` suffix; consumers must opt in
+          # by exact version, so the suffix doesn't pollute resolution.
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: $VERSION"
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Publish to Maven Central staging
+        # Vanniktech's plugin reads ORG_GRADLE_PROJECT_* env vars as Gradle
+        # project properties — that's why every secret has the prefix.
+        # `signingInMemoryKey` carries the ASCII-armored private key so we never
+        # need to write it to the runner's filesystem.
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          ./gradlew :billing:publishToMavenCentral \
+            -PVERSION_NAME="${{ steps.version.outputs.version }}" \
+            --no-configuration-cache \
+            --stacktrace
