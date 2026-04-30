@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose's Material 3 theme is applied in code; this Android theme is just
+      a Material 3 base for the splash/launch window so the activity hands off
+      to the Composable theme cleanly.
+    -->
+    <style name="Theme.KanetikBillingSample" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

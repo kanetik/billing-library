@@ -1,6 +1,7 @@
 rootProject.name = "billing-library"
 
 include(":billing")
+include(":sample")
 
 pluginManagement {
     repositories {

@@ -1,13 +1,19 @@
 [versions]
-# Kotlin compiler/runtime version is supplied by AGP 9.2.0's bundled Kotlin
-# (no separate kotlin-android plugin needed under AGP 9). To force a different
-# Kotlin version, add `kotlin = "X.Y.Z"` here plus a `kotlin-android` entry in
-# [plugins] and apply it in billing/build.gradle.kts.
+# Kotlin compiler/runtime version. The library module itself doesn't apply
+# kotlin-android (AGP 9.2 supplies that implicitly), but the :sample module
+# uses `org.jetbrains.kotlin.plugin.compose` which requires its version to
+# match the project's Kotlin. AGP 9.2.0 bundles Kotlin 2.2.10 — keep this
+# pin in sync if AGP is bumped.
 androidGradlePlugin = "9.2.0"
+kotlin = "2.2.10"
 playBillingKtx = "8.3.0"
 kotlinxCoroutines = "1.10.2"
 lifecycle = "2.10.0"
 coreKtx = "1.18.0"
+# Sample-only deps. Compose UI/material versions are resolved through the BOM
+# so we don't pin them individually.
+composeBom = "2026.04.01"
+activityCompose = "1.13.0"
 junit = "4.13.2"
 mockk = "1.14.9"
 truth = "1.4.5"
@@ -26,6 +32,16 @@ lifecycle-common = { module = "androidx.lifecycle:lifecycle-common", version.ref
 lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+# :sample-only Compose stack. The BOM resolves Compose UI/material versions;
+# the individual library entries below it are intentionally version-less so
+# the BOM is the single source of truth.
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 junit = { module = "junit:junit", version.ref = "junit" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
@@ -33,4 +49,6 @@ truth = { module = "com.google.truth:truth", version.ref = "truth" }
 [plugins]
 android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+# Compose Compiler plugin (Kotlin 2.0+) — version must match the project's Kotlin.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }

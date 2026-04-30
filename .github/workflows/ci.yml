@@ -57,6 +57,11 @@ jobs:
       - name: Unit tests
         run: ./gradlew :billing:test
 
+      - name: Assemble sample debug APK
+        # Catches library API changes that break the sample without us
+        # noticing. Sample isn't published; this is purely a regression net.
+        run: ./gradlew :sample:assembleDebug
+
       - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
