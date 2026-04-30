@@ -13,7 +13,9 @@ mockk = "1.13.13"
 truth = "1.4.4"
 # Maven Central publishing — vanniktech plugin handles Central Portal upload,
 # AAR + sources + Javadoc JARs, POM metadata, and signing in one config block.
-vanniktechMavenPublish = "0.30.0"
+# 0.30.0 had a Windows-specific bug constructing the local staging directory
+# URL — `file://C:\...` (mixed slashes) failed URI parsing. Fixed in 0.32+.
+vanniktechMavenPublish = "0.34.0"
 
 [libraries]
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBillingKtx" }

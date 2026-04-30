@@ -1,5 +1,4 @@
 import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
-import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     alias(libs.plugins.android.library)
@@ -112,10 +111,14 @@ mavenPublishing {
         )
     )
 
-    // Upload to Sonatype Central Portal (the modern API; OSSRH was retired in 2024).
-    // No `automaticRelease = true` for v0.1.0.x — manual "Release" click in the Portal
-    // UI gives a final sanity check before the artifact goes public.
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    // Upload to Sonatype Central Portal. Plugin 0.34.0 dropped the
+    // `SonatypeHost` enum since Central Portal is the only supported target —
+    // OSSRH was retired in 2024. The single-arg form takes `automaticRelease`;
+    // we leave it default (false) for v0.1.0.x so a human still clicks
+    // "Release" in the Portal UI as a final sanity check before the artifact
+    // goes public. Flip to `publishToMavenCentral(automaticRelease = true)`
+    // once the pipeline is trusted.
+    publishToMavenCentral()
 
     // Sign all publications iff signing.keyId / signing.password are present in
     // ~/.gradle/gradle.properties or env (or signingInMemoryKey via CI secrets).
