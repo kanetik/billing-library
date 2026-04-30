@@ -244,9 +244,92 @@ You can drop a failed staging deployment in the Portal UI and re-upload after fi
 
 ---
 
-## 6. Tag-driven publish (steady state)
+## 6. Test in a real consumer before going public
 
-Once 5.2 succeeds for a beta, the steady-state release workflow is:
+The dry-run from section 5 validates the publishing pipeline (signing, POM, upload). It does not validate that the library actually works when a consumer pulls it in. For that, do an integration round-trip from your local machine — no Maven Central involvement, no public exposure.
+
+Why: once anything is on Maven Central it's there forever (Sonatype doesn't allow unpublishing). A `-betaN` suffix is a *social* signal that the version is unstable, not a privacy gate — anyone who explicitly types the exact version string can pull a beta. So the only way to test "for real" without risking public consumption is to never publish until you're confident.
+
+### 6.1 Drop any prior staging deployment
+
+If you ran section 5 and the staging deployment is still sitting in `VALIDATED` state, **don't click Publish**. Click **Drop** instead. The artifact stays out of public Central; the deployment is gone.
+
+### 6.2 Publish to your local Maven cache
+
+```bash
+cd <billing-library>
+./gradlew :billing:publishToMavenLocal
+```
+
+The artifact lands in `~/.m2/repository/com/kanetik/billing/billing/0.1.0-SNAPSHOT/` (Windows: `C:\Users\<you>\.m2\repository\com\kanetik\billing\billing\0.1.0-SNAPSHOT\`). Visible only to your user account; nothing leaves the machine.
+
+### 6.3 Wire `mavenLocal()` into the consumer
+
+In the consumer project's `settings.gradle.kts`, add `mavenLocal()` first inside `dependencyResolutionManagement.repositories { ... }` so Gradle prefers the local copy over Central:
+
+```kotlin
+@Suppress("UnstableApiUsage")
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenLocal()       // <- add this, first
+        google()
+        mavenCentral()
+    }
+}
+```
+
+### 6.4 Declare the dependency
+
+In the consumer's `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+kanetikBilling = "0.1.0-SNAPSHOT"
+
+[libraries]
+kanetik-billing = { module = "com.kanetik.billing:billing", version.ref = "kanetikBilling" }
+```
+
+In the consumer's app module:
+
+```kotlin
+implementation(libs.kanetik.billing)
+```
+
+### 6.5 Iterate
+
+Each round trip:
+1. Edit library code.
+2. `./gradlew :billing:publishToMavenLocal` (~15s).
+3. Rebuild the consumer; new bits picked up automatically.
+
+Once the library does what you want, remove `mavenLocal()` from the consumer's repo list (so future builds resolve from Central) and proceed to section 7 to publish for real.
+
+### 6.6 Alternative: composite build (`includeBuild`)
+
+If you want a tighter dev loop without a `publishToMavenLocal` step, use Gradle's composite-build feature in the consumer:
+
+```kotlin
+// consumer's settings.gradle.kts
+includeBuild("../billing-library") {
+    dependencySubstitution {
+        substitute(module("com.kanetik.billing:billing")).using(project(":billing"))
+    }
+}
+```
+
+Pros: instant change propagation; no publish step.
+
+Cons: skips the actual artifact-resolution path — the consumer reads source/project output instead of a parsed POM + AAR. You can ship a bug that only manifests against the published artifact (POM dependency-scope mismatches, consumer-rules.pro not being applied, etc.).
+
+Recommendation: use composite build for *active library development* (when you're iterating on the library), and switch back to `mavenLocal` for the actual cutover validation before publishing.
+
+---
+
+## 7. Tag-driven publish (steady state)
+
+Once you're confident the library works in a real consumer (section 6) and the publishing infrastructure dry-ran cleanly (section 5), the steady-state release workflow is:
 
 1. Bump version in `CHANGELOG.md` (the `[Unreleased]` → `[0.1.0] - YYYY-MM-DD` rename).
 2. Commit + push to `main`.
@@ -262,12 +345,12 @@ For betas: tag as `v0.1.0-beta1`, `v0.1.0-beta2`, etc. The workflow strips the l
 
 ---
 
-## 7. Future: switching to auto-release
+## 8. Future: switching to auto-release
 
 After v0.1.0 ships and the pipeline is trusted, change `billing/build.gradle.kts`:
 
 ```kotlin
-publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
+publishToMavenCentral(automaticRelease = true)
 ```
 
 …or replace the `publishToMavenCentral` task with `publishAndReleaseToMavenCentral` in `.github/workflows/publish.yml`. Either flips the workflow from "upload to staging" to "upload + release in one step" — no manual Portal click needed.
