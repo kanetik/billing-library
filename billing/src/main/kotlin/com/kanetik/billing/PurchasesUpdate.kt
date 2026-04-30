@@ -26,6 +26,18 @@ public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
 
     public data class Success(override val purchases: List<Purchase>) : PurchasesUpdate()
+
+    /**
+     * Purchases that completed at the protocol level but await confirmation
+     * (cash payments, deferred billing, prepaid plans on PBL 7+).
+     *
+     * **Cardinal rule: do NOT acknowledge / consume / grant entitlement on a
+     * Pending purchase.** The deferred payment may still fail. Wait for the
+     * matching [Success] update that arrives when the payment confirms; act
+     * on entitlement then. Granting entitlement on Pending is the most
+     * common bug in PBL integrations — even Google's own samples have gotten
+     * this wrong.
+     */
     public data class Pending(override val purchases: List<Purchase>) : PurchasesUpdate()
     public data class ItemAlreadyOwned(override val purchases: List<Purchase>) : PurchasesUpdate()
     public data class ItemUnavailable(override val purchases: List<Purchase>) : PurchasesUpdate()

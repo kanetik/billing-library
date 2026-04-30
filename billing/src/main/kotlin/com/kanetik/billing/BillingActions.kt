@@ -7,6 +7,7 @@ import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.ConsumeParams
+import com.android.billingclient.api.InAppMessageParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
@@ -65,6 +66,21 @@ public interface BillingActions {
     public suspend fun consumePurchase(params: ConsumeParams): String
 
     /**
+     * Convenience overload that consumes [purchase] using its purchase token.
+     *
+     * Symmetry with [acknowledgePurchase]`(Purchase)`. Builds [ConsumeParams] from the
+     * purchase's token and delegates. Use the [params][consumePurchase] overload directly
+     * if you need to pass additional params (rare).
+     */
+    @AnyThread
+    public suspend fun consumePurchase(purchase: Purchase): String {
+        val params = ConsumeParams.newBuilder()
+            .setPurchaseToken(purchase.purchaseToken)
+            .build()
+        return consumePurchase(params)
+    }
+
+    /**
      * Acknowledges a non-consumable purchase. Play requires acknowledgement within
      * 3 days of purchase or the transaction is auto-refunded.
      */
@@ -95,6 +111,48 @@ public interface BillingActions {
     }
 
     /**
+     * High-level helper: post-process a [purchase] by either consuming it (for
+     * consumables) or acknowledging it (for non-consumables), based on [consume].
+     *
+     * Bakes in three things consumers shouldn't have to remember:
+     *  1. Only act on [Purchase.PurchaseState.PURCHASED] — pending and canceled
+     *     purchases must wait for their terminal state. Calling this on a non-
+     *     PURCHASED purchase is a silent no-op.
+     *  2. For [consume] = false, the [acknowledgePurchase]`(Purchase)` overload's
+     *     `isAcknowledged` short-circuit applies.
+     *  3. For [consume] = true, the underlying consume call is the one that also
+     *     satisfies Play's acknowledgement requirement (Play treats consume as
+     *     implicit acknowledgement for consumables).
+     *
+     * The [consume] decision is fundamentally an app concern — *which* product
+     * IDs are consumables depends on Play Console configuration and the app's
+     * own logic — but [when][consume] to call this is the dev's choice. Common
+     * patterns:
+     *  - **Immediate**: call from your `observePurchaseUpdates()` collector for
+     *    every Success update. Pass `consume = true` for consumable IDs,
+     *    `consume = false` otherwise.
+     *  - **After server validation**: validate the purchase on your backend
+     *    first, then call this once you've confirmed the purchase is real.
+     *
+     * If you need the consumed token specifically (for server reporting),
+     * call [consumePurchase]`(Purchase)` directly instead.
+     *
+     * @param purchase The purchase to handle. No-op if `purchase.purchaseState`
+     *   isn't [Purchase.PurchaseState.PURCHASED].
+     * @param consume `true` to consume (for consumables); `false` to acknowledge
+     *   (for non-consumables).
+     */
+    @AnyThread
+    public suspend fun handlePurchase(purchase: Purchase, consume: Boolean) {
+        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
+        if (consume) {
+            consumePurchase(purchase)
+        } else {
+            acknowledgePurchase(purchase)
+        }
+    }
+
+    /**
      * Launches the Play Billing purchase flow.
      *
      * Must be called on the main thread. The returned coroutine completes once Play
@@ -109,4 +167,30 @@ public interface BillingActions {
      */
     @MainThread
     public suspend fun launchFlow(activity: Activity, params: BillingFlowParams)
+
+    /**
+     * Shows Google Play's transactional in-app messages overlaid on [activity].
+     *
+     * Useful for prompting the user to fix a failed payment method on a
+     * subscription, etc. Play decides whether there's a message to show and
+     * which UI to render; the result indicates what (if anything) the user did.
+     *
+     * Build [params] from [InAppMessageParams.newBuilder] with the relevant
+     * `addInAppMessageCategoryToShow(...)` categories (typically
+     * [InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL]).
+     *
+     * Must be called on the main thread (PBL renders dialogs from the calling
+     * activity's window).
+     *
+     * @return [BillingInAppMessageResult.NoActionNeeded] if Play had nothing to
+     *   show or the user took no action; [BillingInAppMessageResult.SubscriptionStatusUpdated]
+     *   with the affected purchase token if the user fixed something. Throws a
+     *   [BillingException] subtype if Play rejects the call (service disconnected,
+     *   activity invalid, etc.).
+     */
+    @MainThread
+    public suspend fun showInAppMessages(
+        activity: Activity,
+        params: InAppMessageParams
+    ): BillingInAppMessageResult
 }

@@ -11,6 +11,8 @@ import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.ConsumeResult
+import com.android.billingclient.api.InAppMessageParams
+import com.android.billingclient.api.InAppMessageResult
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.ProductDetailsResult
 import com.android.billingclient.api.Purchase
@@ -183,6 +185,49 @@ internal class DefaultBillingRepository(
             } else {
                 throw e
             }
+        }
+    }
+
+    @UiThread
+    override suspend fun showInAppMessages(
+        activity: Activity,
+        params: InAppMessageParams
+    ): BillingInAppMessageResult = connectToClientAndCall { client ->
+        withContext(uiDispatcher) {
+            suspendCancellableCoroutine { cont ->
+                val billingResult = client.showInAppMessages(activity, params) { result ->
+                    try {
+                        cont.resume(mapInAppMessageResult(result))
+                    } catch (e: IllegalStateException) {
+                        logger.w(
+                            "showInAppMessages callback fired after continuation was already resumed",
+                            e
+                        )
+                    }
+                }
+                if (billingResult.responseCode != BillingResponseCode.OK) {
+                    cont.resumeWith(
+                        Result.failure(BillingException.fromResult(billingResult))
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapInAppMessageResult(result: InAppMessageResult): BillingInAppMessageResult {
+        return when (result.responseCode) {
+            InAppMessageResult.InAppMessageResponseCode.SUBSCRIPTION_STATUS_UPDATED -> {
+                val token = result.purchaseToken
+                if (token != null) {
+                    BillingInAppMessageResult.SubscriptionStatusUpdated(token)
+                } else {
+                    logger.w(
+                        "In-app message reported SUBSCRIPTION_STATUS_UPDATED with null purchaseToken — falling back to NoActionNeeded"
+                    )
+                    BillingInAppMessageResult.NoActionNeeded
+                }
+            }
+            else -> BillingInAppMessageResult.NoActionNeeded
         }
     }
 
