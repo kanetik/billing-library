@@ -35,6 +35,18 @@ android {
         sourceCompatibility(JavaVersion.VERSION_11)
         targetCompatibility(JavaVersion.VERSION_11)
     }
+
+    testOptions {
+        unitTests {
+            // PBL types call into android.text.TextUtils, android.os.Looper, etc.
+            // during validation in their builders. Without this flag, those
+            // stubbed methods throw "not mocked" RuntimeExceptions in pure-JVM
+            // tests; with it, they return safe defaults (false / 0 / null) so
+            // tests can exercise our wrapper logic without dragging in
+            // Robolectric.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
