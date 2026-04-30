@@ -21,6 +21,15 @@ Requires `minSdk = 23` (PBL 8.1's floor — the library pins to PBL 8.3.0). JVM 
 ## Quick start (one-time IAP)
 
 ```kotlin
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.QueryProductDetailsParams
+import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.PurchasesUpdate
+import com.kanetik.billing.ext.toOneTimeFlowParams
+import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
+import com.kanetik.billing.logging.BillingLogger
+
 class CheckoutActivity : ComponentActivity() {
 
     private val billing by lazy {
@@ -86,6 +95,20 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 | `BillingException` (sealed) | 12 subtypes; one per response code. Each carries a `RetryType` hint. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
+
+## Package layout
+
+Where each public type lives. IDE auto-import handles most of these, but here's the canonical map:
+
+| Subpackage | Contains |
+|---|---|
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes |
+| `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
+| `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
+| `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory` |
+| `com.kanetik.billing.ext` | `validatePurchaseActivity`, `ProductDetails.toOneTimeFlowParams`, `PurchaseFlowCoordinator`, `PurchaseFlowResult` |
+| `com.kanetik.billing.security` | `PurchaseVerifier` |
 
 ## Error handling
 
