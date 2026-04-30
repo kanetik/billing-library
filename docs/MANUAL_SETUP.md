@@ -96,14 +96,38 @@ The 16-char hex string after `rsa4096/` is the long key ID. The 8-char suffix is
 
 ### 2.3 Publish the public half to keyservers
 
-Maven Central's signature verifier checks `keyserver.ubuntu.com` and `keys.openpgp.org`. Push to both:
+Maven Central's signature verifier resolves keys via multiple public keyservers and accepts the key from whichever serves it first. The two we care about behave very differently:
 
 ```bash
 gpg --keyserver keyserver.ubuntu.com --send-keys <LONG_KEYID>
 gpg --keyserver keys.openpgp.org --send-keys <LONG_KEYID>
 ```
 
-`keys.openpgp.org` requires email confirmation — check `billinglibrary@kanetik.com` for a verification link, click it, and your public key becomes searchable.
+| Keyserver | Verification model | Practical effect |
+|---|---|---|
+| `keyserver.ubuntu.com` | None — accepts any upload silently | The key is immediately resolvable. **This is sufficient for Maven Central signature validation.** |
+| `keys.openpgp.org` | Email confirmation required for each UID | Without verification, the key material is uploaded but UIDs aren't bound — the key won't show up in email-based searches. |
+
+#### Critical path: keyserver.ubuntu.com only
+
+For Maven Central publishing, `keyserver.ubuntu.com` having the key is enough — Sonatype's verifier finds it there and validates the signature. You can proceed with the rest of the manual steps even if `keys.openpgp.org` verification is incomplete.
+
+#### Best-practice (not blocking): verify on keys.openpgp.org
+
+`keys.openpgp.org` sends a verification email to each UID on the key. Check `billinglibrary@kanetik.com` for a message from `noreply@keys.openpgp.org` and click the link.
+
+If the email doesn't arrive after 30+ minutes, here's what's usually going on:
+
+- **Spam folder.** Catch-all domains (any `*@kanetik.com` lands in one mailbox) are a common case — they get filtered aggressively because they collect a lot of junk. Check spam, spam quarantine, and any "blocked senders" reports.
+- **Greylisting.** Many mail servers temporarily reject first-time senders; legit senders retry 15–60 min later. Wait it out.
+- **SPF/DKIM/DMARC strictness.** If your mail server fails authentication on the keys.openpgp.org sender, the message gets silently rejected. Server logs (if you have access) show this.
+- **Use a different UID.** If your domain just won't accept this mail, add a Gmail/etc. UID to the key and verify via that:
+  ```bash
+  gpg --quick-add-uid <LONG_KEYID> "Kanetik <some-other-address@example.com>"
+  gpg --keyserver keys.openpgp.org --send-keys <LONG_KEYID>
+  ```
+
+If you can't get verification through, **don't block on it** — `keyserver.ubuntu.com` covers the Maven Central path. Revisit later if you find time, or if Sonatype ever surfaces a "key not found" error specifically tied to keys.openpgp.org.
 
 ### 2.4 Make the private half available to Gradle (local)
 
@@ -133,7 +157,20 @@ The `publish.yml` workflow expects an **ASCII-armored** private key as a secret 
 gpg --armor --export-secret-keys <LONG_KEYID> > /tmp/signing-key.asc
 ```
 
-The contents of `signing-key.asc` (including the `-----BEGIN PGP PRIVATE KEY BLOCK-----` and `-----END PGP PRIVATE KEY BLOCK-----` lines) becomes the `SIGNING_KEY` GitHub Actions secret in step 4 below. Delete `/tmp/signing-key.asc` after copying.
+Where the file lands:
+- macOS / Linux: `/tmp/signing-key.asc`
+- Windows + Git Bash: `C:\Users\<you>\AppData\Local\Temp\signing-key.asc` (Git Bash's `/tmp` maps to `%LOCALAPPDATA%\Temp`)
+- PowerShell users: `gpg --armor --export-secret-keys <LONG_KEYID> > $env:TEMP\signing-key.asc` is the equivalent invocation.
+
+Copy the **full file contents** — including the `-----BEGIN PGP PRIVATE KEY BLOCK-----` and `-----END PGP PRIVATE KEY BLOCK-----` lines — into the `SIGNING_KEY` GitHub Actions secret in step 4 below.
+
+Quick clipboard helper from Git Bash: `cat /tmp/signing-key.asc | clip`.
+
+After it's in GitHub, **delete the on-disk copy**:
+```bash
+rm /tmp/signing-key.asc
+```
+The runner doesn't need it, and it's a plaintext private key sitting in your temp folder.
 
 ---
 
@@ -194,7 +231,7 @@ Common causes and fixes:
 | Failure | Fix |
 |---|---|
 | "Missing signature for `.aar`" | `signAllPublications()` didn't run; check `signing.*` properties in `~/.gradle/gradle.properties`. |
-| "Public key not found in keyserver" | Re-push to `keyserver.ubuntu.com` AND `keys.openpgp.org`; wait 30 min for propagation. |
+| "Public key not found in keyserver" | Re-push to `keyserver.ubuntu.com` (the one Maven Central actually relies on); wait 30 min for propagation. `keys.openpgp.org` is best-practice but optional — see section 2.3. |
 | "POM missing `description` / `developers` / `scm`" | Edit `billing/build.gradle.kts` `mavenPublishing { pom { ... } }` block. |
 | "Snapshot version on release endpoint" | You forgot `-PVERSION_NAME=0.1.0-...`; the default `0.1.0-SNAPSHOT` only goes to the snapshot repo, which Central Portal doesn't host. |
 | "Namespace not verified" | DNS TXT record hasn't propagated, or it's on the wrong record name. Re-check section 1.3. |
