@@ -39,12 +39,13 @@ The token replaces username/password for publishing — Sonatype no longer accep
 
 1. Portal → **Account → Generate User Token**.
 2. Copy both the **token username** and **token password** (they look like long random strings).
-3. Stash them in `~/.gradle/gradle.properties` (gitignored, machine-local):
+3. Stash them in your **global** Gradle properties — `~/.gradle/gradle.properties` on macOS/Linux, `C:\Users\<you>\.gradle\gradle.properties` on Windows. This is the per-user config outside any project, so secrets stay out of git. Create the file if it doesn't exist; the `.gradle` folder itself appears the first time you run any Gradle command.
    ```properties
    mavenCentralUsername=<token-username>
    mavenCentralPassword=<token-password>
    ```
-4. These also become the GitHub Actions secrets `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` in step 4 below.
+   (Don't confuse this with `<project>/gradle.properties` — that one is committed to git and holds project-wide config like the AndroidX flag.)
+4. These same values also become the GitHub Actions secrets `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` in step 4 below.
 
 ---
 
@@ -106,12 +107,12 @@ gpg --keyserver keys.openpgp.org --send-keys <LONG_KEYID>
 
 ### 2.4 Make the private half available to Gradle (local)
 
-For local publishing (`./gradlew :billing:publishToMavenCentral`), add to `~/.gradle/gradle.properties`:
+For local publishing (`./gradlew :billing:publishToMavenCentral`), add to the same **global** Gradle properties file from section 1.4 — `~/.gradle/gradle.properties` (macOS/Linux) or `C:\Users\<you>\.gradle\gradle.properties` (Windows):
 
 ```properties
 signing.keyId=<LAST_8_CHARS_OF_LONG_KEYID>
 signing.password=<gpg-passphrase>
-signing.secretKeyRingFile=/c/Users/jkane/.gnupg/secring.gpg
+signing.secretKeyRingFile=/c/Users/<you>/.gnupg/secring.gpg
 ```
 
 Modern GPG (2.1+) doesn't write `secring.gpg` automatically; you need to export it once:
@@ -120,7 +121,9 @@ Modern GPG (2.1+) doesn't write `secring.gpg` automatically; you need to export 
 gpg --export-secret-keys <LONG_KEYID> > ~/.gnupg/secring.gpg
 ```
 
-(Path on Windows: `C:\Users\jkane\.gnupg\secring.gpg`. The `signing.secretKeyRingFile` path uses Unix-style slashes.)
+Windows path notes:
+- The keyring file lives at `C:\Users\<you>\.gnupg\secring.gpg`.
+- In `gradle.properties`, write the path with **forward slashes** (`/c/Users/jkane/.gnupg/secring.gpg`) — Gradle parses backslashes as escape characters and `\U` is the start of a Unicode literal, so `C:\Users\...` will throw a parse error.
 
 ### 2.5 Make the private half available to GitHub Actions
 
