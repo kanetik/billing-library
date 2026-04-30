@@ -11,6 +11,9 @@ coreKtx = "1.18.0"
 junit = "4.13.2"
 mockk = "1.13.13"
 truth = "1.4.4"
+# Maven Central publishing — vanniktech plugin handles Central Portal upload,
+# AAR + sources + Javadoc JARs, POM metadata, and signing in one config block.
+vanniktechMavenPublish = "0.30.0"
 
 [libraries]
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBillingKtx" }
@@ -28,3 +31,4 @@ truth = { module = "com.google.truth:truth", version.ref = "truth" }
 [plugins]
 android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
