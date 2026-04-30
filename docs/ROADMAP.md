@@ -8,7 +8,7 @@ For what already shipped in v0.1.0, see [`BUILD_HISTORY.md`](BUILD_HISTORY.md).
 
 ## v0.2.0 — Subscriptions + testing artifact
 
-Targeted after v0.1.0 has shipped to two real consumers (Wakey first, app-revenue-tracker second). Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase explicitly waits for that signal.
+Targeted after v0.1.0 has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase explicitly waits for that signal.
 
 ### Subscription helpers — *planned*
 
