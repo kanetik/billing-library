@@ -52,6 +52,16 @@ The token replaces username/password for publishing — Sonatype no longer accep
 
 Maven Central rejects unsigned artifacts. You need a GPG key whose public half is on a public keyserver, and whose private half is available to Gradle.
 
+### 2.0 Make sure `gpg` is callable
+
+- **macOS**: `brew install gnupg` (or it's already there if you've used Homebrew git).
+- **Linux**: `apt install gnupg` / `dnf install gnupg2` — usually pre-installed.
+- **Windows**: You probably already have it. Git for Windows ships `gpg.exe` at `C:\Program Files\Git\usr\bin\gpg.exe`. Two options:
+  - **Use Git Bash** for all section-2 commands — fastest path, no install needed. The bundled gpg works as-is.
+  - **Install [Gpg4win](https://www.gpg4win.org/)** for a native PowerShell experience plus the Kleopatra GUI for key management. Recommended if you'll be publishing from this machine for the long term.
+
+  PowerShell alone (without Gpg4win or Git for Windows on PATH) will give you `gpg: The term 'gpg' is not recognized...`. That's the trigger to pick one of the above.
+
 ### 2.1 Generate the key
 
 ```bash
