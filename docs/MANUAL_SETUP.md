@@ -136,7 +136,10 @@ For local publishing (`./gradlew :billing:publishToMavenCentral`), add to the sa
 ```properties
 signing.keyId=<LAST_8_CHARS_OF_LONG_KEYID>
 signing.password=<gpg-passphrase>
-signing.secretKeyRingFile=/c/Users/<you>/.gnupg/secring.gpg
+# macOS / Linux:
+signing.secretKeyRingFile=/Users/<you>/.gnupg/secring.gpg
+# Windows (forward slashes — see note below):
+signing.secretKeyRingFile=C:/Users/<you>/.gnupg/secring.gpg
 ```
 
 Modern GPG (2.1+) doesn't write `secring.gpg` automatically; you need to export it once:
@@ -145,9 +148,10 @@ Modern GPG (2.1+) doesn't write `secring.gpg` automatically; you need to export 
 gpg --export-secret-keys <LONG_KEYID> > ~/.gnupg/secring.gpg
 ```
 
-Windows path notes:
+Windows path notes (these tripped me up the first time):
 - The keyring file lives at `C:\Users\<you>\.gnupg\secring.gpg`.
-- In `gradle.properties`, write the path with **forward slashes** (`/c/Users/jkane/.gnupg/secring.gpg`) — Gradle parses backslashes as escape characters and `\U` is the start of a Unicode literal, so `C:\Users\...` will throw a parse error.
+- In `gradle.properties`, write the path **starting with the drive letter and using forward slashes** — `C:/Users/jkane/.gnupg/secring.gpg`. Gradle (a JVM, not bash) does not understand the Git Bash `/c/Users/...` shorthand; it treats that as a *relative* path and resolves it against the project root, producing nonsense like `C:\Users\jkane\Projects\billing-library\billing\c\Users\jkane\.gnupg\secring.gpg`.
+- Backslashes also work, but must be doubled (`C:\\Users\\jkane\\.gnupg\\secring.gpg`) since `.properties` files treat `\` as an escape character. Forward slashes are simpler.
 
 ### 2.5 Make the private half available to GitHub Actions
 
