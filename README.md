@@ -375,7 +375,6 @@ The following are intentionally out of scope for v0.1.0 — see [`docs/ROADMAP.m
 
 ## Documentation
 
-- [`docs/MANUAL_SETUP.md`](docs/MANUAL_SETUP.md) — Sonatype + GPG + GitHub secrets walkthrough (for repo maintainers, not consumers).
 - [`docs/BUILD_HISTORY.md`](docs/BUILD_HISTORY.md) — design rationale and decisions for v0.1.0.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what's next.
 
