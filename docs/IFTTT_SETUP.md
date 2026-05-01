@@ -26,11 +26,13 @@ A push notification on your Android phone (via the IFTTT app) every time the Rou
 
 1. Go to <https://ifttt.com/create>.
 
-2. **If This** (trigger) — click **Add**. Search for and choose **Webhooks** (officially "Maker Webhooks"). Pick the trigger **Receive a web request with a JSON payload**.
+2. **If This** (trigger) — click **Add**. Search for and choose **Webhooks** (officially "Maker Webhooks"). Pick the trigger **Receive a web request** — the plain one, **not** "Receive a web request with a JSON payload."
    - **Event Name:** `kanetik_pbl_update`
    - Click **Create trigger**.
 
-   The Webhooks trigger is what the Claude.ai IFTTT integration fires under the hood. The `kanetik_pbl_update` event name is the unique key the integration matches against.
+   The two Webhooks triggers expose different ingredients. The plain "Receive a web request" trigger exposes `Value1`, `Value2`, `Value3` — which is what the action below uses. The JSON-payload variant exposes a single `JsonPayload` ingredient (the whole body as raw JSON) and would require a different message template. We're using the simpler one.
+
+   The `kanetik_pbl_update` event name is the unique key the Claude.ai IFTTT integration matches against.
 
 3. **Then That** (action) — click **Add**. Search for and choose **Notifications** (the IFTTT-built-in "Notifications" service). Pick the action **Send a notification from the IFTTT app**.
    - **Message:** `{{Value1}}`
@@ -124,4 +126,5 @@ To delete the applet entirely, the lookup-by-name returns nothing and the agent 
 | Test arrives but Routine notifications don't | The Routine agent isn't finding the applet by name. Verify the exact applet name (case-sensitive) and that it's connected. |
 | Multiple notifications for one PR | Either the Routine ran more than once (check the Routine's run history) or the playbook's notify step is being called multiple times. The playbook calls notify exactly once per PR/issue creation; if you see duplicates, the Routine schedule may be too aggressive. |
 | Notification text is `Value1` literal | The action template wasn't set to `{{Value1}}` — fix the applet's notification-message field. |
+| `Unrecognized ingredient {{Value1}}` in the action editor | You picked the **Receive a web request with a JSON payload** trigger instead of the plain **Receive a web request** trigger. The JSON variant doesn't expose `Value1` — only `JsonPayload`. Replace the trigger with the plain one (same event name) and `{{Value1}}` will resolve. |
 | `mcp__claude_ai_IFTTT__my_applets` returns empty | The Claude.ai IFTTT integration isn't connected on the Routine's account. Re-authenticate the integration. |
