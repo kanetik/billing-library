@@ -366,12 +366,13 @@ After opening any PR or issue, the agent notifies the maintainer's Android devic
 
 ### Setup (one-time)
 
-The maintainer creates an IFTTT applet with these properties:
-- **Name:** `Kanetik PBL Update Notification` (or any consistent name; the playbook references it by name)
-- **Trigger:** Anything that the Claude.ai IFTTT integration can fire (typically a webhook trigger or a Claude-side action)
-- **Action:** Send SMS to the maintainer's Android device, or "Send Android notification" — whichever IFTTT-supported action goes to the maintainer's phone
+See [`IFTTT_SETUP.md`](IFTTT_SETUP.md) for the full step-by-step (applet creation, Webhooks trigger event name, Notifications action, phone-side test). At a glance:
 
-The applet body should accept a single text parameter — the agent will pass the PR URL + a one-line categorization summary.
+- **Applet name:** `Kanetik PBL Update Notification` (case-sensitive — the playbook looks up by this exact name)
+- **Trigger:** Webhooks → "Receive a web request with a JSON payload" → event name `kanetik_pbl_update`
+- **Action:** Notifications → "Send a notification from the IFTTT app" → message `{{Value1}}`
+
+The applet accepts a single text parameter via `{{Value1}}` — the playbook hands it the PR/issue URL plus a one-line categorization summary.
 
 ### Agent steps
 
