@@ -171,15 +171,22 @@ val billing = BillingRepositoryCreator.create(context)
 // Logcat
 val billing = BillingRepositoryCreator.create(context, logger = BillingLogger.Android)
 
-// Crashlytics adapter (your code, ~10 lines)
+// Crashlytics adapter (your code, ~10 lines).
+// The library does not dictate a tag — pick one that fits your logging
+// convention (here, "Billing"). If you omit `.tag(...)`, Timber falls back
+// to the calling class name; android.util.Log requires a tag explicitly.
 class CrashlyticsBillingLogger : BillingLogger {
-    override fun d(tag: String, message: String) = Timber.tag(tag).d(message)
-    override fun w(tag: String, message: String, t: Throwable?) {
-        Timber.tag(tag).w(t, message)
+    override fun d(message: String, throwable: Throwable?) {
+        Timber.tag("Billing").d(throwable, message)
     }
-    override fun e(tag: String, message: String, t: Throwable?) {
-        Timber.tag(tag).e(t, message)
-        FirebaseCrashlytics.getInstance().recordException(t ?: BillingLogException(message))
+    override fun w(message: String, throwable: Throwable?) {
+        Timber.tag("Billing").w(throwable, message)
+    }
+    override fun e(message: String, throwable: Throwable?) {
+        Timber.tag("Billing").e(throwable, message)
+        FirebaseCrashlytics.getInstance().recordException(
+            throwable ?: BillingLogException(message)
+        )
     }
 }
 val billing = BillingRepositoryCreator.create(context, logger = CrashlyticsBillingLogger())
