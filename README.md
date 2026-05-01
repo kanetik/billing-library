@@ -299,28 +299,39 @@ If your backend posts notifications back to the client (e.g., "subscription stat
 
 ## Testing
 
-### Static test SKUs (no Play Console setup)
+Three levels of test realism, each appropriate for different work. See [`docs/TESTING.md`](docs/TESTING.md) for the deeper guide including Play Billing Lab usage.
+
+### Level 1 — Static test SKUs (smoke / wiring)
 
 ```kotlin
 val testProduct = QueryProductDetailsParams.Product.newBuilder()
-    .setProductId("android.test.purchased")  // always succeeds
+    .setProductId("android.test.purchased")  // always succeeds, no UI
     .setProductType(BillingClient.ProductType.INAPP)
     .build()
 ```
 
-Other static SKUs: `android.test.canceled`, `android.test.item_unavailable`, `android.test.refunded`. They work on any debug build with no Play Console configuration.
+Static SKUs (`android.test.purchased`, `android.test.canceled`, `android.test.item_unavailable`, `android.test.refunded`) work on any debug build with no Play Console configuration. They auto-complete with a fixed result — useful for verifying your `observePurchaseUpdates` collector and `handlePurchase` calls fire correctly. **They do not show the Play purchase dialog**; that's by design.
 
-### Play Billing Lab
+### Level 2 — Real product + license tester (real dialog)
 
-Google's testing companion app — region overrides, time-acceleration, real-payment-method mode. Install [Play Billing Lab](https://developer.android.com/google/play/billing/test#play-billing-lab) on the same device as your app for richer testing scenarios than static SKUs allow.
+This is what you need to actually see the Play purchase dialog and exercise the full flow.
 
-### License testers (real SKUs)
+1. **Get the app onto Play Console** (any track — Internal testing is fine, no promotion required).
+2. **Create a managed in-app product** at Monetize → Products → In-app products → Create product. Set Product ID, type One-time, any price (you won't be charged), state Active.
+3. **Add yourself as a license tester** at Setup → License testing.
+4. **Install the debug build** on a device signed in with the license-tester Google account. Use your real product ID in `QueryProductDetailsParams`.
+5. Tap Buy → the real Play dialog appears. License-tester purchases auto-refund within 48 hours.
 
-For real-product testing without charging your card:
+### Level 3 — Play Billing Lab (edge-case scenarios on top of Level 2)
 
-1. Add a tester account at Play Console → **Setup → License testing**.
-2. Upload your app to the **Internal testing** track and join from the tester device.
-3. Buy with the tester account — purchases auto-refund within 48 hours.
+[Play Billing Lab](https://developer.android.com/google/play/billing/test#play-billing-lab) is Google's testing companion app. Install it alongside your test app once Level 2 works.
+
+What Lab does:
+- **Response simulator** — force any `BillingResult` response code (e.g. `USER_CANCELED`, `BILLING_UNAVAILABLE`, `NETWORK_ERROR`) for any flow. Lets you verify each `BillingException` subtype's handling without engineering real failures.
+- **Configuration settings** — override region, exercise free trials and intro offers on existing products.
+- **Subscription settings** — test grace period, account hold, and price-change flows on subscriptions you've already configured.
+
+What Lab does *not* do: it doesn't fabricate products from nothing. The products it serves come from your Play Console configuration. Lab augments Level 2; it doesn't replace it.
 
 ### Debug-flavor entitlement override
 
@@ -375,6 +386,7 @@ The following are intentionally out of scope for v0.1.0 — see [`docs/ROADMAP.m
 
 ## Documentation
 
+- [`docs/TESTING.md`](docs/TESTING.md) — three levels of test realism (static SKUs / license tester / Play Billing Lab) plus consumer-code testing patterns.
 - [`docs/BUILD_HISTORY.md`](docs/BUILD_HISTORY.md) — design rationale and decisions for v0.1.0.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what's next.
 
