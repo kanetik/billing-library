@@ -4,6 +4,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.queryPurchasesAsync
+import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineScope
@@ -25,16 +26,28 @@ internal class BillingClientStorage(
     private val recoverPurchasesOnConnect: Boolean = true
 ) {
     /*
-     * Buffer capacity is intentionally generous. Purchase updates are too important to
-     * drop — the 1-slot buffer that was here previously could silently reject a second
-     * purchase event if a collector was temporarily slow (e.g. a coroutine suspended
-     * mid-acknowledge). With client-side signature verification in place, a dropped
-     * valid purchase would look like "no purchase found" and deny a legitimate user
-     * their premium grant. 32 slots is overkill for a sane flow (a user can only tap
-     * "Buy" so fast) and gives plenty of headroom for slow collectors. If a drop ever
-     * happens, [FlowPurchasesUpdatedListener] logs it for alerting.
+     * Buffer + replay strategy
+     * ------------------------
+     * `replay = 1`: a late subscriber sees the most recent emission. This matters
+     * for [PurchasesUpdate.Recovered] — the auto-sweep can fire on connect
+     * before the consumer's `observePurchaseUpdates()` collector has had time
+     * to attach (a real race when the lifecycle observer triggers `onStart`
+     * before the launched collector runs). With replay=0, that emission would
+     * be lost; with replay=1, the late subscriber picks it up. The cost is a
+     * stale event replay on re-subscription, which is safe because handle/grant
+     * is idempotent: `acknowledgePurchase(Purchase)` short-circuits on
+     * `isAcknowledged`, and consume on an already-consumed purchase surfaces
+     * `ITEM_NOT_OWNED` (already typed and handled).
+     *
+     * `extraBufferCapacity = 32`: head-room for slow collectors. The 1-slot
+     * buffer that lived here previously could silently reject a second purchase
+     * event if a collector was temporarily slow (e.g. a coroutine suspended
+     * mid-acknowledge). 32 is overkill for a sane flow (a user can only tap
+     * "Buy" so fast) and gives plenty of headroom. The sweep emits via the
+     * suspending [MutableSharedFlow.emit] (not `tryEmit`) so that a hypothetical
+     * buffer-full case suspends rather than drops.
      */
-    private val _purchasesUpdateFlow = MutableSharedFlow<PurchasesUpdate>(extraBufferCapacity = 32)
+    private val _purchasesUpdateFlow = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 32)
     val purchasesUpdateFlow: SharedFlow<PurchasesUpdate> = _purchasesUpdateFlow
         .asSharedFlow()
 
@@ -120,14 +133,10 @@ internal class BillingClientStorage(
             if (unacknowledged.isEmpty()) return
 
             logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
-            val emitted = _purchasesUpdateFlow.tryEmit(PurchasesUpdate.Recovered(unacknowledged))
-            if (!emitted) {
-                val productIds = unacknowledged.flatMap { it.products }.distinct()
-                logger.e(
-                    "Recovered purchase update dropped — buffer exhausted. " +
-                        "purchaseCount=${unacknowledged.size} productIds=$productIds"
-                )
-            }
+            // Suspending emit (not tryEmit) so a transient buffer-full doesn't
+            // silently drop a recovery event; the launch context can absorb the
+            // brief suspend.
+            _purchasesUpdateFlow.emit(PurchasesUpdate.Recovered(unacknowledged))
         } catch (t: Throwable) {
             // Best-effort: log and bail. Next connect retries.
             logger.w("Purchase recovery sweep failed", t)
@@ -139,7 +148,14 @@ internal class BillingClientStorage(
         @BillingClient.ProductType productType: String
     ): List<Purchase> {
         val params = QueryPurchasesParams.newBuilder().setProductType(productType).build()
-        return client.queryPurchasesAsync(params).purchasesList
+        val result = client.queryPurchasesAsync(params)
+        if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+            // Throw so the outer try/catch in sweepUnacknowledgedPurchases logs it.
+            // Without this, a SERVICE_DISCONNECTED / ERROR for one product type
+            // would silently return an empty list — recovery skipped, no signal.
+            throw BillingException.fromResult(result.billingResult)
+        }
+        return result.purchasesList
             .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
     }
 }

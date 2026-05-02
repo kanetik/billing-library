@@ -88,7 +88,9 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 
 Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
 
-The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no new code, no startup hook, no opt-in.
+The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no new code, no startup hook.
+
+This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. The `MutableSharedFlow` backing `observePurchaseUpdates()` keeps `replay = 1`, so a subscriber that attaches a moment after the sweep still receives the recovered purchases.
 
 ```kotlin
 billing.observePurchaseUpdates().collect { update ->
@@ -119,7 +121,7 @@ val billing = BillingRepositoryCreator.create(
 
 ## Granting entitlement: multi-quantity
 
-Play supports multi-quantity purchases for consumables (the Play Console flag must be enabled, and you can cap via `BillingFlowParams.setIsOfferPersonalized(...)` and the multi-quantity setting). Always grant `purchase.quantity` units, not 1:
+Play supports multi-quantity purchases for consumables (the *Multi-quantity purchases* flag must be enabled per-product in Play Console; the user picks the quantity in the Play purchase dialog). Always grant `purchase.quantity` units, not 1:
 
 ```kotlin
 private suspend fun handle(purchase: Purchase) {
