@@ -169,36 +169,43 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 ## Error handling
 
+Every `BillingActions` method that fails throws a typed `BillingException` subtype. The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing — what reaches your `catch` is whatever didn't recover. `launchFlow` is the exception: it runs once, because UI-initiated purchases shouldn't silently retry behind the user.
+
+For UI handling, branch on `userFacingCategory` (see "Showing errors to users" below). For lower-level branching, use the sealed subtype directly:
+
 ```kotlin
 try {
     billing.queryProductDetails(params)
 } catch (e: BillingException) {
-    when (e.retryType) {
-        RetryType.SAFE -> retryWithBackoff()
-        RetryType.UNSAFE -> surfaceToUserAndStop()
-        RetryType.NEVER -> logAndGiveUp()
+    when (e) {
+        is BillingException.NetworkErrorException,
+        is BillingException.ServiceUnavailableException,
+        is BillingException.ServiceDisconnectedException -> showRetryUI()
+        is BillingException.BillingUnavailableException -> hideBillingFeatures()
+        is BillingException.ItemUnavailableException -> showSoldOut()
+        else -> reportToCrashlytics(e)
     }
 }
 ```
 
 `BillingException` subtypes:
 
-| Subtype | When | RetryType |
+| Subtype | When | Internal RetryType |
 |---|---|---|
-| `ServiceDisconnectedException` | Client connection dropped mid-call | SAFE |
-| `ServiceUnavailableException` | Network unavailable, or 30s connection timeout | SAFE |
-| `ServiceTimeoutException` | PBL signaled timeout | SAFE |
-| `BillingUnavailableException` | Play Store missing / disabled / wrong region | UNSAFE |
-| `ItemUnavailableException` | Product not configured for this user/country | UNSAFE |
-| `ItemAlreadyOwnedException` | One-time product already owned | UNSAFE |
-| `ItemNotOwnedException` | Trying to consume something not in inventory | UNSAFE |
-| `DeveloperErrorException` | API misuse — fix the code | NEVER |
-| `FeatureNotSupportedException` | Feature missing on this Play version | NEVER |
-| `ErrorException` | Generic ERROR response code | UNSAFE |
-| `UserCanceledException` | User dismissed the purchase flow | NEVER |
-| `NetworkErrorException` | Lower-level network failure | SAFE |
+| `NetworkErrorException` | Lower-level network failure | `EXPONENTIAL_RETRY` |
+| `ServiceUnavailableException` | Play Store service unreachable | `EXPONENTIAL_RETRY` |
+| `ServiceDisconnectedException` | Client connection dropped mid-call | `SIMPLE_RETRY` |
+| `FatalErrorException` | Generic Play Billing `ERROR` response code | `EXPONENTIAL_RETRY` |
+| `ItemAlreadyOwnedException` | One-time product already owned | `REQUERY_PURCHASE_RETRY` |
+| `ItemNotOwnedException` | Trying to consume something not in inventory | `REQUERY_PURCHASE_RETRY` |
+| `BillingUnavailableException` | Play Store missing / disabled / wrong region | `NONE` |
+| `ItemUnavailableException` | Product not configured for this user/country | `NONE` |
+| `DeveloperErrorException` | API misuse — fix the code | `NONE` |
+| `FeatureNotSupportedException` | Feature missing on this Play version | `NONE` |
+| `UserCanceledException` | User dismissed the purchase flow | `NONE` |
+| `UnknownException` | Response code PBL doesn't document — log it | `NONE` |
 
-The library's internal retry loop already retries `RetryType.SAFE` failures up to 3 times with exponential backoff, *except* for `launchFlow` (which runs once — UI-initiated purchases shouldn't silently retry behind the user). What you wrap in retry-vs-surface logic is whatever leaks out.
+`RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly — the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
 
 ### Showing errors to users
 
