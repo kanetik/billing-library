@@ -77,7 +77,13 @@ class CheckoutActivity : ComponentActivity() {
     }
 
     private suspend fun handle(purchase: Purchase) {
-        billing.handlePurchase(purchase, consume = false) // acknowledges non-consumables
+        // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
+        // See "Handling handlePurchase failures correctly" below for the full pattern.
+        when (val r = billing.handlePurchase(purchase, consume = false)) {
+            HandlePurchaseResult.Success -> grantPremium()
+            HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+            is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+        }
     }
 }
 ```
@@ -153,7 +159,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 | Subpackage | Contains |
 |---|---|
-| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
 | `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
@@ -219,19 +225,20 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 
 ### Handling `handlePurchase` failures correctly
 
-`handlePurchase` throws `BillingException` if the underlying acknowledge / consume call fails. **Do not grant entitlement before the call returns successfully** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Don't grant entitlement outside the `Success` branch** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
 
 ```kotlin
-try {
-    billing.handlePurchase(purchase, consume = false)
-    grantPremium()  // only reached if handlePurchase returned without throwing
-} catch (e: BillingException) {
-    showRetryUI(e.userFacingCategory)
-    // do NOT grant — the next recovery sweep will retry on reconnect
+when (val r = billing.handlePurchase(purchase, consume = false)) {
+    HandlePurchaseResult.Success -> grantPremium()
+    HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+    is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+    // do NOT grant on Failure — the recovery sweep retries on next connect
 }
 ```
 
-If you prefer `runCatching`, the grant call must be inside `.onSuccess { }` — never alongside `runCatching` at the same scope. The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient failure is recoverable; a granted-then-refunded purchase is not.
+The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
+
+Lower-level `consumePurchase` and `acknowledgePurchase` still throw `BillingException` directly — callers at that layer are already in the weeds and a thrown exception is appropriate. `handlePurchase` is the high-level helper that gets the typed-result treatment because forgetting the failure case is the most common bug.
 
 ## Lifecycle integration
 

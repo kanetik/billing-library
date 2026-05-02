@@ -7,8 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`BillingActions.handlePurchase` now returns a sealed
+  `HandlePurchaseResult`** instead of `Unit`. The previous behavior (throws
+  `BillingException` on failure) was too easy to defeat with
+  `runCatching { handlePurchase(...) }; grantPremium()` — the entitlement
+  grant ran whether or not the acknowledge landed, and Play auto-refunded
+  the unacknowledged purchase ~3 days later.
+
+  ```kotlin
+  // Before:
+  try { billing.handlePurchase(purchase, consume = false); grant() }
+  catch (e: BillingException) { showError() }
+
+  // After:
+  when (val r = billing.handlePurchase(purchase, consume = false)) {
+      HandlePurchaseResult.Success -> grant()
+      HandlePurchaseResult.NotPurchased -> {} // pending
+      is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+  }
+  ```
+
+  Lower-level `consumePurchase` and `acknowledgePurchase` are unchanged —
+  they still throw `BillingException` directly. Only the high-level
+  `handlePurchase` helper gets the typed-result treatment.
+
 ### Added
 
+- **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
+  `Success`, `NotPurchased`, `Failure(exception)`. See the breaking-change
+  note above.
 - **`BillingErrorCategory` enum** (`com.kanetik.billing.exception`) — six
   user-facing buckets (`UserCanceled`, `Network`, `BillingUnavailable`,
   `ProductUnavailable`, `DeveloperError`, `Other`) collapsing the 12

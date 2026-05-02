@@ -6,9 +6,33 @@ For what already shipped in v0.1.0, see [`BUILD_HISTORY.md`](BUILD_HISTORY.md).
 
 ---
 
+## Versioning policy
+
+Scope of each release tier:
+
+- **v0.x patch / minor releases**: improvements to APIs that already exist —
+  bug fixes, doc clarifications, ergonomics fixes, and small additive helpers.
+  Breaking changes to fix existing API mistakes ship here too (pre-1.0 SemVer
+  permits this; the alternative — sitting on a known footgun until the next
+  feature cycle — is worse). Anything that makes *what's already shipped*
+  better or more correct belongs in a patch / minor.
+- **v0.2.0+**: net-new capability. Subscription handling. Testing artifact.
+  Anything that adds a feature the library didn't previously have. The
+  v0.2.0 plan below is explicitly scoped to additions, not improvements
+  to existing surface.
+
+If you're triaging an issue: "does this add a capability we didn't have?"
+→ minor release. "Does this fix or improve something we already shipped?"
+→ patch release.
+
+---
+
 ## v0.2.0 — Subscriptions + testing artifact
 
-Targeted after v0.1.0 has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase explicitly waits for that signal.
+Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase explicitly waits for that signal.
+
+**Scope discipline:** v0.2.0 is for *new capabilities only*. If a quality-of-life
+or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.
 
 ### Subscription helpers — *planned*
 

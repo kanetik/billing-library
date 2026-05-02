@@ -10,6 +10,7 @@ import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingConnectionResult
 import com.kanetik.billing.BillingRepository
 import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.PurchasesUpdate
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
@@ -56,15 +57,15 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                     else -> emptyList()
                 }
                 purchasesToHandle.forEach { purchase ->
-                    runCatching {
-                        // For `android.test.purchased`, consume = true so a fresh
-                        // run can re-purchase. For non-consumable IAP in real apps,
-                        // pass consume = false to acknowledge-only.
-                        billing.handlePurchase(purchase, consume = true)
-                    }.onSuccess {
-                        appendLog("handlePurchase OK for ${purchase.products}")
-                    }.onFailure { e ->
-                        appendLog("handlePurchase FAILED: ${e.message}")
+                    // For `android.test.purchased`, consume = true so a fresh
+                    // run can re-purchase. For non-consumable IAP in real apps,
+                    // pass consume = false to acknowledge-only.
+                    when (val outcome = billing.handlePurchase(purchase, consume = true)) {
+                        HandlePurchaseResult.Success -> appendLog("handlePurchase OK for ${purchase.products}")
+                        HandlePurchaseResult.NotPurchased -> appendLog("handlePurchase skipped (not in PURCHASED state)")
+                        is HandlePurchaseResult.Failure -> appendLog(
+                            "handlePurchase FAILED: ${outcome.exception::class.simpleName} (${outcome.exception.userFacingCategory})"
+                        )
                     }
                 }
             }

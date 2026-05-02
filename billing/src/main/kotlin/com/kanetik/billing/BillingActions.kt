@@ -113,56 +113,51 @@ public interface BillingActions {
     /**
      * High-level helper: post-process a [purchase] by either consuming it (for
      * consumables) or acknowledging it (for non-consumables), based on [consume].
+     * Returns a typed [HandlePurchaseResult] — branch on it; **don't ignore
+     * the return value**.
      *
-     * ## ⚠️ Failure handling: do NOT grant entitlement unless this returns normally
+     * ## Why a typed result, not a thrown exception
      *
-     * This method **throws** [com.kanetik.billing.exception.BillingException] if the
-     * underlying consume / acknowledge call fails. **If you grant entitlement
-     * before this call returns successfully — or wrap it in `runCatching {}` and
-     * grant outside the success branch — Play will auto-refund the unacknowledged
-     * purchase within ~3 days and the user's premium will silently evaporate.**
+     * Granting entitlement on a failed acknowledge is the most common Play
+     * Billing bug: caller writes `runCatching { handlePurchase(...) }` and
+     * `grantPremium()` outside the `.onSuccess { }` branch, Play auto-refunds
+     * the unacknowledged purchase within ~3 days, and the user's premium
+     * silently evaporates. Returning [HandlePurchaseResult] makes the failure
+     * case a sealed-type variant the compiler nudges callers to handle:
      *
-     * Correct pattern:
      * ```
-     * try {
-     *     billing.handlePurchase(purchase, consume = false)
-     *     grantPremium()  // only reached if handlePurchase returned without throwing
-     * } catch (e: BillingException) {
-     *     showRetryUI(e.userFacingCategory)
-     *     // do NOT grant — the next recovery sweep will retry on the next connection
+     * when (val r = billing.handlePurchase(purchase, consume = false)) {
+     *     HandlePurchaseResult.Success -> grantPremium()
+     *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
+     *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
      * }
      * ```
      *
-     * If you prefer `runCatching`, the grant call must be inside `.onSuccess { }`
-     * — never alongside `runCatching` at the same scope. The library's auto-recovery
-     * sweep (see [com.kanetik.billing.PurchasesUpdate.Recovered]) re-emits the
-     * unacknowledged purchase on the next successful connection, so a transient
-     * failure is recoverable; a granted-then-refunded purchase is not.
+     * The auto-recovery sweep ([com.kanetik.billing.PurchasesUpdate.Recovered])
+     * re-emits the unacknowledged purchase on the next successful connection,
+     * so a transient [HandlePurchaseResult.Failure] is recoverable; a
+     * granted-then-refunded purchase is not.
+     *
+     * Lower-level [consumePurchase] / [acknowledgePurchase] still throw
+     * [com.kanetik.billing.exception.BillingException] directly — callers at
+     * that layer are already in the weeds and a thrown exception is
+     * appropriate.
      *
      * ## Behavior contract
      *
      * Bakes in three things consumers shouldn't have to remember:
      *  1. Only act on [Purchase.PurchaseState.PURCHASED] — pending and canceled
      *     purchases must wait for their terminal state. Calling this on a non-
-     *     PURCHASED purchase is a silent no-op (returns without throwing).
+     *     PURCHASED purchase returns [HandlePurchaseResult.NotPurchased].
      *  2. For [consume] = false, the [acknowledgePurchase]`(Purchase)` overload's
-     *     `isAcknowledged` short-circuit applies.
+     *     `isAcknowledged` short-circuit applies (already-acked → Success).
      *  3. For [consume] = true, the underlying consume call is the one that also
      *     satisfies Play's acknowledgement requirement (Play treats consume as
      *     implicit acknowledgement for consumables).
      *
-     * The [consume] decision is fundamentally an app concern — *which* product
-     * IDs are consumables depends on Play Console configuration and the app's
-     * own logic — but [when][consume] to call this is the dev's choice. Common
-     * patterns:
-     *  - **Immediate**: call from your `observePurchaseUpdates()` collector for
-     *    every Success **and** Recovered update. Pass `consume = true` for
-     *    consumable IDs, `consume = false` otherwise.
-     *  - **After server validation**: validate the purchase on your backend
-     *    first, then call this once you've confirmed the purchase is real.
-     *
      * If you need the consumed token specifically (for server reporting),
-     * call [consumePurchase]`(Purchase)` directly instead.
+     * call [consumePurchase]`(Purchase)` directly instead — it still throws
+     * on failure and returns the token on success.
      *
      * ## Multi-quantity consumables
      *
@@ -174,18 +169,29 @@ public interface BillingActions {
      * configured in the Play Console. Ignoring the field on a multi-quantity
      * purchase silently under-grants.
      *
-     * @param purchase The purchase to handle. No-op if `purchase.purchaseState`
-     *   isn't [Purchase.PurchaseState.PURCHASED].
+     * @param purchase The purchase to handle.
      * @param consume `true` to consume (for consumables); `false` to acknowledge
      *   (for non-consumables).
+     * @return [HandlePurchaseResult.Success] if the call landed,
+     *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
+     *   state, or [HandlePurchaseResult.Failure] (carrying the underlying
+     *   `BillingException`) if the acknowledge / consume call failed after the
+     *   library's retry budget.
      */
     @AnyThread
-    public suspend fun handlePurchase(purchase: Purchase, consume: Boolean) {
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
-        if (consume) {
-            consumePurchase(purchase)
-        } else {
-            acknowledgePurchase(purchase)
+    public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
+        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
+            return HandlePurchaseResult.NotPurchased
+        }
+        return try {
+            if (consume) {
+                consumePurchase(purchase)
+            } else {
+                acknowledgePurchase(purchase)
+            }
+            HandlePurchaseResult.Success
+        } catch (e: com.kanetik.billing.exception.BillingException) {
+            HandlePurchaseResult.Failure(e)
         }
     }
 
