@@ -129,6 +129,108 @@ Second real consumer once that app goes freemium. Almost certainly surfaces desi
 
 ---
 
+## v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)
+
+**Status:** designed but uncommitted. No consumer has asked for this — captured here so the design isn't lost when one does, and so we don't accidentally bolt analytics onto the wrong place (e.g. the `BillingLogger` interface) in the meantime.
+
+**Premise:** the library should never dial out. But consumers reasonably want to instrument their integration — track recovery-sweep counts in Firebase, alert on high failure rates in Crashlytics, A/B test acknowledgement timing. The right shape is *structured events the library emits, the consumer routes wherever*. Library never touches a network; consumer owns the destination, the privacy story, and the regulatory surface.
+
+### Surface
+
+```kotlin
+public sealed class BillingTelemetryEvent {
+    public data object ConnectionEstablished : BillingTelemetryEvent()
+    public data class ConnectionFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()
+
+    public data class RecoverySweepRan(val unacknowledgedCount: Int) : BillingTelemetryEvent()
+    public data class RecoverySweepFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()
+
+    public data class RetryAttempted(
+        val operation: String,         // "queryProductDetails", "consume", etc.
+        val attempt: Int,              // 1-indexed
+        val category: BillingErrorCategory
+    ) : BillingTelemetryEvent()
+
+    public data class HandlePurchaseSucceeded(
+        val productIds: List<String>,
+        val consume: Boolean,
+        val recovered: Boolean         // true if from a Recovered emission, false from Success
+    ) : BillingTelemetryEvent()
+    public data class HandlePurchaseFailed(
+        val productIds: List<String>,
+        val consume: Boolean,
+        val category: BillingErrorCategory
+    ) : BillingTelemetryEvent()
+    public data object AcknowledgeShortCircuited : BillingTelemetryEvent()  // already-acked path
+
+    public data class PurchaseFlowLaunched(val productId: String) : BillingTelemetryEvent()
+    public data object PurchaseFlowAlreadyInProgress : BillingTelemetryEvent()
+    public data object PurchaseFlowWatchdogTriggered : BillingTelemetryEvent()
+}
+
+public interface BillingTelemetryOwner {
+    public fun observeTelemetry(): SharedFlow<BillingTelemetryEvent>
+}
+```
+
+`BillingRepository` extends `BillingTelemetryOwner` alongside the existing `BillingActions` / `BillingConnector` / `BillingPurchaseUpdatesOwner`.
+
+### Why a separate interface, not `BillingLogger`
+
+`BillingLogger` is human-readable strings for logcat / Crashlytics breadcrumbs. Telemetry events are structured records for analytics pipelines. Same destination occasionally; different data shape, different consumers, different contracts. Mixing them on one interface bloats both with concerns that don't belong together.
+
+### Privacy / data-handling rules baked into the design
+
+- **No purchase tokens** — they're sensitive identifiers; consumer can correlate via `productIds` if needed.
+- **No signatures or `originalJson`** — same reason.
+- **No raw user identifiers** — no obfuscatedAccountId / obfuscatedProfileId in events; consumer already knows what it set.
+- **Categories, not raw response codes** — emit [`BillingErrorCategory`][error-category] (the same enum the UI uses), so events line up with the rest of the library's error model.
+- **Product IDs are fine** — developer-controlled, not PII.
+
+[error-category]: ../billing/src/main/kotlin/com/kanetik/billing/exception/BillingErrorCategory.kt
+
+### Default behavior
+
+`MutableSharedFlow<BillingTelemetryEvent>(extraBufferCapacity = 32)`. Always emitting; cost is one struct allocation per event plus a small buffer (~3KB worst case). Consumer subscribes via `observeTelemetry()` when they want them; otherwise events flow into the buffer and roll off. No opt-in toggle in v1 — the cost is too small to justify a configuration knob.
+
+### Wire-up example (README addition)
+
+```kotlin
+lifecycleScope.launch {
+    billing.observeTelemetry().collect { event ->
+        when (event) {
+            is BillingTelemetryEvent.HandlePurchaseFailed -> {
+                Firebase.analytics.logEvent("billing_handle_failed") {
+                    param("category", event.category.name)
+                    param("consume", event.consume.toString())
+                    // do NOT log productIds verbatim if they're SKU-named with PII
+                }
+            }
+            is BillingTelemetryEvent.RecoverySweepRan ->
+                Firebase.analytics.logEvent("billing_recovery") {
+                    param("count", event.unacknowledgedCount.toLong())
+                }
+            else -> {}  // no-op for events you don't care about
+        }
+    }
+}
+```
+
+### Out of scope for v1
+
+- No event-type filtering at the library level — consumer does its own `filterIsInstance` / `when`.
+- No timestamps in events — consumer adds them at the egress layer with its own clock.
+- No sequence numbers — events are naturally ordered through the SharedFlow.
+- No replay window — the recovery flow already covers "important state on connect"; telemetry is for instrumentation, not state recovery.
+
+### Why this isn't v0.2.0
+
+v0.2.0 is scoped to subscription handling + testing artifact (per the policy above). Telemetry doesn't fit that scope and shouldn't be jammed in. It's also worth waiting for a real consumer ask — the variant set above is my best guess at what's useful, but a consumer with a real Firebase/Mixpanel pipeline will surface gaps and excesses better than I can speculate to.
+
+If the design above looks roughly right when a consumer asks, the implementation is small (sealed type + interface + ~10 emission sites) — under a day of work plus tests.
+
+---
+
 ## Future (post-v0.2.0) — demand-driven
 
 Tracked but not committed. Most are build-when-asked.
