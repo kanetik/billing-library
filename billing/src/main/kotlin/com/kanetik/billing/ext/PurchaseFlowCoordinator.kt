@@ -91,11 +91,15 @@ public class PurchaseFlowCoordinator(
      * @param obfuscatedAccountId Optional stable per-install identifier passed
      *   through to Play for fraud-detection correlation. See
      *   [ProductDetails.toOneTimeFlowParams] for the contract.
+     * @param obfuscatedProfileId Optional secondary opaque ID for apps with
+     *   multiple user profiles per install. See
+     *   [ProductDetails.toOneTimeFlowParams] for the contract.
      */
     public suspend fun launch(
         activity: Activity,
         productDetails: ProductDetails,
-        obfuscatedAccountId: String? = null
+        obfuscatedAccountId: String? = null,
+        obfuscatedProfileId: String? = null
     ): PurchaseFlowResult {
         val correlationId = UUID.randomUUID().toString()
         logger.d("PurchaseFlow[$correlationId]: attempt")
@@ -112,7 +116,7 @@ public class PurchaseFlowCoordinator(
 
         var launched = false
         return try {
-            val flowParams = productDetails.toOneTimeFlowParams(obfuscatedAccountId)
+            val flowParams = productDetails.toOneTimeFlowParams(obfuscatedAccountId, obfuscatedProfileId)
             withContext(Dispatchers.Main) {
                 billingRepository.launchFlow(activity, flowParams)
             }

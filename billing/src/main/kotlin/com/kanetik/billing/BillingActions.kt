@@ -114,10 +114,37 @@ public interface BillingActions {
      * High-level helper: post-process a [purchase] by either consuming it (for
      * consumables) or acknowledging it (for non-consumables), based on [consume].
      *
+     * ## ⚠️ Failure handling: do NOT grant entitlement unless this returns normally
+     *
+     * This method **throws** [com.kanetik.billing.exception.BillingException] if the
+     * underlying consume / acknowledge call fails. **If you grant entitlement
+     * before this call returns successfully — or wrap it in `runCatching {}` and
+     * grant outside the success branch — Play will auto-refund the unacknowledged
+     * purchase within ~3 days and the user's premium will silently evaporate.**
+     *
+     * Correct pattern:
+     * ```
+     * try {
+     *     billing.handlePurchase(purchase, consume = false)
+     *     grantPremium()  // only reached if handlePurchase returned without throwing
+     * } catch (e: BillingException) {
+     *     showRetryUI(e.userFacingCategory)
+     *     // do NOT grant — the next recovery sweep will retry on the next connection
+     * }
+     * ```
+     *
+     * If you prefer `runCatching`, the grant call must be inside `.onSuccess { }`
+     * — never alongside `runCatching` at the same scope. The library's auto-recovery
+     * sweep (see [com.kanetik.billing.PurchasesUpdate.Recovered]) re-emits the
+     * unacknowledged purchase on the next successful connection, so a transient
+     * failure is recoverable; a granted-then-refunded purchase is not.
+     *
+     * ## Behavior contract
+     *
      * Bakes in three things consumers shouldn't have to remember:
      *  1. Only act on [Purchase.PurchaseState.PURCHASED] — pending and canceled
      *     purchases must wait for their terminal state. Calling this on a non-
-     *     PURCHASED purchase is a silent no-op.
+     *     PURCHASED purchase is a silent no-op (returns without throwing).
      *  2. For [consume] = false, the [acknowledgePurchase]`(Purchase)` overload's
      *     `isAcknowledged` short-circuit applies.
      *  3. For [consume] = true, the underlying consume call is the one that also

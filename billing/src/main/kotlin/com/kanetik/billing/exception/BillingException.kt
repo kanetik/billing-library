@@ -14,13 +14,39 @@ import com.kanetik.billing.RetryType
  *    debug message),
  *  - a [retryType] hint indicating whether the library will retry the call.
  *
- * Branch on the subtype (or check [retryType]) to decide UX: show a "no
- * connection, try again" toast for [NetworkErrorException], a "this purchase is
- * already yours" message for [ItemAlreadyOwnedException], etc.
+ * Branch on the subtype (or check [retryType] / [userFacingCategory]) to decide
+ * UX: show a "no connection, try again" toast for [NetworkErrorException], a
+ * "this purchase is already yours" message for [ItemAlreadyOwnedException], etc.
  *
  * The library applies [retryType] internally inside its retry loop; you'll only
  * see an exception thrown when the retry budget is exhausted or the error is
  * terminal.
+ *
+ * ## ⚠️ Never display [message] to end users
+ *
+ * [message] is a **debug-context dump** — class name, response code, sub-response
+ * code, debug message. Useful for logs, Crashlytics, and developer dashboards.
+ * **Awful for user-facing dialogs** (leaks `ServiceDisconnectedException`,
+ * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
+ *
+ * For UI: branch on the subtype directly, or call [userFacingCategory] to
+ * collapse the 12 subtypes into [BillingErrorCategory]'s 6 buckets and
+ * localize per bucket from your own string resources. Example:
+ *
+ * ```
+ * catch (e: BillingException) {
+ *     val msgRes = when (e.userFacingCategory) {
+ *         BillingErrorCategory.UserCanceled -> return  // not really an error
+ *         BillingErrorCategory.Network -> R.string.purchase_error_network
+ *         BillingErrorCategory.BillingUnavailable -> R.string.purchase_error_billing_unavailable
+ *         BillingErrorCategory.ProductUnavailable -> R.string.purchase_error_product_unavailable
+ *         BillingErrorCategory.DeveloperError -> R.string.purchase_error_generic
+ *         BillingErrorCategory.Other -> R.string.purchase_error_generic
+ *     }
+ *     showError(getString(msgRes))
+ *     log.e("Billing failure", e)  // .message is fine here — it's a log
+ * }
+ * ```
  */
 public sealed class BillingException(
     public val result: BillingResult?,
@@ -28,6 +54,9 @@ public sealed class BillingException(
 ) : Exception() {
 
     /**
+     * **Debug-context dump for logs only — never display to end users.** See the
+     * class-level KDoc for the user-facing UX pattern (use [userFacingCategory]).
+     *
      * Built lazily so a [BillingException] instance constructed but never thrown
      * doesn't pay the cost of building the context string. In practice most
      * exceptions get their message read by Crashlytics/Timber/error UIs, so
@@ -38,6 +67,29 @@ public sealed class BillingException(
             BillingLoggingUtils.createDetailedBillingContext(it, operationContext = "Exception Creation")
         } ?: "Billing exception with null result"
     }
+
+    /**
+     * UI bucket for this exception. Collapses the 12 sealed subtypes into
+     * [BillingErrorCategory]'s ~6 user-facing categories so callers can
+     * localize from a small string-resource map instead of branching on
+     * every PBL response code. See the class-level KDoc for the recommended
+     * pattern.
+     */
+    public val userFacingCategory: BillingErrorCategory
+        get() = when (this) {
+            is UserCanceledException -> BillingErrorCategory.UserCanceled
+            is NetworkErrorException,
+            is ServiceDisconnectedException,
+            is ServiceUnavailableException -> BillingErrorCategory.Network
+            is BillingUnavailableException -> BillingErrorCategory.BillingUnavailable
+            is ItemUnavailableException,
+            is ItemAlreadyOwnedException,
+            is ItemNotOwnedException -> BillingErrorCategory.ProductUnavailable
+            is DeveloperErrorException,
+            is FeatureNotSupportedException -> BillingErrorCategory.DeveloperError
+            is FatalErrorException,
+            is UnknownException -> BillingErrorCategory.Other
+        }
 
     /**
      * Class-aware [toString] so logs show the concrete subtype name plus the

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`BillingErrorCategory` enum** (`com.kanetik.billing.exception`) — six
+  user-facing buckets (`UserCanceled`, `Network`, `BillingUnavailable`,
+  `ProductUnavailable`, `DeveloperError`, `Other`) collapsing the 12
+  `BillingException` subtypes so callers can localize from a small
+  string-resource map instead of branching on every PBL response code.
+- **`BillingException.userFacingCategory`** — convenience property returning
+  the matching `BillingErrorCategory` for the exception.
+- **`obfuscatedProfileId` parameter** on `ProductDetails.toOneTimeFlowParams(...)`
+  and `PurchaseFlowCoordinator.launch(...)` — secondary opaque ID for apps
+  with multiple user profiles per install. Default-null preserves existing
+  call sites verbatim.
 - **Automatic purchase recovery on connect** — on every successful Play Billing
   connection, the library queries owned `INAPP` + `SUBS` purchases in parallel
   and emits any `PURCHASED && !isAcknowledged` matches through
@@ -26,15 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`handlePurchase` KDoc** now leads with the failure-handling consequence:
+  *"do NOT grant entitlement unless this returns normally — Play will
+  auto-refund within 3 days and the user's premium will silently evaporate."*
+  Plus the multi-quantity gotcha and the `Recovered`-variant handling parity.
+- **`BillingException` class-level KDoc** documents that `.message` is a
+  debug-context dump for logs only, and routes UI handling through
+  `userFacingCategory`.
 - **README** gains a "Purchase recovery" section explaining the new
   `Recovered` variant and the auto-sweep behavior.
+- **README** gains "Showing errors to users" and "Handling `handlePurchase`
+  failures correctly" subsections under Error handling.
 - **README** gains a "Granting entitlement: multi-quantity" section
   reminding consumers to read `purchase.quantity` when granting
   consumable entitlement (Play supports multi-quantity purchases; the
   field defaults to 1, so single-unit code keeps working but
   silently under-grants on multi-quantity).
-- **`handlePurchase` KDoc** now flags the multi-quantity gotcha and the
-  `Recovered`-variant handling parity.
 - **`PurchasesUpdate` KDoc** documents the new variant and the
   multi-quantity grant rule at the class level.
 - **Sample** updated to handle both `Success` and `Recovered` through one

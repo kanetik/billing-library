@@ -154,7 +154,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 | Subpackage | Contains |
 |---|---|
 | `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
-| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes |
+| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
 | `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory` |
@@ -193,6 +193,45 @@ try {
 | `NetworkErrorException` | Lower-level network failure | SAFE |
 
 The library's internal retry loop already retries `RetryType.SAFE` failures up to 3 times with exponential backoff, *except* for `launchFlow` (which runs once — UI-initiated purchases shouldn't silently retry behind the user). What you wrap in retry-vs-surface logic is whatever leaks out.
+
+### Showing errors to users
+
+**Never display `BillingException.message` in your UI** — it's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
+
+For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — six buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
+
+```kotlin
+catch (e: BillingException) {
+    val msgRes = when (e.userFacingCategory) {
+        BillingErrorCategory.UserCanceled -> return  // not really an error
+        BillingErrorCategory.Network -> R.string.purchase_error_network
+        BillingErrorCategory.BillingUnavailable -> R.string.purchase_error_billing_unavailable
+        BillingErrorCategory.ProductUnavailable -> R.string.purchase_error_product_unavailable
+        BillingErrorCategory.DeveloperError -> R.string.purchase_error_generic
+        BillingErrorCategory.Other -> R.string.purchase_error_generic
+    }
+    showError(getString(msgRes))
+    log.e("Billing failure", e)  // .message is fine here — it's a log
+}
+```
+
+The library deliberately doesn't ship localized user-facing strings (tone, voice, and language coverage are app concerns).
+
+### Handling `handlePurchase` failures correctly
+
+`handlePurchase` throws `BillingException` if the underlying acknowledge / consume call fails. **Do not grant entitlement before the call returns successfully** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+
+```kotlin
+try {
+    billing.handlePurchase(purchase, consume = false)
+    grantPremium()  // only reached if handlePurchase returned without throwing
+} catch (e: BillingException) {
+    showRetryUI(e.userFacingCategory)
+    // do NOT grant — the next recovery sweep will retry on reconnect
+}
+```
+
+If you prefer `runCatching`, the grant call must be inside `.onSuccess { }` — never alongside `runCatching` at the same scope. The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient failure is recoverable; a granted-then-refunded purchase is not.
 
 ## Lifecycle integration
 
