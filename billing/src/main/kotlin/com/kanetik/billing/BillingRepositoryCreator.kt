@@ -66,6 +66,16 @@ public object BillingRepositoryCreator {
      * @param uiDispatcher Dispatcher used by `launchFlow` only — Play Billing
      *   requires `launchBillingFlow` to run on the main thread. Defaults to
      *   [Dispatchers.Main].
+     * @param recoverPurchasesOnConnect When `true` (the default), the library
+     *   queries owned `INAPP` + `SUBS` purchases on every successful Play Billing
+     *   connection and emits any `PURCHASED && !isAcknowledged` purchases through
+     *   [BillingPurchaseUpdatesOwner.observePurchaseUpdates] as
+     *   [PurchasesUpdate.Recovered][com.kanetik.billing.PurchasesUpdate.Recovered].
+     *
+     *   Set `false` only if you run your own server-side reconciliation queue
+     *   that drives acknowledgement out-of-band. The default exists because
+     *   Play auto-refunds purchases not acknowledged within 3 days, and an app
+     *   crash mid-acknowledge will otherwise lose the purchase silently.
      */
     public fun create(
         context: Context,
@@ -73,7 +83,8 @@ public object BillingRepositoryCreator {
         billingClientFactory: BillingClientFactory = DefaultBillingClientFactory(),
         scope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-        uiDispatcher: CoroutineDispatcher = Dispatchers.Main
+        uiDispatcher: CoroutineDispatcher = Dispatchers.Main,
+        recoverPurchasesOnConnect: Boolean = true
     ): BillingRepository = DefaultBillingRepository(
         billingClientStorage = BillingClientStorage(
             billingFactory = CoroutinesBillingConnectionFactory(
@@ -81,7 +92,8 @@ public object BillingRepositoryCreator {
                 billingClientFactory = billingClientFactory
             ),
             logger = logger,
-            connectionShareScope = scope
+            connectionShareScope = scope,
+            recoverPurchasesOnConnect = recoverPurchasesOnConnect
         ),
         logger = logger,
         ioDispatcher = ioDispatcher,

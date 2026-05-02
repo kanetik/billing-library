@@ -50,6 +50,7 @@ class CheckoutActivity : ComponentActivity() {
             billing.observePurchaseUpdates().collect { update ->
                 when (update) {
                     is PurchasesUpdate.Success -> update.purchases.forEach { handle(it) }
+                    is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) } // see "Purchase recovery" below
                     is PurchasesUpdate.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is PurchasesUpdate.Canceled -> {}
                     is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
@@ -82,6 +83,54 @@ class CheckoutActivity : ComponentActivity() {
 ```
 
 That's enough for a working one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
+
+## Purchase recovery
+
+Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
+
+The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no new code, no startup hook, no opt-in.
+
+```kotlin
+billing.observePurchaseUpdates().collect { update ->
+    when (update) {
+        is PurchasesUpdate.Success -> {
+            update.purchases.forEach { handle(it) }
+            fireConfetti() // user-initiated; celebrate
+        }
+        is PurchasesUpdate.Recovered -> {
+            // Same handle() call — but no confetti. Background recovery, not a fresh purchase.
+            update.purchases.forEach { handle(it) }
+        }
+        // ... other arms
+    }
+}
+```
+
+`Success` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical.
+
+To opt out (e.g. you run a server-side reconciliation queue):
+
+```kotlin
+val billing = BillingRepositoryCreator.create(
+    context = applicationContext,
+    recoverPurchasesOnConnect = false
+)
+```
+
+## Granting entitlement: multi-quantity
+
+Play supports multi-quantity purchases for consumables (the Play Console flag must be enabled, and you can cap via `BillingFlowParams.setIsOfferPersonalized(...)` and the multi-quantity setting). Always grant `purchase.quantity` units, not 1:
+
+```kotlin
+private suspend fun handle(purchase: Purchase) {
+    if (purchase.products.contains("coins_pack")) {
+        coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
+    }
+    billing.handlePurchase(purchase, consume = true)
+}
+```
+
+`purchase.quantity` defaults to `1` so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the *acknowledgement* side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your entitlement-grant code needs the awareness.
 
 ## API overview
 

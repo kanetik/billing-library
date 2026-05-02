@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic purchase recovery on connect** — on every successful Play Billing
+  connection, the library queries owned `INAPP` + `SUBS` purchases in parallel
+  and emits any `PURCHASED && !isAcknowledged` matches through
+  `observePurchaseUpdates()` as a new `PurchasesUpdate.Recovered` variant.
+  Closes the gap that lets Play auto-refund stranded purchases after 3 days
+  when an app crash, network failure, or process death interrupts the
+  acknowledgement path. Opt-out via
+  `BillingRepositoryCreator.create(recoverPurchasesOnConnect = false)` for
+  consumers running their own server-side reconciliation.
+- **`PurchasesUpdate.Recovered(purchases)` sealed variant** — same payload
+  as `Success`, distinct variant so consumer UX can differentiate
+  user-initiated purchases (fire confetti) from background recovery (silent).
+  Handle code is identical to `Success` — call
+  `handlePurchase(purchase, consume = ?)` and grant entitlement.
+
+### Changed
+
+- **README** gains a "Purchase recovery" section explaining the new
+  `Recovered` variant and the auto-sweep behavior.
+- **README** gains a "Granting entitlement: multi-quantity" section
+  reminding consumers to read `purchase.quantity` when granting
+  consumable entitlement (Play supports multi-quantity purchases; the
+  field defaults to 1, so single-unit code keeps working but
+  silently under-grants on multi-quantity).
+- **`handlePurchase` KDoc** now flags the multi-quantity gotcha and the
+  `Recovered`-variant handling parity.
+- **`PurchasesUpdate` KDoc** documents the new variant and the
+  multi-quantity grant rule at the class level.
+- **Sample** updated to handle both `Success` and `Recovered` through one
+  shared dispatch.
+
+### Migration notes
+
+`PurchasesUpdate` is a sealed class; adding `Recovered` produces a Kotlin
+exhaustiveness warning at any `when (update) { ... }` site that doesn't
+have an `else`. Add an arm:
+
+```kotlin
+is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) }
+```
+
+The handle/grant code is the same as your `Success` arm.
+
 ## [0.1.0] - 2026-04-30
 
 ### Added

@@ -46,18 +46,25 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
             billing.observePurchaseUpdates().collect { update ->
                 _state.update { it.copy(lastUpdate = update) }
                 appendLog("purchase update: ${update::class.simpleName}")
-                if (update is PurchasesUpdate.Success) {
-                    update.purchases.forEach { purchase ->
-                        runCatching {
-                            // For `android.test.purchased`, consume = true so a fresh
-                            // run can re-purchase. For non-consumable IAP in real apps,
-                            // pass consume = false to acknowledge-only.
-                            billing.handlePurchase(purchase, consume = true)
-                        }.onSuccess {
-                            appendLog("handlePurchase OK for ${purchase.products}")
-                        }.onFailure { e ->
-                            appendLog("handlePurchase FAILED: ${e.message}")
-                        }
+                // Success and Recovered get the same handling: acknowledge / consume +
+                // grant entitlement. Recovered fires when the library's auto-sweep on
+                // connect finds an unacknowledged purchase from a prior session — see
+                // PurchasesUpdate.Recovered KDoc and the README's "Purchase recovery" section.
+                val purchasesToHandle = when (update) {
+                    is PurchasesUpdate.Success -> update.purchases
+                    is PurchasesUpdate.Recovered -> update.purchases
+                    else -> emptyList()
+                }
+                purchasesToHandle.forEach { purchase ->
+                    runCatching {
+                        // For `android.test.purchased`, consume = true so a fresh
+                        // run can re-purchase. For non-consumable IAP in real apps,
+                        // pass consume = false to acknowledge-only.
+                        billing.handlePurchase(purchase, consume = true)
+                    }.onSuccess {
+                        appendLog("handlePurchase OK for ${purchase.products}")
+                    }.onFailure { e ->
+                        appendLog("handlePurchase FAILED: ${e.message}")
                     }
                 }
             }

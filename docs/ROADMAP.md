@@ -31,6 +31,52 @@ Helpers to design:
 - Subscription upgrade/downgrade docs page in `/docs/`
 - README subs note loses the "not yet" disclaimer
 
+#### Replacement-mode API: name the intent, not the mode
+
+Don't expose PBL's six raw replacement-mode integers directly — the names tell you *what proration math runs*, not *what plan change you're making*. Wrap intent in a sealed type so callers say what they mean and the helper picks the right PBL mode internally:
+
+```kotlin
+public sealed class SubscriptionChange {
+    public data class Upgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class Downgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class CrossGrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class AddOn(val existing: Purchase, val addition: ProductDetails, val offerToken: String) : SubscriptionChange()
+}
+```
+
+Mapping the helper applies internally:
+
+| Intent | PBL mode | Why |
+|---|---|---|
+| `Upgrade` | `CHARGE_PRORATED_PRICE` | Charges immediately for the upgrade delta; new tier active right away. |
+| `Downgrade` | `DEFERRED` | New tier activates at next renewal; user keeps current benefits through the paid period. |
+| `CrossGrade` | `WITHOUT_PRORATION` | Same price tier, no money math; instantaneous swap. |
+| `AddOn` | `KEEP_EXISTING` | Adds a line item without disturbing the existing one. |
+
+Consumers who genuinely need a non-default mode can drop down to a lower-level `toSubscriptionFlowParams(replacementMode = ...)` overload. The sealed-type API is the front door; the raw mode is the escape hatch.
+
+#### linkedPurchaseToken: surface as a typed sealed variant
+
+When a subscription replacement completes, the new `Purchase` has a non-null `linkedPurchaseToken` pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. Right now the library would emit it as `PurchasesUpdate.Success`, leaving the consumer to dig into `purchase.accountIdentifiers?.linkedPurchaseToken` themselves — easy to miss.
+
+Fix: add a dedicated variant emitted *instead of* `Success` whenever `linkedPurchaseToken` is non-null:
+
+```kotlin
+public data class SubscriptionReplacement(
+    val newPurchase: Purchase,
+    val linkedPurchaseToken: String,
+    override val purchases: List<Purchase> = listOf(newPurchase)
+) : PurchasesUpdate()
+```
+
+Detection lives in `FlowPurchasesUpdatedListener.computeUpdates`: when `responseCode == OK` and any settled purchase has `linkedPurchaseToken != null`, emit a `SubscriptionReplacement` for that one (still partition the rest into `Success` / `Pending` as today). Also emit `SubscriptionReplacement` from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed.
+
+This makes the wrong code not type-check: you literally can't unpack the variant without seeing both tokens. The consumer's correct response is "process the new token, invalidate the old."
+
+#### Sweep impact
+
+The v0.1.0 recovery sweep (`PurchasesUpdate.Recovered`) already covers stranded subscription purchases — `queryPurchasesAsync(SUBS)` returns them and the same `PURCHASED && !isAcknowledged` filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with `linkedPurchaseToken`) into `SubscriptionReplacement` rather than the generic `Recovered` variant, for the same reason the live-purchase path does.
+
 ### `:billing-testing` artifact — *planned*
 
 New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:

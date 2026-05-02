@@ -8,7 +8,14 @@ import com.android.billingclient.api.Purchase
  * Each variant carries the purchases list Play returned with the update (often empty
  * for non-success outcomes). Branch on the sealed subtype to react to each outcome:
  *
- *  - [Success] — purchases completed; acknowledge / consume them per Play's rules.
+ *  - [Success] — purchases completed via the active purchase flow; acknowledge /
+ *    consume them per Play's rules.
+ *  - [Recovered] — `PURCHASED && !isAcknowledged` purchases discovered by the
+ *    library's automatic sweep on each successful connection. Same handling as
+ *    [Success] (acknowledge / consume), distinct variant so UX (confetti, "thanks!"
+ *    toasts) can differentiate user-initiated purchases from background recovery.
+ *    See [BillingRepositoryCreator.create][com.kanetik.billing.BillingRepositoryCreator.create]'s
+ *    `recoverPurchasesOnConnect` parameter to disable.
  *  - [Pending] — purchases that completed at the protocol level but await
  *    confirmation (cash payments, deferred billing). **Do not grant entitlement
  *    yet** — wait for a matching [Success] later. See PBL's pending-purchases
@@ -21,11 +28,51 @@ import com.android.billingclient.api.Purchase
  * When a single Play callback contains both pending and settled purchases (rare —
  * Play typically delivers one per callback), the listener emits both [Success] and
  * [Pending] separately so consumers can react to each.
+ *
+ * ## Granting entitlement (multi-quantity)
+ *
+ * For consumables, always grant `purchase.quantity` units, not 1. Play supports
+ * multi-quantity purchases (the Play Console flag must be enabled, and you can cap
+ * via `BillingFlowParams`). The field defaults to 1 so single-unit code keeps
+ * working — but ignoring it on a multi-quantity purchase silently under-grants.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
 
+    /**
+     * Purchases that just completed via an active [com.kanetik.billing.BillingActions.launchFlow]
+     * call. Hand each one to [com.kanetik.billing.BillingActions.handlePurchase] (with
+     * `consume = true` for consumables, `false` otherwise) to satisfy Play's
+     * acknowledgement requirement.
+     *
+     * For consumables, read `purchase.quantity` when granting entitlement —
+     * see the class-level multi-quantity note.
+     */
     public data class Success(override val purchases: List<Purchase>) : PurchasesUpdate()
+
+    /**
+     * `PURCHASED && !isAcknowledged` purchases discovered by the library's
+     * automatic sweep on each successful Play Billing connection.
+     *
+     * **Same handling as [Success]** — call
+     * [com.kanetik.billing.BillingActions.handlePurchase] (with `consume = true`
+     * for consumables, `false` otherwise) to acknowledge / consume them and
+     * grant entitlement.
+     *
+     * The variant exists so consumer UX can distinguish background recovery
+     * from user-initiated purchases (don't fire confetti for recovered
+     * purchases — the user didn't just tap Buy). The handle-and-grant code is
+     * identical; only the surrounding UX differs.
+     *
+     * **Why recovery matters:** Play auto-refunds purchases that aren't
+     * acknowledged within 3 days. App crashes, network failures, or force-quits
+     * mid-acknowledge leave purchases stranded — without a recovery sweep on
+     * the next launch, the user paid and gets refunded with no entitlement.
+     *
+     * Disabled via [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect = false` parameter (default is `true`).
+     */
+    public data class Recovered(override val purchases: List<Purchase>) : PurchasesUpdate()
 
     /**
      * Purchases that completed at the protocol level but await confirmation

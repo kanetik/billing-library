@@ -1,19 +1,28 @@
 package com.kanetik.billing
 
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.QueryPurchasesParams
+import com.android.billingclient.api.queryPurchasesAsync
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.launch
 
 internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
-    logger: BillingLogger,
-    connectionShareScope: CoroutineScope
+    private val logger: BillingLogger,
+    private val connectionShareScope: CoroutineScope,
+    private val recoverPurchasesOnConnect: Boolean = true
 ) {
     /*
      * Buffer capacity is intentionally generous. Purchase updates are too important to
@@ -54,9 +63,21 @@ internal class BillingClientStorage(
     /**
      * Internal: live-client-bearing flow used by [DefaultBillingRepository] to obtain the
      * underlying [com.android.billingclient.api.BillingClient] for in-library calls.
+     *
+     * The `onEach` hook fires the purchase-recovery sweep on every successful
+     * connection. It runs *upstream* of [shareIn] so it only executes when there's
+     * an active subscriber (preserving the [SharingStarted.WhileSubscribed] grace
+     * window — adding a permanent collector here would defeat it). The sweep is
+     * launched in [connectionShareScope] rather than awaited inline so a slow
+     * `queryPurchasesAsync` round-trip can't delay downstream connection emissions.
      */
     val connectionFlow: SharedFlow<InternalConnectionState> = billingFactory
         .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_purchasesUpdateFlow, logger))
+        .onEach { state ->
+            if (recoverPurchasesOnConnect && state is InternalConnectionState.Connected) {
+                connectionShareScope.launch { sweepUnacknowledgedPurchases(state.client) }
+            }
+        }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 
     /**
@@ -73,4 +94,52 @@ internal class BillingClientStorage(
             }
         }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
+
+    /**
+     * Queries owned INAPP and SUBS purchases in parallel, filters for any that are
+     * `PURCHASED && !isAcknowledged`, and emits them through [purchasesUpdateFlow]
+     * as a [PurchasesUpdate.Recovered] event.
+     *
+     * Failures are logged and swallowed — the sweep is best-effort. If the
+     * underlying query fails (network, service disconnect mid-call), the next
+     * successful connection will trigger another attempt.
+     *
+     * Idempotency: once the consumer's collector acknowledges / consumes a
+     * purchase, Play marks `isAcknowledged = true` and subsequent sweeps skip it.
+     * In the narrow window between emit and ack landing, a second sweep can re-emit
+     * the same purchase; the consumer's `acknowledgePurchase(Purchase)` overload's
+     * `isAcknowledged` short-circuit absorbs the duplicate in the common case.
+     */
+    private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
+        try {
+            val unacknowledged = coroutineScope {
+                val inApp = async { queryUnacknowledged(client, BillingClient.ProductType.INAPP) }
+                val subs = async { queryUnacknowledged(client, BillingClient.ProductType.SUBS) }
+                inApp.await() + subs.await()
+            }
+            if (unacknowledged.isEmpty()) return
+
+            logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
+            val emitted = _purchasesUpdateFlow.tryEmit(PurchasesUpdate.Recovered(unacknowledged))
+            if (!emitted) {
+                val productIds = unacknowledged.flatMap { it.products }.distinct()
+                logger.e(
+                    "Recovered purchase update dropped — buffer exhausted. " +
+                        "purchaseCount=${unacknowledged.size} productIds=$productIds"
+                )
+            }
+        } catch (t: Throwable) {
+            // Best-effort: log and bail. Next connect retries.
+            logger.w("Purchase recovery sweep failed", t)
+        }
+    }
+
+    private suspend fun queryUnacknowledged(
+        client: BillingClient,
+        @BillingClient.ProductType productType: String
+    ): List<Purchase> {
+        val params = QueryPurchasesParams.newBuilder().setProductType(productType).build()
+        return client.queryPurchasesAsync(params).purchasesList
+            .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
+    }
 }

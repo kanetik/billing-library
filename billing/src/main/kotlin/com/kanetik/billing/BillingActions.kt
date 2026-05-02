@@ -129,13 +129,23 @@ public interface BillingActions {
      * own logic — but [when][consume] to call this is the dev's choice. Common
      * patterns:
      *  - **Immediate**: call from your `observePurchaseUpdates()` collector for
-     *    every Success update. Pass `consume = true` for consumable IDs,
-     *    `consume = false` otherwise.
+     *    every Success **and** Recovered update. Pass `consume = true` for
+     *    consumable IDs, `consume = false` otherwise.
      *  - **After server validation**: validate the purchase on your backend
      *    first, then call this once you've confirmed the purchase is real.
      *
      * If you need the consumed token specifically (for server reporting),
      * call [consumePurchase]`(Purchase)` directly instead.
+     *
+     * ## Multi-quantity consumables
+     *
+     * This method handles the *acknowledgement* side correctly for any quantity
+     * — Play's consume API consumes the entire purchase regardless of unit count.
+     * But your *entitlement-grant* code must read [Purchase.getQuantity] and
+     * grant `quantity` units, not 1. The field defaults to 1 (so single-unit
+     * code keeps working), and Play supports multi-quantity for consumables
+     * configured in the Play Console. Ignoring the field on a multi-quantity
+     * purchase silently under-grants.
      *
      * @param purchase The purchase to handle. No-op if `purchase.purchaseState`
      *   isn't [Purchase.PurchaseState.PURCHASED].
