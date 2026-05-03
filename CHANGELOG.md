@@ -97,11 +97,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
   `Success`, `NotPurchased`, `Failure(exception)`. See the breaking-change
   note above.
-- **`BillingErrorCategory` enum** (`com.kanetik.billing.exception`) — six
+- **`BillingException.WrappedException(cause)` sealed subtype** — synthesized
+  by `handlePurchase` when a custom `BillingActions` implementation throws
+  something other than `BillingException` (an `IllegalStateException` from
+  a fake, an `AssertionError` from a test double, etc.). Distinct from
+  `UnknownException` (which is reserved for undocumented PBL response
+  codes); `result` is `null` and the original throwable is on
+  `originalCause` / `Exception.cause`. Brings the total `BillingException`
+  subtype count to 13.
+- **`BillingErrorCategory` enum** (`com.kanetik.billing.exception`) — seven
   user-facing buckets (`UserCanceled`, `Network`, `BillingUnavailable`,
-  `ProductUnavailable`, `DeveloperError`, `Other`) collapsing the 12
-  `BillingException` subtypes so callers can localize from a small
-  string-resource map instead of branching on every PBL response code.
+  `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`)
+  collapsing the 13 `BillingException` subtypes so callers can localize
+  from a small string-resource map instead of branching on every PBL
+  response code. (`AlreadyOwned` covers `ItemAlreadyOwnedException` and
+  `ItemNotOwnedException` — both ownership-mismatch cases that warrant
+  silent restore rather than a generic error UI.)
 - **`BillingException.userFacingCategory`** — convenience property returning
   the matching `BillingErrorCategory` for the exception.
 - **`obfuscatedProfileId` parameter** on `ProductDetails.toOneTimeFlowParams(...)`

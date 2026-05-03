@@ -46,15 +46,15 @@ import com.kanetik.billing.RetryType
  *
  * ```
  * catch (e: BillingException) {
- *     val msgRes = when (e.userFacingCategory) {
+ *     when (e.userFacingCategory) {
  *         BillingErrorCategory.UserCanceled -> return  // not really an error
- *         BillingErrorCategory.Network -> R.string.purchase_error_network
- *         BillingErrorCategory.BillingUnavailable -> R.string.purchase_error_billing_unavailable
- *         BillingErrorCategory.ProductUnavailable -> R.string.purchase_error_product_unavailable
- *         BillingErrorCategory.DeveloperError -> R.string.purchase_error_generic
- *         BillingErrorCategory.Other -> R.string.purchase_error_generic
+ *         BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+ *         BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
+ *         BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
+ *         BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
+ *         BillingErrorCategory.DeveloperError,
+ *         BillingErrorCategory.Other -> showError(getString(R.string.purchase_error_generic))
  *     }
- *     showError(getString(msgRes))
  *     log.e("Billing failure", e)  // .message is fine here — it's a log
  * }
  * ```

@@ -39,11 +39,23 @@ public sealed class HandlePurchaseResult {
     public data object Success : HandlePurchaseResult()
 
     /**
-     * The purchase wasn't in [Purchase.PurchaseState.PURCHASED] state — most
-     * commonly it's PENDING (cash payment, deferred billing) and we're waiting
-     * for the payment to confirm. **Do not grant entitlement.** The matching
-     * [com.kanetik.billing.PurchasesUpdate.Success] arrives when the payment
-     * confirms; act on entitlement then.
+     * The purchase wasn't in [Purchase.PurchaseState.PURCHASED] state. Two
+     * cases produce this, with different consumer expectations:
+     *
+     *  - **`PENDING`** (the common case): asynchronous payment in flight —
+     *    cash at convenience store, deferred billing, slow-network bank
+     *    transfer. **Do not grant entitlement.** Play will fire a separate
+     *    [com.kanetik.billing.PurchasesUpdate.Success] update for the
+     *    *same* purchase token when the payment confirms (or the purchase
+     *    drops out entirely if it cancels). Wait for that.
+     *
+     *  - **`UNSPECIFIED_STATE`**: the purchase hit an undocumented or
+     *    pre-PBL-8 state. **Do not grant entitlement, and don't expect a
+     *    follow-up Success.** This typically indicates a malformed
+     *    [Purchase] (e.g. from a custom `BillingActions` fake) or a PBL
+     *    contract drift. Log and move on; the recovery sweep on the next
+     *    successful connection will re-query owned purchases and surface
+     *    anything actually pending.
      */
     public data object NotPurchased : HandlePurchaseResult()
 

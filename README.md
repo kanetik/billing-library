@@ -357,8 +357,8 @@ The library does not depend on Timber, Crashlytics, or any logging framework —
 Patterns that most apps reimplement. Each one is `internal`-grade quality but optional — R8 strips the ones you don't use.
 
 - **`validatePurchaseActivity(activity)`** — returns `true` if the activity is RESUMED, not finishing, not destroyed. Use as a precondition before `launchFlow`. The check uses `RESUMED` (not just `STARTED`) to handle the brief window after `onStart` where Play Billing's full-screen flow can still flake.
-- **`ProductDetails.toOneTimeFlowParams(obfuscatedAccountId?, offerSelector?)`** — converts a one-time `ProductDetails` into a `BillingFlowParams`. The `offerSelector` lambda exists for PBL 8's multi-offer one-time products (rare but supported); default picks the first offer.
-- **`PurchaseFlowCoordinator`** — in-flight guard for purchase flow. `launch(activity, productDetails)` returns a sealed `PurchaseFlowResult`. A second launch while one is in flight returns `AlreadyInProgress` instead of opening a competing flow. Includes a `compareAndSet`-based watchdog that auto-clears the flag after a configurable timeout (default 5 min) so a stuck flow doesn't permanently block the user.
+- **`ProductDetails.toOneTimeFlowParams(obfuscatedAccountId?, obfuscatedProfileId?, offerSelector?)`** — converts a one-time `ProductDetails` into a `BillingFlowParams`. `obfuscatedProfileId` is a secondary opaque ID for apps with multiple user profiles per install (rare; most apps only need `obfuscatedAccountId`). The `offerSelector` lambda exists for PBL 8's multi-offer one-time products (also rare); default picks the first offer.
+- **`PurchaseFlowCoordinator`** — in-flight guard for purchase flow. `launch(activity, productDetails)` returns a sealed `PurchaseFlowResult`. A second launch while one is in flight returns `AlreadyInProgress` instead of opening a competing flow. Includes a `compareAndSet`-based watchdog that auto-clears the flag after a configurable timeout (default 2 minutes) so a stuck flow doesn't permanently block the user. Also accepts a configurable `uiDispatcher` constructor param for custom `BillingRepository` implementations or test overrides.
 
 ## Signature verification
 
@@ -371,11 +371,18 @@ billing.observePurchaseUpdates()
     .filterIsInstance<PurchasesUpdate.Success>()
     .collect { update ->
         update.purchases.forEach { purchase ->
-            if (verifier.isSignatureValid(purchase)) {
-                billing.handlePurchase(purchase, consume = false)
-            } else {
+            if (!verifier.isSignatureValid(purchase)) {
                 logger.e(TAG, "Signature mismatch for ${purchase.products}")
                 // Don't grant entitlement; consider reporting to your backend.
+                return@forEach
+            }
+            when (val r = billing.handlePurchase(purchase, consume = false)) {
+                HandlePurchaseResult.Success -> grantEntitlement(purchase)
+                HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+                is HandlePurchaseResult.Failure -> {
+                    // Don't grant — recovery sweep retries on the next clean connect.
+                    logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")
+                }
             }
         }
     }
