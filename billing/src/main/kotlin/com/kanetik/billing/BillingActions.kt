@@ -196,8 +196,25 @@ public interface BillingActions {
                 acknowledgePurchase(purchase)
             }
             HandlePurchaseResult.Success
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            // Always rethrow — structured cancellation must propagate.
+            throw ce
         } catch (e: BillingException) {
             HandlePurchaseResult.Failure(e)
+        } catch (e: Exception) {
+            // Custom BillingActions implementations might throw something other
+            // than BillingException (a defensive NPE from a `!!` contract check,
+            // an IllegalStateException from a fake, etc.). Honor the typed-result
+            // contract by wrapping into Failure(UnknownException) rather than
+            // letting non-BillingException throwables escape.
+            HandlePurchaseResult.Failure(
+                BillingException.UnknownException(
+                    com.android.billingclient.api.BillingResult.newBuilder()
+                        .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.ERROR)
+                        .setDebugMessage("handlePurchase wrapped non-BillingException: ${e::class.simpleName}: ${e.message}")
+                        .build()
+                )
+            )
         }
     }
 

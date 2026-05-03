@@ -45,11 +45,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ProductDetails.toOneTimeFlowParams(...)` and
   `PurchaseFlowCoordinator.launch(...)` gained an `obfuscatedProfileId`
-  parameter.**
-  - **Kotlin callers**: source-compatible. Positional `(obfuscatedAccountId,
-    offerSelector)` calls still resolve correctly (the new param sits at the
-    end of the list after `offerSelector` and defaults to null), and named-arg
-    callers are unaffected.
+  parameter.** The new param sits between `obfuscatedAccountId` and
+  `offerSelector` so trailing-lambda calls (`product.toOneTimeFlowParams { ... }`
+  or `product.toOneTimeFlowParams("acct") { ... }`) keep compiling.
+  - **Kotlin trailing-lambda callers**: source-compatible.
+  - **Kotlin positional 2-arg callers** (`product.toOneTimeFlowParams(accountId,
+    customSelector)`): source-incompatible. The second positional slot is now
+    `obfuscatedProfileId: String?`, producing a type-mismatch compile error.
+    Migration: switch to named args (`obfuscatedAccountId = ...,
+    offerSelector = ...`).
   - **Java callers**: source-incompatible. Neither API uses `@JvmOverloads`,
     so Kotlin's default-arg machinery doesn't generate a Java-visible bridge
     for the old signature. Java callsites need to add the new parameter
@@ -60,6 +64,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Recommended Kotlin call style is named args; Java consumers should pin to
   a library version and rebuild together.
+
+- **`BillingRepositoryCreator.create(...)` gained a
+  `recoverPurchasesOnConnect: Boolean = true` parameter.** Same compat
+  story as `obfuscatedProfileId`:
+  - **Kotlin callers using named args or relying on the default**:
+    source-compatible.
+  - **Java callers**: source-incompatible. No `@JvmOverloads` bridge; Java
+    callsites need to pass the new arg explicitly.
+  - **All callers**: binary-incompatible. Compiled consumer `.class` files
+    calling the old signature need a rebuild.
+
+  Set `false` if you run your own server-side reconciliation queue; default
+  `true` enables auto-recovery of unacknowledged purchases on each connect.
 
 ### Added
 

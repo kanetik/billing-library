@@ -78,7 +78,18 @@ public sealed class PurchasesUpdate {
      * The variant exists so consumer UX can distinguish background recovery
      * from user-initiated purchases (don't fire confetti for recovered
      * purchases — the user didn't just tap Buy). The handle-and-grant code is
-     * identical; only the surrounding UX differs.
+     * identical for one-time products; only the surrounding UX differs.
+     *
+     * **⚠️ Subscription replacements need special handling (until v0.2.0).**
+     * Subscription upgrade/downgrade/crossgrade purchases carry a non-null
+     * `linkedPurchaseToken` pointing at the prior subscription. Treating them
+     * as fresh grants double-grants entitlement on plan changes. Until v0.2.0
+     * ships the typed `SubscriptionReplacement` variant (see `docs/ROADMAP.md`),
+     * consumers handling subscriptions should inspect each
+     * `purchase.accountIdentifiers?.let { ... }` and the underlying
+     * `originalJson` for `linkedPurchaseToken`, treating non-null as a plan
+     * change rather than a fresh purchase. One-time products never carry a
+     * `linkedPurchaseToken`, so IAP-only apps are unaffected.
      *
      * **`purchases` may be empty.** The sweep emits a `Recovered` event on
      * *every* successful connection, including ones that find nothing — this
