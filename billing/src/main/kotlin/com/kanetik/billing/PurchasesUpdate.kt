@@ -80,6 +80,13 @@ public sealed class PurchasesUpdate {
      * purchases — the user didn't just tap Buy). The handle-and-grant code is
      * identical; only the surrounding UX differs.
      *
+     * **`purchases` may be empty.** The sweep emits a `Recovered` event on
+     * *every* successful connection, including ones that find nothing — this
+     * keeps the replay cache fresh so a subscriber that attaches after a
+     * configuration change doesn't replay a stale recovery from a prior
+     * session. Treat empty as a no-op (`forEach { handle(it) }` over an
+     * empty list does nothing).
+     *
      * **Why recovery matters:** Play auto-refunds purchases that aren't
      * acknowledged within 3 days. App crashes, network failures, or force-quits
      * mid-acknowledge leave purchases stranded — without a recovery sweep on

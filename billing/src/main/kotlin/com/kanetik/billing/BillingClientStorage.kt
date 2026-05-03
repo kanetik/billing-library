@@ -178,16 +178,28 @@ internal class BillingClientStorage(
                 }
                 inApp.await() + subs.await()
             }
-            if (unacknowledged.isEmpty()) return
 
-            logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
+            if (unacknowledged.isNotEmpty()) {
+                logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
+            }
+            // Always emit, even when empty. _recoveredUpdates has replay = 1; if a
+            // previous sweep emitted Recovered([A]) and the consumer acknowledged A,
+            // the replay cache would still hold Recovered([A]) and a subscriber
+            // attaching after a config change would re-receive it. For consumables
+            // that's a bogus ItemNotOwnedException because the purchase is already
+            // consumed; for non-consumables it's a benign no-op via isAcknowledged
+            // short-circuit. Emitting Recovered([]) when the sweep finds nothing
+            // overwrites the stale replay slot with an empty payload, which is a
+            // safe no-op for any consumer.
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
             // silently drop a recovery event.
             _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {
-            // Best-effort: log and bail. Next connect retries.
+            // Best-effort: log and bail. Next connect retries. Don't emit on
+            // failure — the previous Recovered (if any) is preserved and the
+            // consumer's handle path is idempotent against re-replay.
             logger.w("Purchase recovery sweep failed", e)
         }
     }
