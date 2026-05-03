@@ -95,7 +95,7 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 
 Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
 
-The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (update)` collectors do need a new branch for `PurchasesUpdate.Recovered`; see the snippet below.)
+The library handles this for you. On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released — the underlying connection uses `WhileSubscribed(60s)` so a quick background round-trip *doesn't* reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (update)` collectors do need a new branch for `PurchasesUpdate.Recovered`; see the snippet below.)
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
@@ -128,7 +128,12 @@ billing.observePurchaseUpdates().collect { update ->
             fireConfetti() // user-initiated; celebrate
         }
         is PurchasesUpdate.Recovered -> {
-            // Same handle() call — but no confetti. Background recovery, not a fresh purchase.
+            // Same handle() call as Success — but no confetti. Background recovery,
+            // not a fresh purchase. NOTE: `Recovered` replays its most recent
+            // snapshot to re-subscribed collectors (config change, etc.) with
+            // `isAcknowledged = false` even after you handle them. Dedupe by
+            // `purchase.purchaseToken` in real apps — see "Purchase recovery"
+            // below for the full pattern.
             update.purchases.forEach { handle(it) }
         }
         // ... other arms
