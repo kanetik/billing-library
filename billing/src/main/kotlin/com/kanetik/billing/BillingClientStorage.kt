@@ -68,38 +68,6 @@ internal class BillingClientStorage(
     /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
     private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
 
-    /*
-     * Per-type cache of last-known-unacknowledged purchases. Updated on
-     * per-type sweep SUCCESS; CLEARED to empty on per-type sweep FAILURE.
-     * The sweep emits Recovered(cachedInApp + cachedSubs) on every connect,
-     * so:
-     *   - Both succeed: emits fresh state. Replay slot accurately reflects
-     *     current Play state.
-     *   - One fails (e.g. transient SUBS failure on an IAP-using app):
-     *     succeeded side updates; failed side clears. We emit a partial
-     *     view rather than skipping. INAPP recoveries aren't stranded by
-     *     unrelated SUBS outages, and stale entries on the failed side
-     *     don't replay as bogus pending purchases.
-     *   - Both fail: both clear. We emit Recovered([]). Consumer treats
-     *     as "nothing currently known pending"; the next successful sweep
-     *     resurfaces anything actually pending at Play (since unacknowledged
-     *     purchases stay in Play's owned-list until acked or refunded).
-     *
-     * The "lost pending data on transient failure" concern is bounded by
-     * retry — Play retains unacknowledged purchases on its side, so the
-     * next successful sweep re-surfaces them. Worst case: a late
-     * subscriber attaching during the failing window sees a temporarily
-     * empty replay; once the failing side recovers, they see the next
-     * Recovered emission with the pending purchases.
-     *
-     * Sweeps are serialized via [transformLatest] on the connection
-     * upstream, so concurrent mutation of these caches isn't possible —
-     * `@Volatile` is defensive against future refactors.
-     */
-    @Volatile private var cachedInAppUnacknowledged: List<Purchase> = emptyList()
-
-    @Volatile private var cachedSubsUnacknowledged: List<Purchase> = emptyList()
-
     /**
      * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
@@ -244,32 +212,53 @@ internal class BillingClientStorage(
                 inAppDeferred.await() to subsDeferred.await()
             }
 
-            // Update per-type caches. SUCCESS replaces the cache with fresh
-            // results; FAILURE clears the cache (treats as "we don't know,
-            // assume nothing currently pending on this side"). See the
-            // multi-line comment on the cached* properties for the rationale —
-            // this avoids both (a) stranding INAPP recoveries on unrelated
-            // SUBS outages and (b) re-emitting stale snapshots after the
-            // consumer already handled them.
-            inApp.fold(
-                onSuccess = { cachedInAppUnacknowledged = it },
-                onFailure = { cachedInAppUnacknowledged = emptyList() }
-            )
-            subs.fold(
-                onSuccess = { cachedSubsUnacknowledged = it },
-                onFailure = { cachedSubsUnacknowledged = emptyList() }
-            )
-
+            // Partial-failure handling — final design. Three viable strategies
+            // for what to emit when one of (INAPP, SUBS) succeeds and the
+            // other fails were considered, all bounded by retry:
+            //
+            //   (a) skip emit (THIS IMPLEMENTATION): the previous Recovered
+            //       emission stays in the replay slot, so late subscribers
+            //       see last-known-valid state from the previous *successful*
+            //       sweep. Fresh recoveries on the succeeded side are
+            //       temporally stranded until the next clean sweep.
+            //   (b) emit fresh side, clear failed side: faster fresh
+            //       exposure, but a transient INAPP/SUBS failure can
+            //       overwrite the last known unacknowledged purchase with
+            //       Recovered([]) (or a partial list), so a late subscriber
+            //       sees an empty replay even when Play still has pending
+            //       purchases on the failed side.
+            //   (c) emit fresh side, preserve stale cache for failed side:
+            //       fastest exposure, but replays stale snapshots whose
+            //       Purchase.isAcknowledged is `false` even after the
+            //       consumer acked them — re-handle calls then surface
+            //       Failure(DeveloperErrorException) for non-consumables
+            //       and Failure(ItemNotOwnedException) for consumables.
+            //
+            // (a) is final. The only option where the library never emits
+            // misleading state — replay always reflects a fully-successful
+            // prior sweep, and the consumer-side dedupe pattern is needed
+            // only for cross-sweep stale handling (re-subscribe after
+            // handling), not for transient-failure correctness. (b) loses
+            // data; (c) emits stale-as-fresh. (a) just delays — bounded by
+            // retry, with the previous Recovered preserved as a defensive
+            // floor.
+            //
+            // This decision has been re-litigated multiple times in review;
+            // the trade-off is documented here so future changes start from
+            // an explicit baseline rather than re-deriving from first
+            // principles. If a real consumer reports the (a) "stranded
+            // until next clean sweep" delay as a problem in production,
+            // revisit with concrete numbers.
             if (inApp.isFailure || subs.isFailure) {
                 logger.w(
-                    "Recovery sweep partial failure (inApp=${inApp.isFailure}, " +
-                        "subs=${subs.isFailure}) — failed side cleared from cache; " +
-                        "emitting best-known state. Pending purchases on the failed " +
-                        "side will resurface on the next successful sweep."
+                    "Recovery sweep skipped emit due to partial query failure " +
+                        "(inApp=${inApp.isFailure}, subs=${subs.isFailure}) — " +
+                        "previous Recovered preserved; next connect retries"
                 )
+                return
             }
 
-            val unacknowledged = cachedInAppUnacknowledged + cachedSubsUnacknowledged
+            val unacknowledged = inApp.getOrThrow() + subs.getOrThrow()
             if (unacknowledged.isNotEmpty()) {
                 logger.d("Recovery sweep result: ${unacknowledged.size} unacknowledged purchase(s)")
             }

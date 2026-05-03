@@ -41,7 +41,7 @@ import com.kanetik.billing.RetryType
  * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
  *
  * For UI: branch on the subtype directly, or call [userFacingCategory] to
- * collapse the 13 subtypes into [BillingErrorCategory]'s 6 buckets and
+ * collapse the 13 subtypes into [BillingErrorCategory]'s 7 buckets and
  * localize per bucket from your own string resources. Example:
  *
  * ```
@@ -81,7 +81,7 @@ public sealed class BillingException(
 
     /**
      * UI bucket for this exception. Collapses the 13 sealed subtypes into
-     * [BillingErrorCategory]'s ~6 user-facing categories so callers can
+     * [BillingErrorCategory]'s 7 user-facing categories so callers can
      * localize from a small string-resource map instead of branching on
      * every PBL response code. See the class-level KDoc for the recommended
      * pattern.
@@ -94,9 +94,9 @@ public sealed class BillingException(
             is ServiceUnavailableException -> BillingErrorCategory.Network
             is BillingUnavailableException,
             is FeatureNotSupportedException -> BillingErrorCategory.BillingUnavailable
-            is ItemUnavailableException,
+            is ItemUnavailableException -> BillingErrorCategory.ProductUnavailable
             is ItemAlreadyOwnedException,
-            is ItemNotOwnedException -> BillingErrorCategory.ProductUnavailable
+            is ItemNotOwnedException -> BillingErrorCategory.AlreadyOwned
             is DeveloperErrorException -> BillingErrorCategory.DeveloperError
             is FatalErrorException,
             is UnknownException,

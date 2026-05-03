@@ -265,19 +265,19 @@ try {
 
 **Never display `BillingException.message` in your UI** — it's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
 
-For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — six buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
+For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
 
 ```kotlin
 catch (e: BillingException) {
-    val msgRes = when (e.userFacingCategory) {
+    when (e.userFacingCategory) {
         BillingErrorCategory.UserCanceled -> return  // not really an error
-        BillingErrorCategory.Network -> R.string.purchase_error_network
-        BillingErrorCategory.BillingUnavailable -> R.string.purchase_error_billing_unavailable
-        BillingErrorCategory.ProductUnavailable -> R.string.purchase_error_product_unavailable
-        BillingErrorCategory.DeveloperError -> R.string.purchase_error_generic
-        BillingErrorCategory.Other -> R.string.purchase_error_generic
+        BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+        BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
+        BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
+        BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
+        BillingErrorCategory.DeveloperError,
+        BillingErrorCategory.Other -> showError(getString(R.string.purchase_error_generic))
     }
-    showError(getString(msgRes))
     log.e("Billing failure", e)  // .message is fine here — it's a log
 }
 ```

@@ -3,7 +3,7 @@ package com.kanetik.billing.exception
 /**
  * UI-bucket classification for a [BillingException].
  *
- * Collapses the 13 sealed [BillingException] subtypes into six categories
+ * Collapses the 13 sealed [BillingException] subtypes into seven categories
  * that map cleanly to user-facing UX. Lets callers maintain a small
  * string-resource map (one per category) instead of branching on every
  * Play Billing response code.
@@ -53,15 +53,36 @@ public enum class BillingErrorCategory {
     BillingUnavailable,
 
     /**
-     * The product the user tried to buy isn't in a state Play will sell.
-     * Includes [BillingException.ItemUnavailableException] (product not
-     * configured for this user/region), [BillingException.ItemAlreadyOwnedException]
-     * (non-consumable already owned), and [BillingException.ItemNotOwnedException]
-     * (consume failed because Play has no record of ownership). For
-     * "already owned", the right UX is usually to restore the entitlement
-     * silently rather than show an error.
+     * The product the user tried to buy isn't configured for sale in their
+     * context — [BillingException.ItemUnavailableException]. Common causes:
+     * typo in product ID, product not yet activated in Play Console,
+     * geo-restriction, account ineligibility for this product. Show a
+     * "this product isn't available" message; consider hiding the affected
+     * product UI until availability changes.
      */
     ProductUnavailable,
+
+    /**
+     * Play and the local cache disagree on ownership state — usually a
+     * cross-session race or a stale local view. Includes:
+     *  - [BillingException.ItemAlreadyOwnedException] — the user tried to
+     *    buy a non-consumable they already own. The right UX is typically
+     *    to **restore** the entitlement silently (or with a "you already
+     *    own this, restoring..." toast), not to show an error.
+     *  - [BillingException.ItemNotOwnedException] — a consume call hit a
+     *    purchase Play has no record of (already consumed in another
+     *    session, etc.). Typically a no-op for UX; log and move on.
+     *
+     * Both warrant a re-query of owned purchases (the library's retry loop
+     * already does this via [com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY])
+     * to refresh local state. If that retry's resolution still surfaces
+     * the exception, the caller has out-of-band state to reconcile.
+     *
+     * Bucketed separately from [ProductUnavailable] because the UX is
+     * fundamentally different: "you already own this" → restore, "this
+     * product isn't for sale" → hide / fallback.
+     */
+    AlreadyOwned,
 
     /**
      * The library or app called Play Billing with malformed arguments
