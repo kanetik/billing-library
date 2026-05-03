@@ -25,6 +25,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.PurchasesUpdate
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -96,7 +97,24 @@ Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes,
 
 The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no new code, no startup hook.
 
-This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. The `MutableSharedFlow` backing `observePurchaseUpdates()` keeps `replay = 1`, so a subscriber that attaches a moment after the sweep still receives the recovered purchases.
+This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
+
+A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). Re-running `handlePurchase` on the replayed snapshot re-issues acknowledge/consume calls — non-consumables typically respond `OK` (a no-op at Play's side), but consumables that have already been consumed surface `ItemNotOwnedException`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
+
+```kotlin
+private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
+
+is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+    if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
+    when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
+        HandlePurchaseResult.Success,
+        is HandlePurchaseResult.Failure -> handledRecoveredTokens.update { it + purchase.purchaseToken }
+        HandlePurchaseResult.NotPurchased -> {}
+    }
+}
+```
+
+(Live events on the `Success` branch don't need this — see "Replay semantics".)
 
 ```kotlin
 billing.observePurchaseUpdates().collect { update ->
@@ -163,7 +181,7 @@ You don't need to dedupe handle / grant / UX for live events — fire confetti d
 | `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
-| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): SharedFlow<PurchasesUpdate>`. |
+| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchasesUpdate>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
 | `BillingException` (sealed) | 12 subtypes; one per response code. Each carries a `RetryType` hint. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |

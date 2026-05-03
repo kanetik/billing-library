@@ -87,6 +87,18 @@ public sealed class PurchasesUpdate {
      * session. Treat empty as a no-op (`forEach { handle(it) }` over an
      * empty list does nothing).
      *
+     * **Dedupe by `purchaseToken` if you re-subscribe between sweeps.** Because
+     * the recovery channel uses `replay = 1`, a subscriber that re-attaches
+     * after successfully handling a recovered purchase will receive the same
+     * `Purchase` snapshot again — the snapshot is from before your handle
+     * call landed, so its `isAcknowledged` flag is still `false`. Re-handling
+     * the snapshot makes a redundant Play call (typically benign for
+     * non-consumables; surfaces `ItemNotOwnedException` for already-consumed
+     * consumables). Track handled tokens in a `Set<String>` to skip them
+     * deterministically; persist via `SavedStateHandle` (or similar) if the
+     * dedupe needs to survive process death. Live `Success` events do not
+     * need this dedupe — they go through a separate `replay = 0` channel.
+     *
      * **Why recovery matters:** Play auto-refunds purchases that aren't
      * acknowledged within 3 days. App crashes, network failures, or force-quits
      * mid-acknowledge leave purchases stranded — without a recovery sweep on
