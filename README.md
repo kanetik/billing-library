@@ -206,7 +206,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 ## Error handling
 
-Every `BillingActions` method that fails throws a typed `BillingException` subtype. The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing — what reaches your `catch` is whatever didn't recover. `launchFlow` is the exception: it runs once, because UI-initiated purchases shouldn't silently retry behind the user.
+Most `BillingActions` methods that fail throw a typed `BillingException` subtype — `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see "Handling `handlePurchase` failures correctly" above). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing — what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
 
 For UI handling, branch on `userFacingCategory` (see "Showing errors to users" below). For lower-level branching, use the sealed subtype directly:
 

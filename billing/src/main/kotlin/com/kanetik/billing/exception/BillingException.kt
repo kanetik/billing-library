@@ -8,8 +8,19 @@ import com.kanetik.billing.RetryType
 /**
  * Typed wrapper for a Play Billing failure.
  *
- * Every [com.kanetik.billing.BillingActions] method that fails throws a concrete
- * subtype of [BillingException] with:
+ * Most [com.kanetik.billing.BillingActions] methods that fail throw a concrete
+ * subtype of [BillingException] — [com.kanetik.billing.BillingActions.queryPurchases],
+ * [com.kanetik.billing.BillingActions.queryProductDetails],
+ * [com.kanetik.billing.BillingActions.consumePurchase],
+ * [com.kanetik.billing.BillingActions.acknowledgePurchase],
+ * [com.kanetik.billing.BillingActions.launchFlow],
+ * [com.kanetik.billing.BillingActions.showInAppMessages]. The high-level
+ * [com.kanetik.billing.BillingActions.handlePurchase] helper is the exception:
+ * it returns a sealed [com.kanetik.billing.HandlePurchaseResult] with a
+ * `Failure(BillingException)` variant instead, so consumers can't accidentally
+ * grant entitlement on a swallowed exception.
+ *
+ * Each subtype carries:
  *  - the original [BillingResult] in [result] (response code, sub-response code,
  *    debug message),
  *  - a [retryType] hint indicating whether the library will retry the call.
