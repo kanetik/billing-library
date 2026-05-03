@@ -213,17 +213,18 @@ public interface BillingActions {
             // than BillingException (a defensive NPE from a `!!` contract check,
             // an IllegalStateException from a fake, an AssertionError from a
             // test double, etc.). Honor the typed-result contract by wrapping
-            // into Failure(UnknownException) rather than letting them escape.
+            // into Failure(WrappedException) rather than letting them escape.
             // Catching Throwable rather than Exception so AssertionError is
             // included; VirtualMachineError is rethrown above.
-            HandlePurchaseResult.Failure(
-                BillingException.UnknownException(
-                    com.android.billingclient.api.BillingResult.newBuilder()
-                        .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.ERROR)
-                        .setDebugMessage("handlePurchase wrapped non-BillingException: ${t::class.simpleName}: ${t.message}")
-                        .build()
-                )
-            )
+            //
+            // WrappedException — not UnknownException — because the latter is
+            // reserved for undocumented PBL response codes. Synthesizing a
+            // BillingResult with a fake response code (e.g. ERROR, which maps
+            // to FatalErrorException elsewhere) would create impossible state
+            // for log/diagnostic consumers branching on responseCode. The
+            // dedicated subtype carries the original throwable as `cause` and
+            // a null `result`.
+            HandlePurchaseResult.Failure(BillingException.WrappedException(t))
         }
     }
 

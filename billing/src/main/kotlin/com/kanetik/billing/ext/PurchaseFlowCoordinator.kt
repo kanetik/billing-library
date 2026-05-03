@@ -72,15 +72,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param logger Optional logger for correlation-id traces. Defaults to silent.
  * @param watchdogTimeoutMs How long to wait before assuming a launched flow is
  *   abandoned. Defaults to 2 minutes.
- * @param uiDispatcher Dispatcher used to invoke
+ * @param uiDispatcher Dispatcher used to wrap the call into
  *   [BillingRepository.launchFlow][com.kanetik.billing.BillingActions.launchFlow]
  *   — Play Billing requires `launchBillingFlow` to run on the main thread.
- *   Defaults to [Dispatchers.Main]. The default [com.kanetik.billing.DefaultBillingRepository]
- *   does its own internal `withContext(uiDispatcher)` hop, so the wrap here is
- *   redundant for that impl; it exists for defensiveness against custom
- *   `BillingRepository` implementations that follow PBL's `@MainThread` contract
- *   literally and don't dispatch internally. Override in tests with a
- *   `TestDispatcher` to keep the launch synchronous under virtual time.
+ *   Defaults to [Dispatchers.Main]. **This wrap is defensive only**: the
+ *   default [com.kanetik.billing.DefaultBillingRepository] does its own
+ *   internal `withContext(uiDispatcher)` hop using the dispatcher passed to
+ *   [com.kanetik.billing.BillingRepositoryCreator.create]. Overriding the
+ *   coordinator's `uiDispatcher` in isolation **does not** make the default
+ *   path test-synchronous — the repository's hop still lands on whatever
+ *   dispatcher it was created with. To synchronize the default path under
+ *   virtual time in tests, set the repository's dispatcher too
+ *   (`BillingRepositoryCreator.create(uiDispatcher = testDispatcher)`) or
+ *   redirect Main globally via `Dispatchers.setMain(testDispatcher)`. The
+ *   coordinator's own `uiDispatcher` exists so custom `BillingRepository`
+ *   implementations that follow PBL's `@MainThread` contract literally
+ *   without internal dispatch still get hopped to the right thread.
  */
 public class PurchaseFlowCoordinator(
     private val billingRepository: BillingRepository,

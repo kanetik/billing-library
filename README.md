@@ -198,7 +198,7 @@ You don't need to dedupe handle / grant / UX for live events — fire confetti d
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
 | `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchasesUpdate>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
-| `BillingException` (sealed) | 12 subtypes; one per response code. Each carries a `RetryType` hint. |
+| `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase`. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
 
@@ -209,7 +209,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 | Subpackage | Contains |
 |---|---|
 | `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
-| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes; `BillingErrorCategory` enum |
+| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
 | `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory` |

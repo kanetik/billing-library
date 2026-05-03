@@ -186,6 +186,19 @@ class BillingExceptionTest {
         }
     }
 
+    @Test
+    fun `WrappedException carries original cause and maps to Other bucket`() {
+        val original = IllegalStateException("test")
+        val wrapped = BillingException.WrappedException(original)
+
+        assertThat(wrapped.originalCause).isSameInstanceAs(original)
+        assertThat(wrapped.cause).isSameInstanceAs(original)
+        assertThat(wrapped.result).isNull()
+        assertThat(wrapped.message).contains("IllegalStateException")
+        assertThat(wrapped.message).contains("test")
+        assertThat(wrapped.userFacingCategory).isEqualTo(BillingErrorCategory.Other)
+    }
+
     private fun result(responseCode: Int, debugMessage: String = ""): BillingResult =
         BillingResult.newBuilder()
             .setResponseCode(responseCode)

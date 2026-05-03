@@ -86,7 +86,7 @@ class HandlePurchaseTest {
     }
 
     @Test
-    fun `handlePurchase wraps non-BillingException throwables as Failure(UnknownException)`() = runTest {
+    fun `handlePurchase wraps non-BillingException throwables as Failure(WrappedException)`() = runTest {
         // A custom BillingActions implementation might throw something other than
         // BillingException — a NullPointerException from a `!!` contract check,
         // an IllegalStateException from a fake, etc. The typed-result contract
@@ -99,15 +99,20 @@ class HandlePurchaseTest {
 
         assertThat(result).isInstanceOf(HandlePurchaseResult.Failure::class.java)
         val failure = result as HandlePurchaseResult.Failure
-        assertThat(failure.exception).isInstanceOf(BillingException.UnknownException::class.java)
-        // Original exception type and message should appear in the wrapped
-        // BillingResult.debugMessage so the failure isn't a black box.
-        assertThat(failure.exception.result?.debugMessage).contains("IllegalStateException")
-        assertThat(failure.exception.result?.debugMessage).contains("simulated non-billing failure")
+        assertThat(failure.exception).isInstanceOf(BillingException.WrappedException::class.java)
+        // The wrapped subtype carries the original throwable, not a synthesized
+        // BillingResult — that would conflate "implementation-side bug" with
+        // "Play returned ERROR" in log/diagnostic consumers.
+        val wrapped = failure.exception as BillingException.WrappedException
+        assertThat(wrapped.originalCause).isSameInstanceAs(thrown)
+        assertThat(wrapped.result).isNull()
+        assertThat(wrapped.message).contains("IllegalStateException")
+        assertThat(wrapped.message).contains("simulated non-billing failure")
+        assertThat(wrapped.cause).isSameInstanceAs(thrown)
     }
 
     @Test
-    fun `handlePurchase wraps Error subclasses (e g AssertionError) as Failure(UnknownException)`() = runTest {
+    fun `handlePurchase wraps Error subclasses (e g AssertionError) as Failure(WrappedException)`() = runTest {
         // catch(Exception) wouldn't catch this — the typed-result contract
         // requires catching Throwable so AssertionError from test fakes
         // (e.g. a `assert {}` block in a custom impl) doesn't escape.
@@ -119,9 +124,11 @@ class HandlePurchaseTest {
 
         assertThat(result).isInstanceOf(HandlePurchaseResult.Failure::class.java)
         val failure = result as HandlePurchaseResult.Failure
-        assertThat(failure.exception).isInstanceOf(BillingException.UnknownException::class.java)
-        assertThat(failure.exception.result?.debugMessage).contains("AssertionError")
-        assertThat(failure.exception.result?.debugMessage).contains("simulated test-fake assertion")
+        assertThat(failure.exception).isInstanceOf(BillingException.WrappedException::class.java)
+        val wrapped = failure.exception as BillingException.WrappedException
+        assertThat(wrapped.originalCause).isSameInstanceAs(thrown)
+        assertThat(wrapped.message).contains("AssertionError")
+        assertThat(wrapped.message).contains("simulated test-fake assertion")
     }
 
     @Test

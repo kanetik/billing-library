@@ -41,7 +41,7 @@ import com.kanetik.billing.RetryType
  * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
  *
  * For UI: branch on the subtype directly, or call [userFacingCategory] to
- * collapse the 12 subtypes into [BillingErrorCategory]'s 6 buckets and
+ * collapse the 13 subtypes into [BillingErrorCategory]'s 6 buckets and
  * localize per bucket from your own string resources. Example:
  *
  * ```
@@ -80,7 +80,7 @@ public sealed class BillingException(
     }
 
     /**
-     * UI bucket for this exception. Collapses the 12 sealed subtypes into
+     * UI bucket for this exception. Collapses the 13 sealed subtypes into
      * [BillingErrorCategory]'s ~6 user-facing categories so callers can
      * localize from a small string-resource map instead of branching on
      * every PBL response code. See the class-level KDoc for the recommended
@@ -99,7 +99,8 @@ public sealed class BillingException(
             is DeveloperErrorException,
             is FeatureNotSupportedException -> BillingErrorCategory.DeveloperError
             is FatalErrorException,
-            is UnknownException -> BillingErrorCategory.Other
+            is UnknownException,
+            is WrappedException -> BillingErrorCategory.Other
         }
 
     /**
@@ -263,4 +264,37 @@ public sealed class BillingException(
      * Play may have introduced a new response code worth handling explicitly.
      */
     public class UnknownException(result: BillingResult) : BillingException(result)
+
+    /**
+     * A non-Play-Billing throwable surfaced by a custom
+     * [com.kanetik.billing.BillingActions] implementation (or a fake / test
+     * double) and wrapped to honor the
+     * [com.kanetik.billing.HandlePurchaseResult] sealed-result contract.
+     *
+     * The library only synthesizes this from
+     * [com.kanetik.billing.BillingActions.handlePurchase], which catches
+     * `Throwable` to keep its typed-result guarantee airtight (otherwise an
+     * `IllegalStateException` from a fake or an `AssertionError` from a test
+     * double would escape and consumers would have to wrap themselves).
+     *
+     * Distinct from [UnknownException] (which is reserved for undocumented PBL
+     * response codes). [result] is `null` here because no Play Billing call
+     * was involved — this is purely an implementation-side throwable.
+     * The original throwable is available via [originalCause] and via
+     * standard `Exception.cause` interop.
+     *
+     * Retry strategy: [RetryType.NONE]. The library can't reason about
+     * recovery for an arbitrary non-billing failure.
+     */
+    public class WrappedException(
+        public val originalCause: Throwable
+    ) : BillingException(result = null) {
+        init {
+            initCause(originalCause)
+        }
+
+        override val message: String =
+            "handlePurchase wrapped non-BillingException: " +
+                "${originalCause::class.simpleName}: ${originalCause.message}"
+    }
 }
