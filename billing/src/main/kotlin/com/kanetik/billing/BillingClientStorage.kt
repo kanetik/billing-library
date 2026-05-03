@@ -188,30 +188,47 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         try {
-            val unacknowledged = coroutineScope {
-                val inApp = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.INAPP) }
-                val subs = async {
+            val (inApp, subs) = coroutineScope {
+                val inAppDeferred = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.INAPP) }
+                val subsDeferred = async {
                     if (subscriptionsSupported(client)) {
                         queryUnacknowledgedSafely(client, BillingClient.ProductType.SUBS)
                     } else {
-                        emptyList()
+                        // Genuinely unsupported (FEATURE_NOT_SUPPORTED): treat as
+                        // "no SUBS purchases" rather than a failure. The combined
+                        // sweep is still complete from the consumer's perspective.
+                        Result.success(emptyList())
                     }
                 }
-                inApp.await() + subs.await()
+                inAppDeferred.await() to subsDeferred.await()
             }
+
+            // If either per-type query failed, skip the emit. Emitting
+            // Recovered(emptyList()) on a partial failure would overwrite a
+            // valid previous Recovered([A]) in the replay slot — late subscribers
+            // would then miss A entirely. Preserve the previous replay; the next
+            // successful sweep refreshes it.
+            if (inApp.isFailure || subs.isFailure) {
+                logger.w(
+                    "Recovery sweep skipped emit due to partial query failure " +
+                        "(inApp=${inApp.isFailure}, subs=${subs.isFailure}) — " +
+                        "previous Recovered preserved; next connect retries"
+                )
+                return
+            }
+
+            val unacknowledged = inApp.getOrThrow() + subs.getOrThrow()
 
             if (unacknowledged.isNotEmpty()) {
                 logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
             }
-            // Always emit, even when empty. _recoveredUpdates has replay = 1; if a
-            // previous sweep emitted Recovered([A]) and the consumer acknowledged A,
-            // the replay cache would still hold Recovered([A]) and a subscriber
-            // attaching after a config change would re-receive it. For consumables
-            // that's a bogus ItemNotOwnedException because the purchase is already
-            // consumed; for non-consumables it's a benign no-op via isAcknowledged
-            // short-circuit. Emitting Recovered([]) when the sweep finds nothing
-            // overwrites the stale replay slot with an empty payload, which is a
-            // safe no-op for any consumer.
+            // Always emit on a complete sweep, even when empty. _recoveredUpdates
+            // has replay = 1; if a previous sweep emitted Recovered([A]) and the
+            // consumer acknowledged A, the replay cache would still hold
+            // Recovered([A]) and a subscriber attaching after a config change
+            // would re-receive it. Emitting Recovered([]) when the sweep completes
+            // with no unacknowledged purchases overwrites the stale replay slot
+            // with an empty payload, which is a safe no-op for any consumer.
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
             // silently drop a recovery event.
             _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
@@ -219,30 +236,44 @@ internal class BillingClientStorage(
             throw ce
         } catch (e: Exception) {
             // Best-effort: log and bail. Next connect retries. Don't emit on
-            // failure — the previous Recovered (if any) is preserved and the
-            // consumer's handle path is idempotent against re-replay.
+            // failure — the previous Recovered (if any) is preserved.
             logger.w("Purchase recovery sweep failed", e)
         }
     }
 
+    /**
+     * `true` iff the Play Billing client is *known* not to support
+     * subscriptions on this install (`FEATURE_NOT_SUPPORTED`). Transient
+     * failures (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, etc.) return
+     * `true` so the sweep still attempts the SUBS query — those are recoverable
+     * states on a device that does support subs, and silently skipping the SUBS
+     * recovery would leak unacknowledged subscription purchases.
+     */
     private fun subscriptionsSupported(client: BillingClient): Boolean {
         // Synchronous PBL call; one IPC round-trip per connect, well under
         // the cost of issuing a doomed queryPurchasesAsync(SUBS) plus
         // logging the warning each time.
-        return client.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS)
-            .responseCode == BillingClient.BillingResponseCode.OK
+        val responseCode = client.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS).responseCode
+        return responseCode != BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED
     }
 
+    /**
+     * Returns `Result.success(purchases)` on a successful query, or
+     * `Result.failure(throwable)` on any non-cancellation failure. Used to
+     * distinguish "no purchases of this type" from "couldn't determine due
+     * to a transient billing failure" — only the former should overwrite the
+     * recovery replay cache.
+     */
     private suspend fun queryUnacknowledgedSafely(
         client: BillingClient,
         @BillingClient.ProductType productType: String
-    ): List<Purchase> = try {
-        queryUnacknowledged(client, productType)
+    ): Result<List<Purchase>> = try {
+        Result.success(queryUnacknowledged(client, productType))
     } catch (ce: CancellationException) {
         throw ce
     } catch (e: Exception) {
         logger.w("Recovery sweep: $productType query failed", e)
-        emptyList()
+        Result.failure(e)
     }
 
     private suspend fun queryUnacknowledged(
