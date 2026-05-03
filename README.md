@@ -138,7 +138,17 @@ billing.observePurchaseUpdates().collect { update ->
 
 `Success` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical for one-time products.
 
-**Subscription replacements need special handling (until v0.2.0).** Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. Until v0.2.0 ships the typed `SubscriptionReplacement` variant (see [`docs/ROADMAP.md`](docs/ROADMAP.md)), consumers using subscriptions should inspect each `Purchase` for a non-null `linkedPurchaseToken` and treat that case as a plan change (invalidate the old token, grant against the new one) rather than a fresh purchase. IAP-only apps are unaffected — one-time products never carry a `linkedPurchaseToken`.
+**Subscription replacements need special handling (until v0.2.0).** Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. PBL's `Purchase` API doesn't expose a getter for `linkedPurchaseToken` (`AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`); the field is only present in `purchase.originalJson`. Until v0.2.0 ships the typed `SubscriptionReplacement` variant (see [`docs/ROADMAP.md`](docs/ROADMAP.md)), consumers using subscriptions need to parse it themselves:
+
+```kotlin
+fun Purchase.linkedPurchaseToken(): String? = try {
+    org.json.JSONObject(originalJson)
+        .optString("linkedPurchaseToken")
+        .takeIf { it.isNotEmpty() }
+} catch (e: org.json.JSONException) { null }
+```
+
+Treat a non-null result as a plan change (invalidate the old token, grant against the new one) rather than a fresh purchase. IAP-only apps are unaffected — one-time products never carry a `linkedPurchaseToken`.
 
 To opt out (e.g. you run a server-side reconciliation queue):
 

@@ -85,6 +85,45 @@ class HandlePurchaseTest {
         assertThat((result as HandlePurchaseResult.Failure).exception).isSameInstanceAs(thrown)
     }
 
+    @Test
+    fun `handlePurchase wraps non-BillingException throwables as Failure(UnknownException)`() = runTest {
+        // A custom BillingActions implementation might throw something other than
+        // BillingException — a NullPointerException from a `!!` contract check,
+        // an IllegalStateException from a fake, etc. The typed-result contract
+        // requires those to be wrapped, not escape.
+        val thrown = IllegalStateException("simulated non-billing failure")
+        val actions = RecordingBillingActions(consumeThrowsRaw = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        val result = actions.handlePurchase(purchase, consume = true)
+
+        assertThat(result).isInstanceOf(HandlePurchaseResult.Failure::class.java)
+        val failure = result as HandlePurchaseResult.Failure
+        assertThat(failure.exception).isInstanceOf(BillingException.UnknownException::class.java)
+        // Original exception type and message should appear in the wrapped
+        // BillingResult.debugMessage so the failure isn't a black box.
+        assertThat(failure.exception.result?.debugMessage).contains("IllegalStateException")
+        assertThat(failure.exception.result?.debugMessage).contains("simulated non-billing failure")
+    }
+
+    @Test
+    fun `handlePurchase rethrows CancellationException without wrapping`() = runTest {
+        // Structured cancellation must propagate. Wrapping CancellationException
+        // into a Failure would silently swallow scope cancellation (e.g. ViewModel
+        // cleared mid-purchase).
+        val thrown = kotlinx.coroutines.CancellationException("cancelled")
+        val actions = RecordingBillingActions(consumeThrowsRaw = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        var caught: Throwable? = null
+        try {
+            actions.handlePurchase(purchase, consume = true)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            caught = e
+        }
+        assertThat(caught).isSameInstanceAs(thrown)
+    }
+
     /**
      * Minimal BillingActions that records calls into the Purchase-overload methods
      * and exercises the default-impl `handlePurchase` chain. Optionally configured
@@ -92,12 +131,14 @@ class HandlePurchaseTest {
      */
     private class RecordingBillingActions(
         private val consumeThrows: BillingException? = null,
-        private val acknowledgeThrows: BillingException? = null
+        private val acknowledgeThrows: BillingException? = null,
+        private val consumeThrowsRaw: Throwable? = null
     ) : BillingActions {
         val consumed = mutableListOf<Purchase>()
         val acknowledged = mutableListOf<Purchase>()
 
         override suspend fun consumePurchase(purchase: Purchase): String {
+            consumeThrowsRaw?.let { throw it }
             consumeThrows?.let { throw it }
             consumed += purchase
             return purchase.purchaseToken

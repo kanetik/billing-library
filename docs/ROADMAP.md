@@ -81,7 +81,7 @@ Consumers who genuinely need a non-default mode can drop down to a lower-level `
 
 #### linkedPurchaseToken: surface as a typed sealed variant
 
-When a subscription replacement completes, the new `Purchase` has a non-null `linkedPurchaseToken` pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. Right now the library would emit it as `PurchasesUpdate.Success`, leaving the consumer to dig into `purchase.accountIdentifiers?.linkedPurchaseToken` themselves — easy to miss.
+When a subscription replacement completes, the new `Purchase` carries a `linkedPurchaseToken` field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's `Purchase` API doesn't expose a getter for it — `Purchase.AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`; `linkedPurchaseToken` is only present in `purchase.originalJson`. Right now the library would emit a replacement purchase as `PurchasesUpdate.Success` / `Recovered`, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.
 
 Fix: add a dedicated variant emitted *instead of* `Success` whenever `linkedPurchaseToken` is non-null:
 
@@ -93,7 +93,7 @@ public data class SubscriptionReplacement(
 ) : PurchasesUpdate()
 ```
 
-Detection lives in `FlowPurchasesUpdatedListener.computeUpdates`: when `responseCode == OK` and any settled purchase has `linkedPurchaseToken != null`, emit a `SubscriptionReplacement` for that one (still partition the rest into `Success` / `Pending` as today). Also emit `SubscriptionReplacement` from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed.
+Detection lives in `FlowPurchasesUpdatedListener.computeUpdates`: when `responseCode == OK` and any settled purchase has a non-empty `linkedPurchaseToken` field in `originalJson`, emit a `SubscriptionReplacement` for that one (still partition the rest into `Success` / `Pending` as today). Also emit `SubscriptionReplacement` from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed. Detection requires JSON-parsing `purchase.originalJson` and reading the `linkedPurchaseToken` field; PBL doesn't expose a getter (`Purchase.AccountIdentifiers` only carries the obfuscated IDs).
 
 This makes the wrong code not type-check: you literally can't unpack the variant without seeing both tokens. The consumer's correct response is "process the new token, invalidate the old."
 

@@ -85,11 +85,23 @@ public sealed class PurchasesUpdate {
      * `linkedPurchaseToken` pointing at the prior subscription. Treating them
      * as fresh grants double-grants entitlement on plan changes. Until v0.2.0
      * ships the typed `SubscriptionReplacement` variant (see `docs/ROADMAP.md`),
-     * consumers handling subscriptions should inspect each
-     * `purchase.accountIdentifiers?.let { ... }` and the underlying
-     * `originalJson` for `linkedPurchaseToken`, treating non-null as a plan
-     * change rather than a fresh purchase. One-time products never carry a
-     * `linkedPurchaseToken`, so IAP-only apps are unaffected.
+     * consumers handling subscriptions need to parse `purchase.originalJson`
+     * for the `linkedPurchaseToken` field — PBL's [Purchase] API doesn't
+     * expose a getter for it (`Purchase.AccountIdentifiers` only carries
+     * `obfuscatedAccountId` / `obfuscatedProfileId`):
+     *
+     * ```
+     * fun Purchase.linkedPurchaseToken(): String? = try {
+     *     org.json.JSONObject(originalJson)
+     *         .optString("linkedPurchaseToken")
+     *         .takeIf { it.isNotEmpty() }
+     * } catch (e: org.json.JSONException) { null }
+     * ```
+     *
+     * Treat a non-null result as a plan change rather than a fresh purchase
+     * (invalidate the old token, grant against the new one). One-time
+     * products never carry a `linkedPurchaseToken`, so IAP-only apps are
+     * unaffected.
      *
      * **`purchases` may be empty.** The sweep emits a `Recovered` event on
      * *every* successful connection, including ones that find nothing — this
