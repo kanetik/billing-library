@@ -92,6 +92,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BillingRepository.launchFlow` (defensive against custom `BillingRepository`
   implementations that don't dispatch internally; tunable in tests).
 
+- **`BillingException` sealed class gained a new `WrappedException` subtype.**
+  Adding a sealed-class subtype is a Kotlin source break for any
+  consumer doing exhaustive `when (e: BillingException) { ... }` without
+  an `else` branch. Migration: add a branch for `BillingException.WrappedException`
+  (or fall back to an `else` if you don't care to distinguish it from the
+  other "something unexpected happened" subtypes — `WrappedException` maps
+  to `BillingErrorCategory.Other` for UI purposes). See the Added section
+  below for what `WrappedException` represents.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —

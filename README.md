@@ -47,11 +47,21 @@ class CheckoutActivity : ComponentActivity() {
         lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
 
         // Observe purchase results from the global PurchasesUpdatedListener.
+        // `Recovered` replays its most recent snapshot to re-subscribed
+        // collectors (configuration change, ViewModel recreation), so dedupe
+        // by purchaseToken in the Recovered branch — see "Purchase recovery"
+        // below for the full pattern. Persist `handledRecoveredTokens` if the
+        // dedupe needs to survive process death.
+        val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
         lifecycleScope.launch {
             billing.observePurchaseUpdates().collect { update ->
                 when (update) {
                     is PurchasesUpdate.Success -> update.purchases.forEach { handle(it) }
-                    is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) } // see "Purchase recovery" below
+                    is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+                        if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
+                        handle(purchase)
+                        handledRecoveredTokens.update { it + purchase.purchaseToken }
+                    }
                     is PurchasesUpdate.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is PurchasesUpdate.Canceled -> {}
                     is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
@@ -107,8 +117,10 @@ private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
 is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
     if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success ->
+        HandlePurchaseResult.Success -> {
+            grantEntitlement(purchase)  // recovery is the whole point — actually grant
             handledRecoveredTokens.update { it + purchase.purchaseToken }
+        }
         is HandlePurchaseResult.Failure -> {
             // Don't mark as handled — leave it for the next sweep to retry.
             // Surface the error if you want, but DO NOT grant entitlement.
@@ -367,8 +379,11 @@ Patterns that most apps reimplement. Each one is `internal`-grade quality but op
 ```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)
 
+// Sweep up Success AND Recovered — both carry purchases that need verifying
+// and acknowledging. Filtering only Success would skip recovered purchases
+// from a prior session, defeating the auto-recovery feature.
 billing.observePurchaseUpdates()
-    .filterIsInstance<PurchasesUpdate.Success>()
+    .filter { it is PurchasesUpdate.Success || it is PurchasesUpdate.Recovered }
     .collect { update ->
         update.purchases.forEach { purchase ->
             if (!verifier.isSignatureValid(purchase)) {
@@ -376,6 +391,8 @@ billing.observePurchaseUpdates()
                 // Don't grant entitlement; consider reporting to your backend.
                 return@forEach
             }
+            // For Recovered events, dedupe by purchaseToken (see "Purchase recovery" above)
+            // — this snippet shows just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
