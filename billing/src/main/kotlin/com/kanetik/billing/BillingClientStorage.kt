@@ -76,16 +76,27 @@ internal class BillingClientStorage(
      * exactly what the channel split provides, and exposing a SharedFlow at the
      * top would re-introduce the single-replay-slot problem the split solves.
      *
-     * `distinctUntilChanged` collapses consecutive identical emissions for
-     * active collectors. The recovery sweep emits `Recovered(emptyList())` on
-     * every successful connection (to keep the replay cache fresh against
-     * stale snapshots); on an unstable connection that flips repeatedly, those
-     * empties would otherwise stream through to active collectors as redundant
-     * no-ops. Replay-on-new-subscribe is unaffected — the dedupe is downstream
-     * of the SharedFlows and only filters the merged active-emission stream.
+     * The surgical [distinctUntilChanged] predicate collapses *only* consecutive
+     * empty [PurchasesUpdate.Recovered] emissions. The recovery sweep emits
+     * `Recovered(emptyList())` on every successful connection (to keep the
+     * replay cache fresh against stale snapshots); on an unstable connection
+     * that flips repeatedly, those empties would otherwise stream through to
+     * active collectors as redundant no-ops. Everything else passes through
+     * unchanged: non-empty [Recovered] emissions (consecutive identical ones
+     * represent legitimate retry signals — the previous handle attempt failed
+     * and the next sweep needs to surface the purchase again), and all live
+     * events including consecutive identical [Canceled]/[ItemAlreadyOwned]/etc.
+     * (each represents a distinct user purchase attempt that consumers may log,
+     * count, or reset UI state on independently). Replay-on-new-subscribe is
+     * unaffected — the dedupe is downstream of the SharedFlows.
      */
     val purchasesUpdateFlow: Flow<PurchasesUpdate> =
-        merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged()
+        merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged { old, new ->
+            old is PurchasesUpdate.Recovered &&
+                new is PurchasesUpdate.Recovered &&
+                old.purchases.isEmpty() &&
+                new.purchases.isEmpty()
+        }
 
     /*
      * Billing connection sharing strategy
