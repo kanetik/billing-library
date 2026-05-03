@@ -8,19 +8,58 @@ import com.kanetik.billing.RetryType
 /**
  * Typed wrapper for a Play Billing failure.
  *
- * Every [com.kanetik.billing.BillingActions] method that fails throws a concrete
- * subtype of [BillingException] with:
+ * Most [com.kanetik.billing.BillingActions] methods that fail throw a concrete
+ * subtype of [BillingException] — [com.kanetik.billing.BillingActions.queryPurchases],
+ * [com.kanetik.billing.BillingActions.queryProductDetails],
+ * [com.kanetik.billing.BillingActions.queryProductDetailsWithUnfetched],
+ * [com.kanetik.billing.BillingActions.consumePurchase],
+ * [com.kanetik.billing.BillingActions.acknowledgePurchase],
+ * [com.kanetik.billing.BillingActions.launchFlow],
+ * [com.kanetik.billing.BillingActions.showInAppMessages],
+ * [com.kanetik.billing.BillingActions.isFeatureSupported]. The high-level
+ * [com.kanetik.billing.BillingActions.handlePurchase] helper is the exception:
+ * it returns a sealed [com.kanetik.billing.HandlePurchaseResult] with a
+ * `Failure(BillingException)` variant instead, so consumers can't accidentally
+ * grant entitlement on a swallowed exception.
+ *
+ * Each subtype carries:
  *  - the original [BillingResult] in [result] (response code, sub-response code,
  *    debug message),
  *  - a [retryType] hint indicating whether the library will retry the call.
  *
- * Branch on the subtype (or check [retryType]) to decide UX: show a "no
- * connection, try again" toast for [NetworkErrorException], a "this purchase is
- * already yours" message for [ItemAlreadyOwnedException], etc.
+ * Branch on the subtype (or check [retryType] / [userFacingCategory]) to decide
+ * UX: show a "no connection, try again" toast for [NetworkErrorException], a
+ * "this purchase is already yours" message for [ItemAlreadyOwnedException], etc.
  *
  * The library applies [retryType] internally inside its retry loop; you'll only
  * see an exception thrown when the retry budget is exhausted or the error is
  * terminal.
+ *
+ * ## ⚠️ Never display [message] to end users
+ *
+ * [message] is a **debug-context dump** — class name, response code, sub-response
+ * code, debug message. Useful for logs, Crashlytics, and developer dashboards.
+ * **Awful for user-facing dialogs** (leaks `ServiceDisconnectedException`,
+ * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
+ *
+ * For UI: branch on the subtype directly, or call [userFacingCategory] to
+ * collapse the 13 subtypes into [BillingErrorCategory]'s 7 buckets and
+ * localize per bucket from your own string resources. Example:
+ *
+ * ```
+ * catch (e: BillingException) {
+ *     when (e.userFacingCategory) {
+ *         BillingErrorCategory.UserCanceled -> return  // not really an error
+ *         BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+ *         BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
+ *         BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
+ *         BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
+ *         BillingErrorCategory.DeveloperError,
+ *         BillingErrorCategory.Other -> showError(getString(R.string.purchase_error_generic))
+ *     }
+ *     log.e("Billing failure", e)  // .message is fine here — it's a log
+ * }
+ * ```
  */
 public sealed class BillingException(
     public val result: BillingResult?,
@@ -28,6 +67,9 @@ public sealed class BillingException(
 ) : Exception() {
 
     /**
+     * **Debug-context dump for logs only — never display to end users.** See the
+     * class-level KDoc for the user-facing UX pattern (use [userFacingCategory]).
+     *
      * Built lazily so a [BillingException] instance constructed but never thrown
      * doesn't pay the cost of building the context string. In practice most
      * exceptions get their message read by Crashlytics/Timber/error UIs, so
@@ -38,6 +80,30 @@ public sealed class BillingException(
             BillingLoggingUtils.createDetailedBillingContext(it, operationContext = "Exception Creation")
         } ?: "Billing exception with null result"
     }
+
+    /**
+     * UI bucket for this exception. Collapses the 13 sealed subtypes into
+     * [BillingErrorCategory]'s 7 user-facing categories so callers can
+     * localize from a small string-resource map instead of branching on
+     * every PBL response code. See the class-level KDoc for the recommended
+     * pattern.
+     */
+    public val userFacingCategory: BillingErrorCategory
+        get() = when (this) {
+            is UserCanceledException -> BillingErrorCategory.UserCanceled
+            is NetworkErrorException,
+            is ServiceDisconnectedException,
+            is ServiceUnavailableException -> BillingErrorCategory.Network
+            is BillingUnavailableException,
+            is FeatureNotSupportedException -> BillingErrorCategory.BillingUnavailable
+            is ItemUnavailableException -> BillingErrorCategory.ProductUnavailable
+            is ItemAlreadyOwnedException,
+            is ItemNotOwnedException -> BillingErrorCategory.AlreadyOwned
+            is DeveloperErrorException -> BillingErrorCategory.DeveloperError
+            is FatalErrorException,
+            is UnknownException,
+            is WrappedException -> BillingErrorCategory.Other
+        }
 
     /**
      * Class-aware [toString] so logs show the concrete subtype name plus the
@@ -200,4 +266,37 @@ public sealed class BillingException(
      * Play may have introduced a new response code worth handling explicitly.
      */
     public class UnknownException(result: BillingResult) : BillingException(result)
+
+    /**
+     * A non-Play-Billing throwable surfaced by a custom
+     * [com.kanetik.billing.BillingActions] implementation (or a fake / test
+     * double) and wrapped to honor the
+     * [com.kanetik.billing.HandlePurchaseResult] sealed-result contract.
+     *
+     * The library only synthesizes this from
+     * [com.kanetik.billing.BillingActions.handlePurchase], which catches
+     * `Throwable` to keep its typed-result guarantee airtight (otherwise an
+     * `IllegalStateException` from a fake or an `AssertionError` from a test
+     * double would escape and consumers would have to wrap themselves).
+     *
+     * Distinct from [UnknownException] (which is reserved for undocumented PBL
+     * response codes). [result] is `null` here because no Play Billing call
+     * was involved — this is purely an implementation-side throwable.
+     * The original throwable is available via [originalCause] and via
+     * standard `Exception.cause` interop.
+     *
+     * Retry strategy: [RetryType.NONE]. The library can't reason about
+     * recovery for an arbitrary non-billing failure.
+     */
+    public class WrappedException(
+        public val originalCause: Throwable
+    ) : BillingException(result = null) {
+        init {
+            initCause(originalCause)
+        }
+
+        override val message: String =
+            "handlePurchase wrapped non-BillingException: " +
+                "${originalCause::class.simpleName}: ${originalCause.message}"
+    }
 }

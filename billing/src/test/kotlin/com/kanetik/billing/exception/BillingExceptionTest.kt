@@ -123,6 +123,93 @@ class BillingExceptionTest {
         assertThat(ex.message).isNotNull()
     }
 
+    // userFacingCategory mapping — these tests lock in the public bucketing.
+    // Re-classifying a subtype into the wrong UI bucket would silently change
+    // app UX without breaking compilation, which is the threat model here.
+
+    @Test
+    fun `userFacingCategory maps UserCanceled`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.USER_CANCELED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.UserCanceled)
+    }
+
+    @Test
+    fun `userFacingCategory maps Network bucket`() {
+        listOf(
+            BillingResponseCode.NETWORK_ERROR,
+            BillingResponseCode.SERVICE_DISCONNECTED,
+            BillingResponseCode.SERVICE_UNAVAILABLE
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.Network)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps BillingUnavailable bucket`() {
+        // BillingUnavailableException + FeatureNotSupportedException both
+        // represent runtime device-state conditions ("this isn't available
+        // on your device") and share the same UI bucket.
+        listOf(
+            BillingResponseCode.BILLING_UNAVAILABLE,
+            BillingResponseCode.FEATURE_NOT_SUPPORTED
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.BillingUnavailable)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps ProductUnavailable to ItemUnavailable only`() {
+        // ItemAlreadyOwnedException + ItemNotOwnedException have distinct UX
+        // (restore-silently / log-no-op) from ItemUnavailable (genuinely-not-for-sale)
+        // and now go in the AlreadyOwned bucket instead.
+        assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_UNAVAILABLE)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.ProductUnavailable)
+    }
+
+    @Test
+    fun `userFacingCategory maps AlreadyOwned bucket`() {
+        listOf(
+            BillingResponseCode.ITEM_ALREADY_OWNED,
+            BillingResponseCode.ITEM_NOT_OWNED
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.AlreadyOwned)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps DeveloperError`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.DEVELOPER_ERROR)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.DeveloperError)
+    }
+
+    @Test
+    fun `userFacingCategory maps Other bucket`() {
+        // FatalErrorException (BillingResponseCode.ERROR) and UnknownException (anything else)
+        listOf(
+            BillingResponseCode.ERROR,
+            9999  // unknown — maps to UnknownException
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.Other)
+        }
+    }
+
+    @Test
+    fun `WrappedException carries original cause and maps to Other bucket`() {
+        val original = IllegalStateException("test")
+        val wrapped = BillingException.WrappedException(original)
+
+        assertThat(wrapped.originalCause).isSameInstanceAs(original)
+        assertThat(wrapped.cause).isSameInstanceAs(original)
+        assertThat(wrapped.result).isNull()
+        assertThat(wrapped.message).contains("IllegalStateException")
+        assertThat(wrapped.message).contains("test")
+        assertThat(wrapped.userFacingCategory).isEqualTo(BillingErrorCategory.Other)
+    }
+
     private fun result(responseCode: Int, debugMessage: String = ""): BillingResult =
         BillingResult.newBuilder()
             .setResponseCode(responseCode)

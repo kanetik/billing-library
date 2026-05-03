@@ -2,6 +2,7 @@ package com.kanetik.billing
 
 import android.app.Activity
 import androidx.annotation.AnyThread
+import androidx.annotation.CheckResult
 import androidx.annotation.MainThread
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
@@ -113,42 +114,128 @@ public interface BillingActions {
     /**
      * High-level helper: post-process a [purchase] by either consuming it (for
      * consumables) or acknowledging it (for non-consumables), based on [consume].
+     * Returns a typed [HandlePurchaseResult] — branch on it; **don't ignore
+     * the return value**.
+     *
+     * ## Why a typed result, not a thrown exception
+     *
+     * Granting entitlement on a failed acknowledge is the most common Play
+     * Billing bug: caller writes `runCatching { handlePurchase(...) }` and
+     * `grantPremium()` outside the `.onSuccess { }` branch, Play auto-refunds
+     * the unacknowledged purchase within ~3 days, and the user's premium
+     * silently evaporates. Returning [HandlePurchaseResult] makes the failure
+     * case a sealed-type variant the compiler nudges callers to handle:
+     *
+     * ```
+     * when (val r = billing.handlePurchase(purchase, consume = false)) {
+     *     HandlePurchaseResult.Success -> grantPremium()
+     *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
+     *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+     * }
+     * ```
+     *
+     * The auto-recovery sweep ([com.kanetik.billing.PurchasesUpdate.Recovered])
+     * re-emits the unacknowledged purchase on the next successful connection,
+     * so a transient [HandlePurchaseResult.Failure] is recoverable; a
+     * granted-then-refunded purchase is not. **This recovery is conditional
+     * on [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect` parameter being left at its default (`true`)** —
+     * consumers that opt out are responsible for their own retry / reconciliation
+     * path (see [HandlePurchaseResult.Failure]).
+     *
+     * Lower-level [consumePurchase] / [acknowledgePurchase] still throw
+     * [com.kanetik.billing.exception.BillingException] directly — callers at
+     * that layer are already in the weeds and a thrown exception is
+     * appropriate.
+     *
+     * ## Behavior contract
      *
      * Bakes in three things consumers shouldn't have to remember:
      *  1. Only act on [Purchase.PurchaseState.PURCHASED] — pending and canceled
      *     purchases must wait for their terminal state. Calling this on a non-
-     *     PURCHASED purchase is a silent no-op.
+     *     PURCHASED purchase returns [HandlePurchaseResult.NotPurchased].
      *  2. For [consume] = false, the [acknowledgePurchase]`(Purchase)` overload's
-     *     `isAcknowledged` short-circuit applies.
+     *     `isAcknowledged` short-circuit applies (already-acked → Success).
      *  3. For [consume] = true, the underlying consume call is the one that also
      *     satisfies Play's acknowledgement requirement (Play treats consume as
      *     implicit acknowledgement for consumables).
      *
-     * The [consume] decision is fundamentally an app concern — *which* product
-     * IDs are consumables depends on Play Console configuration and the app's
-     * own logic — but [when][consume] to call this is the dev's choice. Common
-     * patterns:
-     *  - **Immediate**: call from your `observePurchaseUpdates()` collector for
-     *    every Success update. Pass `consume = true` for consumable IDs,
-     *    `consume = false` otherwise.
-     *  - **After server validation**: validate the purchase on your backend
-     *    first, then call this once you've confirmed the purchase is real.
-     *
      * If you need the consumed token specifically (for server reporting),
-     * call [consumePurchase]`(Purchase)` directly instead.
+     * call [consumePurchase]`(Purchase)` directly instead — it still throws
+     * on failure and returns the token on success.
      *
-     * @param purchase The purchase to handle. No-op if `purchase.purchaseState`
-     *   isn't [Purchase.PurchaseState.PURCHASED].
+     * ## Multi-quantity consumables
+     *
+     * This method handles the *acknowledgement* side correctly for any quantity
+     * — Play's consume API consumes the entire purchase regardless of unit count.
+     * But your *entitlement-grant* code must read [Purchase.getQuantity] and
+     * grant `quantity` units, not 1. The field defaults to 1 (so single-unit
+     * code keeps working), and Play supports multi-quantity for consumables
+     * configured in the Play Console. Ignoring the field on a multi-quantity
+     * purchase silently under-grants.
+     *
+     * @param purchase The purchase to handle.
      * @param consume `true` to consume (for consumables); `false` to acknowledge
      *   (for non-consumables).
+     * @return [HandlePurchaseResult.Success] if the call landed,
+     *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
+     *   state, or [HandlePurchaseResult.Failure] (carrying the underlying
+     *   `BillingException`) if the acknowledge / consume call failed after the
+     *   library's retry budget.
      */
     @AnyThread
-    public suspend fun handlePurchase(purchase: Purchase, consume: Boolean) {
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
-        if (consume) {
-            consumePurchase(purchase)
-        } else {
-            acknowledgePurchase(purchase)
+    @CheckResult(suggest = "branch on HandlePurchaseResult.Success / Failure to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
+    public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
+        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
+            return HandlePurchaseResult.NotPurchased
+        }
+        return try {
+            if (consume) {
+                consumePurchase(purchase)
+            } else {
+                acknowledgePurchase(purchase)
+            }
+            HandlePurchaseResult.Success
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            // Always rethrow — structured cancellation must propagate.
+            throw ce
+        } catch (vmError: VirtualMachineError) {
+            // OutOfMemoryError, StackOverflowError, InternalError, UnknownError.
+            // These signal JVM-level catastrophes; swallowing them into a
+            // typed Failure would hide a process that's already in a degraded
+            // state. Rethrow so the host application can surface or crash
+            // appropriately.
+            throw vmError
+        } catch (linkError: LinkageError) {
+            // NoClassDefFoundError, ClassFormatError, IncompatibleClassChangeError,
+            // etc. signal classloader / bytecode corruption — process is in a
+            // broken state, not a billing failure. Rethrow.
+            throw linkError
+        } catch (threadDeath: ThreadDeath) {
+            // Deprecated but still possible. Indicates the thread was forcibly
+            // stopped; treating it as a billing failure would mask the kill
+            // signal. Rethrow.
+            @Suppress("DEPRECATION")
+            throw threadDeath
+        } catch (e: BillingException) {
+            HandlePurchaseResult.Failure(e)
+        } catch (t: Throwable) {
+            // Custom BillingActions implementations might throw something other
+            // than BillingException (a defensive NPE from a `!!` contract check,
+            // an IllegalStateException from a fake, an AssertionError from a
+            // test double, etc.). Honor the typed-result contract by wrapping
+            // into Failure(WrappedException) rather than letting them escape.
+            // Catching Throwable rather than Exception so AssertionError is
+            // included; VirtualMachineError is rethrown above.
+            //
+            // WrappedException — not UnknownException — because the latter is
+            // reserved for undocumented PBL response codes. Synthesizing a
+            // BillingResult with a fake response code (e.g. ERROR, which maps
+            // to FatalErrorException elsewhere) would create impossible state
+            // for log/diagnostic consumers branching on responseCode. The
+            // dedicated subtype carries the original throwable as `cause` and
+            // a null `result`.
+            HandlePurchaseResult.Failure(BillingException.WrappedException(t))
         }
     }
 

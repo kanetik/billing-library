@@ -25,6 +25,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.PurchasesUpdate
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -46,10 +47,24 @@ class CheckoutActivity : ComponentActivity() {
         lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
 
         // Observe purchase results from the global PurchasesUpdatedListener.
+        // `Recovered` replays its most recent snapshot to re-subscribed
+        // collectors (configuration change, ViewModel recreation), so dedupe
+        // by purchaseToken in the Recovered branch — see "Purchase recovery"
+        // below for the full pattern. Persist `handledRecoveredTokens` if the
+        // dedupe needs to survive process death.
+        val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
         lifecycleScope.launch {
             billing.observePurchaseUpdates().collect { update ->
                 when (update) {
                     is PurchasesUpdate.Success -> update.purchases.forEach { handle(it) }
+                    is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+                        if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
+                        // Only mark token as handled on Success — Failure leaves it for the
+                        // next sweep to retry, NotPurchased waits for the terminal state.
+                        if (handle(purchase)) {
+                            handledRecoveredTokens.update { it + purchase.purchaseToken }
+                        }
+                    }
                     is PurchasesUpdate.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is PurchasesUpdate.Canceled -> {}
                     is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
@@ -75,13 +90,128 @@ class CheckoutActivity : ComponentActivity() {
         billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
     }
 
-    private suspend fun handle(purchase: Purchase) {
-        billing.handlePurchase(purchase, consume = false) // acknowledges non-consumables
+    /** @return true iff acknowledge/consume landed at Play (safe to mark token as handled). */
+    private suspend fun handle(purchase: Purchase): Boolean {
+        // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
+        // See "Handling handlePurchase failures correctly" below for the full pattern.
+        return when (val r = billing.handlePurchase(purchase, consume = false)) {
+            HandlePurchaseResult.Success -> { grantPremium(); true }
+            HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
+            is HandlePurchaseResult.Failure -> {
+                showError(r.exception.userFacingCategory)
+                false // recovery sweep retries on next clean connect; don't mark as handled
+            }
+        }
     }
 }
 ```
 
 That's enough for a working one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
+
+## Purchase recovery
+
+Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
+
+The library handles this for you. On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released — the underlying connection uses `WhileSubscribed(60s)` so a quick background round-trip *doesn't* reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (update)` collectors do need a new branch for `PurchasesUpdate.Recovered`; see the snippet below.)
+
+This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
+
+A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). The library's `acknowledgePurchase(Purchase)` `isAcknowledged` short-circuit doesn't fire on the stale snapshot, so re-running `handlePurchase` issues a duplicate acknowledge/consume call to Play — already-acknowledged non-consumables surface `DeveloperErrorException`, already-consumed consumables surface `ItemNotOwnedException`. Both arrive as `HandlePurchaseResult.Failure`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
+
+```kotlin
+private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
+
+is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+    if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
+    when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
+        HandlePurchaseResult.Success -> {
+            grantEntitlement(purchase)  // recovery is the whole point — actually grant
+            handledRecoveredTokens.update { it + purchase.purchaseToken }
+        }
+        is HandlePurchaseResult.Failure -> {
+            // Don't mark as handled — leave it for the next sweep to retry.
+            // Surface the error if you want, but DO NOT grant entitlement.
+        }
+        HandlePurchaseResult.NotPurchased -> {}
+    }
+}
+```
+
+(Live events on the `Success` branch don't need this — see "Replay semantics".)
+
+```kotlin
+billing.observePurchaseUpdates().collect { update ->
+    when (update) {
+        is PurchasesUpdate.Success -> {
+            update.purchases.forEach { handle(it) }
+            fireConfetti() // user-initiated; celebrate
+        }
+        is PurchasesUpdate.Recovered -> {
+            // Same handle() call as Success — but no confetti. Background recovery,
+            // not a fresh purchase. NOTE: `Recovered` replays its most recent
+            // snapshot to re-subscribed collectors (config change, etc.) with
+            // `isAcknowledged = false` even after you handle them. Dedupe by
+            // `purchase.purchaseToken` in real apps — see "Purchase recovery"
+            // below for the full pattern.
+            update.purchases.forEach { handle(it) }
+        }
+        // ... other arms
+    }
+}
+```
+
+`Success` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical for one-time products.
+
+**Subscription replacements need special handling (until v0.2.0).** Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. PBL's `Purchase` API doesn't expose a getter for `linkedPurchaseToken` (`AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`); the field is only present in `purchase.originalJson`. Until v0.2.0 ships the typed `SubscriptionReplacement` variant (see [`docs/ROADMAP.md`](docs/ROADMAP.md)), consumers using subscriptions need to parse it themselves:
+
+```kotlin
+fun Purchase.linkedPurchaseToken(): String? = try {
+    org.json.JSONObject(originalJson)
+        .optString("linkedPurchaseToken")
+        .takeIf { it.isNotEmpty() }
+} catch (e: org.json.JSONException) { null }
+```
+
+Treat a non-null result as a plan change (invalidate the old token, grant against the new one) rather than a fresh purchase. IAP-only apps are unaffected — one-time products never carry a `linkedPurchaseToken`.
+
+To opt out (e.g. you run a server-side reconciliation queue):
+
+```kotlin
+val billing = BillingRepositoryCreator.create(
+    context = applicationContext,
+    recoverPurchasesOnConnect = false
+)
+```
+
+## Granting entitlement: multi-quantity
+
+Play supports multi-quantity purchases for consumables (the *Multi-quantity purchases* flag must be enabled per-product in Play Console; the user picks the quantity in the Play purchase dialog). Always grant `purchase.quantity` units, not 1 — and only grant after `handlePurchase` returns `Success`:
+
+```kotlin
+private suspend fun handle(purchase: Purchase) {
+    when (val r = billing.handlePurchase(purchase, consume = true)) {
+        HandlePurchaseResult.Success -> {
+            if (purchase.products.contains("coins_pack")) {
+                coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
+            }
+        }
+        HandlePurchaseResult.NotPurchased -> {} // pending; wait
+        is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+        // never grant on Failure — recovery sweep retries on the next connection
+    }
+}
+```
+
+`purchase.quantity` defaults to `1` so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the *acknowledgement* side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your entitlement-grant code needs the awareness.
+
+## Replay semantics
+
+`observePurchaseUpdates()` is internally a merge of two channels:
+
+- **Live events** (`Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
+- **Recovery events** (`Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
+
+You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `Success` branch and you'll see it exactly once per purchase, even across rotations. The `Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
 
 ## API overview
 
@@ -91,8 +221,8 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 | `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
-| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): SharedFlow<PurchasesUpdate>`. |
-| `BillingException` (sealed) | 12 subtypes; one per response code. Each carries a `RetryType` hint. |
+| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchasesUpdate>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
+| `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase`. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
 
@@ -102,8 +232,8 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 | Subpackage | Contains |
 |---|---|
-| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
-| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 12 subtypes |
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
 | `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory` |
@@ -112,36 +242,84 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 ## Error handling
 
+Most `BillingActions` methods that fail throw a typed `BillingException` subtype — `queryPurchases`, `queryProductDetails`, `queryProductDetailsWithUnfetched`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see "Handling `handlePurchase` failures correctly" above). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing — what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
+
+For UI handling, branch on `userFacingCategory` (see "Showing errors to users" below). For lower-level branching, use the sealed subtype directly:
+
 ```kotlin
 try {
     billing.queryProductDetails(params)
 } catch (e: BillingException) {
-    when (e.retryType) {
-        RetryType.SAFE -> retryWithBackoff()
-        RetryType.UNSAFE -> surfaceToUserAndStop()
-        RetryType.NEVER -> logAndGiveUp()
+    when (e) {
+        is BillingException.NetworkErrorException,
+        is BillingException.ServiceUnavailableException,
+        is BillingException.ServiceDisconnectedException -> showRetryUI()
+        is BillingException.BillingUnavailableException -> hideBillingFeatures()
+        is BillingException.ItemUnavailableException -> showSoldOut()
+        else -> reportToCrashlytics(e)
     }
 }
 ```
 
 `BillingException` subtypes:
 
-| Subtype | When | RetryType |
+| Subtype | When | Internal RetryType |
 |---|---|---|
-| `ServiceDisconnectedException` | Client connection dropped mid-call | SAFE |
-| `ServiceUnavailableException` | Network unavailable, or 30s connection timeout | SAFE |
-| `ServiceTimeoutException` | PBL signaled timeout | SAFE |
-| `BillingUnavailableException` | Play Store missing / disabled / wrong region | UNSAFE |
-| `ItemUnavailableException` | Product not configured for this user/country | UNSAFE |
-| `ItemAlreadyOwnedException` | One-time product already owned | UNSAFE |
-| `ItemNotOwnedException` | Trying to consume something not in inventory | UNSAFE |
-| `DeveloperErrorException` | API misuse — fix the code | NEVER |
-| `FeatureNotSupportedException` | Feature missing on this Play version | NEVER |
-| `ErrorException` | Generic ERROR response code | UNSAFE |
-| `UserCanceledException` | User dismissed the purchase flow | NEVER |
-| `NetworkErrorException` | Lower-level network failure | SAFE |
+| `NetworkErrorException` | Lower-level network failure | `EXPONENTIAL_RETRY` |
+| `ServiceUnavailableException` | Play Store service unreachable | `EXPONENTIAL_RETRY` |
+| `ServiceDisconnectedException` | Client connection dropped mid-call | `SIMPLE_RETRY` |
+| `FatalErrorException` | Generic Play Billing `ERROR` response code | `EXPONENTIAL_RETRY` |
+| `ItemAlreadyOwnedException` | One-time product already owned | `REQUERY_PURCHASE_RETRY` |
+| `ItemNotOwnedException` | Trying to consume something not in inventory | `REQUERY_PURCHASE_RETRY` |
+| `BillingUnavailableException` | Play Store missing / disabled / wrong region | `NONE` |
+| `ItemUnavailableException` | Product not configured for this user/country | `NONE` |
+| `DeveloperErrorException` | API misuse — fix the code | `NONE` |
+| `FeatureNotSupportedException` | Feature missing on this Play version | `NONE` |
+| `UserCanceledException` | User dismissed the purchase flow | `NONE` |
+| `UnknownException` | Response code PBL doesn't document — log it | `NONE` |
+| `WrappedException` | Non-PBL throwable wrapped by `handlePurchase` (NPE, `IllegalStateException` from a custom `BillingActions` impl, `AssertionError` from a fake, etc.). Distinct from `UnknownException`; carries `originalCause` for diagnostics. | `NONE` |
 
-The library's internal retry loop already retries `RetryType.SAFE` failures up to 3 times with exponential backoff, *except* for `launchFlow` (which runs once — UI-initiated purchases shouldn't silently retry behind the user). What you wrap in retry-vs-surface logic is whatever leaks out.
+`RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly — the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
+
+### Showing errors to users
+
+**Never display `BillingException.message` in your UI** — it's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
+
+For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
+
+```kotlin
+catch (e: BillingException) {
+    when (e.userFacingCategory) {
+        BillingErrorCategory.UserCanceled -> return  // not really an error
+        BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+        BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
+        BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
+        BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
+        BillingErrorCategory.DeveloperError,
+        BillingErrorCategory.Other -> showError(getString(R.string.purchase_error_generic))
+    }
+    log.e("Billing failure", e)  // .message is fine here — it's a log
+}
+```
+
+The library deliberately doesn't ship localized user-facing strings (tone, voice, and language coverage are app concerns).
+
+### Handling `handlePurchase` failures correctly
+
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Don't grant entitlement outside the `Success` branch** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+
+```kotlin
+when (val r = billing.handlePurchase(purchase, consume = false)) {
+    HandlePurchaseResult.Success -> grantPremium()
+    HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+    is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+    // do NOT grant on Failure — the recovery sweep retries on next connect
+}
+```
+
+The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
+
+Lower-level `consumePurchase` and `acknowledgePurchase` still throw `BillingException` directly — callers at that layer are already in the weeds and a thrown exception is appropriate. `handlePurchase` is the high-level helper that gets the typed-result treatment because forgetting the failure case is the most common bug.
 
 ## Lifecycle integration
 
@@ -199,8 +377,8 @@ The library does not depend on Timber, Crashlytics, or any logging framework —
 Patterns that most apps reimplement. Each one is `internal`-grade quality but optional — R8 strips the ones you don't use.
 
 - **`validatePurchaseActivity(activity)`** — returns `true` if the activity is RESUMED, not finishing, not destroyed. Use as a precondition before `launchFlow`. The check uses `RESUMED` (not just `STARTED`) to handle the brief window after `onStart` where Play Billing's full-screen flow can still flake.
-- **`ProductDetails.toOneTimeFlowParams(obfuscatedAccountId?, offerSelector?)`** — converts a one-time `ProductDetails` into a `BillingFlowParams`. The `offerSelector` lambda exists for PBL 8's multi-offer one-time products (rare but supported); default picks the first offer.
-- **`PurchaseFlowCoordinator`** — in-flight guard for purchase flow. `launch(activity, productDetails)` returns a sealed `PurchaseFlowResult`. A second launch while one is in flight returns `AlreadyInProgress` instead of opening a competing flow. Includes a `compareAndSet`-based watchdog that auto-clears the flag after a configurable timeout (default 5 min) so a stuck flow doesn't permanently block the user.
+- **`ProductDetails.toOneTimeFlowParams(obfuscatedAccountId?, obfuscatedProfileId?, offerSelector?)`** — converts a one-time `ProductDetails` into a `BillingFlowParams`. `obfuscatedProfileId` is a secondary opaque ID for apps with multiple user profiles per install (rare; most apps only need `obfuscatedAccountId`). The `offerSelector` lambda exists for PBL 8's multi-offer one-time products (also rare); default picks the first offer.
+- **`PurchaseFlowCoordinator`** — in-flight guard for purchase flow. `launch(activity, productDetails)` returns a sealed `PurchaseFlowResult`. A second launch while one is in flight returns `AlreadyInProgress` instead of opening a competing flow. Includes a `compareAndSet`-based watchdog that auto-clears the flag after a configurable timeout (default 2 minutes) so a stuck flow doesn't permanently block the user. Also accepts a configurable `uiDispatcher` constructor param for custom `BillingRepository` implementations or test overrides.
 
 ## Signature verification
 
@@ -209,15 +387,27 @@ Patterns that most apps reimplement. Each one is `internal`-grade quality but op
 ```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)
 
+// Sweep up Success AND Recovered — both carry purchases that need verifying
+// and acknowledging. Filtering only Success would skip recovered purchases
+// from a prior session, defeating the auto-recovery feature.
 billing.observePurchaseUpdates()
-    .filterIsInstance<PurchasesUpdate.Success>()
+    .filter { it is PurchasesUpdate.Success || it is PurchasesUpdate.Recovered }
     .collect { update ->
         update.purchases.forEach { purchase ->
-            if (verifier.isSignatureValid(purchase)) {
-                billing.handlePurchase(purchase, consume = false)
-            } else {
+            if (!verifier.isSignatureValid(purchase)) {
                 logger.e(TAG, "Signature mismatch for ${purchase.products}")
                 // Don't grant entitlement; consider reporting to your backend.
+                return@forEach
+            }
+            // For Recovered events, dedupe by purchaseToken (see "Purchase recovery" above)
+            // — this snippet shows just the verify-then-handle skeleton.
+            when (val r = billing.handlePurchase(purchase, consume = false)) {
+                HandlePurchaseResult.Success -> grantEntitlement(purchase)
+                HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+                is HandlePurchaseResult.Failure -> {
+                    // Don't grant — recovery sweep retries on the next clean connect.
+                    logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")
+                }
             }
         }
     }

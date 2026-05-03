@@ -42,7 +42,7 @@ class PurchaseFlowCoordinatorTest {
         // BillingFlowParams.Builder validation (which doesn't work in pure-JVM tests).
         mockkStatic("com.kanetik.billing.ext.FlowParamsExtensionsKt")
         every {
-            any<ProductDetails>().toOneTimeFlowParams(any(), any())
+            any<ProductDetails>().toOneTimeFlowParams(any(), any(), any())
         } returns mockk(relaxed = true)
     }
 
@@ -66,6 +66,72 @@ class PurchaseFlowCoordinatorTest {
         val result = coordinator.launch(activityResumed(), productDetails())
         assertThat(result).isEqualTo(PurchaseFlowResult.Success)
         coVerify(exactly = 1) { billing.launchFlow(any(), any()) }
+    }
+
+    @Test
+    fun `launch dispatches launchFlow through the configured uiDispatcher`() = runTest {
+        // Wraps a delegate dispatcher to count dispatch() calls. Confirms the
+        // coordinator actually uses the injected uiDispatcher rather than
+        // hardcoding Dispatchers.Main, so a regression that drops the
+        // withContext(uiDispatcher) wrap is caught at PR time.
+        class CountingDispatcher(
+            private val delegate: kotlinx.coroutines.CoroutineDispatcher
+        ) : kotlinx.coroutines.CoroutineDispatcher() {
+            var dispatches = 0
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                dispatches++
+                delegate.dispatch(context, block)
+            }
+        }
+
+        val tracking = CountingDispatcher(StandardTestDispatcher(testScheduler))
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop,
+            uiDispatcher = tracking
+        )
+
+        coordinator.launch(activityResumed(), productDetails())
+
+        // The withContext(uiDispatcher) wrap should have caused at least one
+        // dispatch through our tracking wrapper.
+        assertThat(tracking.dispatches).isGreaterThan(0)
+        coVerify(exactly = 1) { billing.launchFlow(any(), any()) }
+    }
+
+    @Test
+    fun `launch forwards obfuscatedAccountId and obfuscatedProfileId to toOneTimeFlowParams`() = runTest {
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val product = productDetails()
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        coordinator.launch(
+            activity = activityResumed(),
+            productDetails = product,
+            obfuscatedAccountId = "account-123",
+            obfuscatedProfileId = "profile-456"
+        )
+
+        // Verify the extension was invoked with both IDs forwarded — guards against
+        // a regression where a new param gets added to the public API but isn't
+        // actually piped into the underlying BillingFlowParams build.
+        io.mockk.verify(exactly = 1) {
+            product.toOneTimeFlowParams(
+                obfuscatedAccountId = "account-123",
+                obfuscatedProfileId = "profile-456",
+                offerSelector = any()
+            )
+        }
     }
 
     @Test

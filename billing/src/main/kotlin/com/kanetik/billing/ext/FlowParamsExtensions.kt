@@ -48,13 +48,36 @@ import com.android.billingclient.api.ProductDetails
  * @param obfuscatedAccountId Optional stable per-install identifier passed to Play
  *   for fraud-detection correlation. Should be a stable opaque ID (UUID is fine);
  *   must contain no PII per Google's policy. Leave null to omit.
+ * @param obfuscatedProfileId Optional secondary opaque ID for apps with multiple
+ *   user profiles per install (e.g. family-sharing scenarios). Same PII rules as
+ *   [obfuscatedAccountId]. Leave null to omit. Most apps will only need
+ *   [obfuscatedAccountId].
  * @param offerSelector Strategy for picking which one-time-purchase offer's token
  *   to set on the flow params. Receives the full list of offers Play returned for
  *   the product; returns the chosen offer (or `null` to omit `setOfferToken`).
  *   Defaults to picking the first available offer.
+ *
+ * ## Source-compat trade-off
+ *
+ * Adding [obfuscatedProfileId] necessarily breaks one of two pre-existing
+ * Kotlin call patterns. We chose to break the rarer one:
+ *  - **Trailing-lambda preserved** — `product.toOneTimeFlowParams { selector }`
+ *    and `product.toOneTimeFlowParams(accountId) { selector }` continue to
+ *    compile; the trailing lambda binds to the still-last [offerSelector].
+ *  - **Positional 2-arg `(accountId, selector)` broken** — calls like
+ *    `product.toOneTimeFlowParams("user-id", customSelector)` now bind the
+ *    second argument to [obfuscatedProfileId] (a `String?`), producing a
+ *    type-mismatch compile error. Migration: switch to named args
+ *    (`obfuscatedAccountId = ..., offerSelector = ...`) — the canonical
+ *    style this KDoc has always recommended.
+ *
+ * Trailing-lambda is the idiomatic Kotlin pattern for callbacks; preserving
+ * it was the higher priority. Java callers see the new parameter as required
+ * (no `@JvmOverloads` bridge); pass `null` explicitly or rebuild.
  */
 public fun ProductDetails.toOneTimeFlowParams(
     obfuscatedAccountId: String? = null,
+    obfuscatedProfileId: String? = null,
     offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
 ): BillingFlowParams {
     val offerToken = oneTimePurchaseOfferDetailsList?.let(offerSelector)?.offerToken
@@ -70,6 +93,10 @@ public fun ProductDetails.toOneTimeFlowParams(
 
     if (!obfuscatedAccountId.isNullOrBlank()) {
         builder.setObfuscatedAccountId(obfuscatedAccountId)
+    }
+
+    if (!obfuscatedProfileId.isNullOrBlank()) {
+        builder.setObfuscatedProfileId(obfuscatedProfileId)
     }
 
     return builder.build()

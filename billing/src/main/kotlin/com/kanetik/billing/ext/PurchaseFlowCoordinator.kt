@@ -6,6 +6,7 @@ import com.kanetik.billing.BillingRepository
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -71,12 +72,29 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param logger Optional logger for correlation-id traces. Defaults to silent.
  * @param watchdogTimeoutMs How long to wait before assuming a launched flow is
  *   abandoned. Defaults to 2 minutes.
+ * @param uiDispatcher Dispatcher used to wrap the call into
+ *   [BillingRepository.launchFlow][com.kanetik.billing.BillingActions.launchFlow]
+ *   — Play Billing requires `launchBillingFlow` to run on the main thread.
+ *   Defaults to [Dispatchers.Main]. **This wrap is defensive only**: the
+ *   default [com.kanetik.billing.DefaultBillingRepository] does its own
+ *   internal `withContext(uiDispatcher)` hop using the dispatcher passed to
+ *   [com.kanetik.billing.BillingRepositoryCreator.create]. Overriding the
+ *   coordinator's `uiDispatcher` in isolation **does not** make the default
+ *   path test-synchronous — the repository's hop still lands on whatever
+ *   dispatcher it was created with. To synchronize the default path under
+ *   virtual time in tests, set the repository's dispatcher too
+ *   (`BillingRepositoryCreator.create(uiDispatcher = testDispatcher)`) or
+ *   redirect Main globally via `Dispatchers.setMain(testDispatcher)`. The
+ *   coordinator's own `uiDispatcher` exists so custom `BillingRepository`
+ *   implementations that follow PBL's `@MainThread` contract literally
+ *   without internal dispatch still get hopped to the right thread.
  */
 public class PurchaseFlowCoordinator(
     private val billingRepository: BillingRepository,
     private val scope: CoroutineScope,
     private val logger: BillingLogger = BillingLogger.Noop,
-    private val watchdogTimeoutMs: Long = DEFAULT_WATCHDOG_TIMEOUT_MS
+    private val watchdogTimeoutMs: Long = DEFAULT_WATCHDOG_TIMEOUT_MS,
+    private val uiDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) {
     private val isPurchaseFlowInProgress = AtomicBoolean(false)
 
@@ -91,11 +109,15 @@ public class PurchaseFlowCoordinator(
      * @param obfuscatedAccountId Optional stable per-install identifier passed
      *   through to Play for fraud-detection correlation. See
      *   [ProductDetails.toOneTimeFlowParams] for the contract.
+     * @param obfuscatedProfileId Optional secondary opaque ID for apps with
+     *   multiple user profiles per install. See
+     *   [ProductDetails.toOneTimeFlowParams] for the contract.
      */
     public suspend fun launch(
         activity: Activity,
         productDetails: ProductDetails,
-        obfuscatedAccountId: String? = null
+        obfuscatedAccountId: String? = null,
+        obfuscatedProfileId: String? = null
     ): PurchaseFlowResult {
         val correlationId = UUID.randomUUID().toString()
         logger.d("PurchaseFlow[$correlationId]: attempt")
@@ -112,8 +134,19 @@ public class PurchaseFlowCoordinator(
 
         var launched = false
         return try {
-            val flowParams = productDetails.toOneTimeFlowParams(obfuscatedAccountId)
-            withContext(Dispatchers.Main) {
+            val flowParams = productDetails.toOneTimeFlowParams(
+                obfuscatedAccountId = obfuscatedAccountId,
+                obfuscatedProfileId = obfuscatedProfileId
+            )
+            // Defensive Main hop. The default DefaultBillingRepository.launchFlow
+            // already does its own withContext(uiDispatcher) internally, so this
+            // is redundant for that impl. But PurchaseFlowCoordinator is public
+            // and accepts ANY BillingRepository — a custom impl that follows
+            // PBL's @MainThread contract literally without dispatching internally
+            // would otherwise be called from whatever thread invoked launch().
+            // The dispatcher is constructor-tunable so tests can substitute a
+            // TestDispatcher and keep this synchronous under virtual time.
+            withContext(uiDispatcher) {
                 billingRepository.launchFlow(activity, flowParams)
             }
             launched = true

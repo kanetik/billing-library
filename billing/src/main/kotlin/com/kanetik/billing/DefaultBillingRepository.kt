@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -50,12 +51,13 @@ internal class DefaultBillingRepository(
         return billingClientStorage.connectionResultFlow
     }
 
-    override fun observePurchaseUpdates(): SharedFlow<PurchasesUpdate> {
-        // The purchase-update SharedFlow is hot at the listener level — PBL fires the
-        // PurchasesUpdatedListener regardless of whether anyone's collecting our
-        // connection flow. Returning the flow directly avoids the re-subscription
-        // window that flatMapConcat over connectionFlow would introduce (where a
-        // PurchasesUpdate could fire mid-reconnect and be missed).
+    override fun observePurchaseUpdates(): Flow<PurchasesUpdate> {
+        // Hot at the listener level — PBL fires the PurchasesUpdatedListener
+        // regardless of whether anyone's collecting our connection flow. The
+        // backing flows in BillingClientStorage are SharedFlows so emissions
+        // aren't tied to subscriber attachment; the Flow returned here merges
+        // the live and recovery channels (see BillingClientStorage's two-channel
+        // architecture comment for why the split exists).
         return billingClientStorage.purchasesUpdateFlow
     }
 
