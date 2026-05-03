@@ -150,6 +150,24 @@ class HandlePurchaseTest {
     }
 
     @Test
+    fun `handlePurchase rethrows LinkageError without wrapping`() = runTest {
+        // NoClassDefFoundError, IncompatibleClassChangeError, etc. signal
+        // classloader / bytecode corruption — process-level brokenness, not
+        // a billing failure.
+        val thrown = NoClassDefFoundError("simulated classloader corruption")
+        val actions = RecordingBillingActions(consumeThrowsRaw = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        var caught: Throwable? = null
+        try {
+            actions.handlePurchase(purchase, consume = true)
+        } catch (e: NoClassDefFoundError) {
+            caught = e
+        }
+        assertThat(caught).isSameInstanceAs(thrown)
+    }
+
+    @Test
     fun `handlePurchase rethrows CancellationException without wrapping`() = runTest {
         // Structured cancellation must propagate. Wrapping CancellationException
         // into a Failure would silently swallow scope cancellation (e.g. ViewModel

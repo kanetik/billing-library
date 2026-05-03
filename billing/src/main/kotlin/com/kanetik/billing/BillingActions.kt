@@ -206,6 +206,17 @@ public interface BillingActions {
             // state. Rethrow so the host application can surface or crash
             // appropriately.
             throw vmError
+        } catch (linkError: LinkageError) {
+            // NoClassDefFoundError, ClassFormatError, IncompatibleClassChangeError,
+            // etc. signal classloader / bytecode corruption — process is in a
+            // broken state, not a billing failure. Rethrow.
+            throw linkError
+        } catch (threadDeath: ThreadDeath) {
+            // Deprecated but still possible. Indicates the thread was forcibly
+            // stopped; treating it as a billing failure would mask the kill
+            // signal. Rethrow.
+            @Suppress("DEPRECATION")
+            throw threadDeath
         } catch (e: BillingException) {
             HandlePurchaseResult.Failure(e)
         } catch (t: Throwable) {

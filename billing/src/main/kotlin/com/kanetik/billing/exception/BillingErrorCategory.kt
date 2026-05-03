@@ -3,7 +3,7 @@ package com.kanetik.billing.exception
 /**
  * UI-bucket classification for a [BillingException].
  *
- * Collapses the 12 sealed [BillingException] subtypes into six categories
+ * Collapses the 13 sealed [BillingException] subtypes into six categories
  * that map cleanly to user-facing UX. Lets callers maintain a small
  * string-resource map (one per category) instead of branching on every
  * Play Billing response code.
@@ -77,10 +77,21 @@ public enum class BillingErrorCategory {
     DeveloperError,
 
     /**
-     * Catch-all for [BillingException.FatalErrorException] (Play's generic
-     * ERROR response code) and [BillingException.UnknownException] (response
-     * codes Play introduced after the library was built). Use a generic
-     * "something went wrong, please try again" message.
+     * Catch-all for:
+     *  - [BillingException.FatalErrorException] — Play's generic `ERROR`
+     *    response code.
+     *  - [BillingException.UnknownException] — response codes Play
+     *    introduced after the library was built.
+     *  - [BillingException.WrappedException] — non-Play-Billing throwable
+     *    surfaced through [com.kanetik.billing.BillingActions.handlePurchase]
+     *    by a custom `BillingActions` implementation (or a fake / test
+     *    double). Indicates an implementation-side bug, not a Play
+     *    response. Inspect [BillingException.WrappedException.originalCause]
+     *    for diagnostics.
+     *
+     * Use a generic "something went wrong, please try again" message in
+     * the UI; report to crash analytics for `WrappedException` since it
+     * indicates a code-path bug.
      */
     Other
 }
