@@ -48,19 +48,21 @@ import com.android.billingclient.api.ProductDetails
  * @param obfuscatedAccountId Optional stable per-install identifier passed to Play
  *   for fraud-detection correlation. Should be a stable opaque ID (UUID is fine);
  *   must contain no PII per Google's policy. Leave null to omit.
- * @param obfuscatedProfileId Optional secondary opaque ID for apps with multiple
- *   user profiles per install (e.g. family-sharing scenarios). Same PII rules as
- *   [obfuscatedAccountId]. Leave null to omit. Most apps will only need
- *   [obfuscatedAccountId].
  * @param offerSelector Strategy for picking which one-time-purchase offer's token
  *   to set on the flow params. Receives the full list of offers Play returned for
  *   the product; returns the chosen offer (or `null` to omit `setOfferToken`).
  *   Defaults to picking the first available offer.
+ * @param obfuscatedProfileId Optional secondary opaque ID for apps with multiple
+ *   user profiles per install (e.g. family-sharing scenarios). Same PII rules as
+ *   [obfuscatedAccountId]. Leave null to omit. Most apps will only need
+ *   [obfuscatedAccountId]. Positioned after [offerSelector] so adding it doesn't
+ *   break source-compat for existing positional callers using
+ *   `(obfuscatedAccountId, offerSelector)`. Pass via named arg for clarity.
  */
 public fun ProductDetails.toOneTimeFlowParams(
     obfuscatedAccountId: String? = null,
-    obfuscatedProfileId: String? = null,
-    offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
+    offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() },
+    obfuscatedProfileId: String? = null
 ): BillingFlowParams {
     val offerToken = oneTimePurchaseOfferDetailsList?.let(offerSelector)?.offerToken
     val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams

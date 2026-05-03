@@ -116,7 +116,10 @@ public class PurchaseFlowCoordinator(
 
         var launched = false
         return try {
-            val flowParams = productDetails.toOneTimeFlowParams(obfuscatedAccountId, obfuscatedProfileId)
+            val flowParams = productDetails.toOneTimeFlowParams(
+                obfuscatedAccountId = obfuscatedAccountId,
+                obfuscatedProfileId = obfuscatedProfileId
+            )
             withContext(Dispatchers.Main) {
                 billingRepository.launchFlow(activity, flowParams)
             }

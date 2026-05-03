@@ -150,18 +150,38 @@ private suspend fun handle(purchase: Purchase) {
 
 The flow backing `observePurchaseUpdates()` uses `replay = 1` so that a `PurchasesUpdate.Recovered` emission from the auto-sweep isn't lost if the consumer's collector attaches a moment after the connection comes up. The trade-off: **the most recent emission is replayed to every new subscriber**, including a subscriber that re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel recreation, etc.).
 
-`handlePurchase` is idempotent — it absorbs replay safely (`acknowledgePurchase(Purchase)` short-circuits on `isAcknowledged`; consume on an already-consumed purchase surfaces `ItemNotOwnedException`, which the retry loop handles). **UI side effects are not idempotent.** Confetti, "thanks for your purchase!" toasts, and analytics events will fire each time a re-subscribed collector receives the replayed event. If you fire one-shot UX from a `Success` arm, dedupe by `purchaseToken`:
+Two replay-aware behaviors to plan around:
+
+1. **Acknowledge is idempotent; consume is not fully.** Re-acknowledging an already-acknowledged purchase short-circuits via `Purchase.isAcknowledged`. Re-consuming an already-consumed consumable returns `HandlePurchaseResult.Failure(ItemNotOwnedException)` — Play has no record of the purchase to consume. Treat `ItemNotOwnedException` on a consume attempt as the already-handled signal it is, not a real error.
+2. **UI side effects are not idempotent.** Confetti, "thanks for your purchase!" toasts, and analytics events will fire each time a re-subscribed collector receives the replayed event.
+
+Recommended pattern — dedupe both the handle call and any one-shot UX by `purchaseToken`:
 
 ```kotlin
+private val handledTokens = MutableStateFlow<Set<String>>(emptySet())
 private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
 
 billing.observePurchaseUpdates().collect { update ->
     when (update) {
         is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
-            handle(purchase)  // safe to repeat — idempotent
-            if (purchase.purchaseToken !in celebratedTokens.value) {
-                fireConfetti()
-                celebratedTokens.update { it + purchase.purchaseToken }
+            if (purchase.purchaseToken in handledTokens.value) return@forEach
+            when (val r = billing.handlePurchase(purchase, consume = true)) {
+                HandlePurchaseResult.Success -> {
+                    handledTokens.update { it + purchase.purchaseToken }
+                    if (purchase.purchaseToken !in celebratedTokens.value) {
+                        fireConfetti()
+                        celebratedTokens.update { it + purchase.purchaseToken }
+                    }
+                }
+                HandlePurchaseResult.NotPurchased -> {} // pending
+                is HandlePurchaseResult.Failure -> when (r.exception) {
+                    is BillingException.ItemNotOwnedException -> {
+                        // Replayed Success for an already-consumed purchase. Mark token
+                        // so subsequent replays skip the consume call entirely.
+                        handledTokens.update { it + purchase.purchaseToken }
+                    }
+                    else -> showError(r.exception.userFacingCategory)
+                }
             }
         }
         is PurchasesUpdate.Recovered -> update.purchases.forEach(::handle)  // never fire confetti for recovery
@@ -170,7 +190,9 @@ billing.observePurchaseUpdates().collect { update ->
 }
 ```
 
-Persist `celebratedTokens` (e.g. via `SavedStateHandle` or a small preferences entry) if you need the dedupe to survive process death.
+Persist `handledTokens` and `celebratedTokens` (e.g. via `SavedStateHandle` or a small preferences entry) if you need the dedupe to survive process death.
+
+The cleaner architectural fix — splitting recovery state into a `StateFlow<List<Purchase>>` with `replay = 0` for the live `SharedFlow` — is captured in `docs/ROADMAP.md` and would eliminate this caveat entirely. Until a real consumer reports the re-fire bug, the dedupe pattern is the working answer.
 
 ## API overview
 

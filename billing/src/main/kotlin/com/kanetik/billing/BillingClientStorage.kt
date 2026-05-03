@@ -7,6 +7,7 @@ import com.android.billingclient.api.queryPurchasesAsync
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -141,22 +142,17 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         try {
-            // Each product-type query runs in its own runCatching so a failure for
+            // Each product-type query runs under its own try/catch so a failure for
             // one type (e.g. FEATURE_NOT_SUPPORTED on a device without SUBS, transient
             // SERVICE_DISCONNECTED during one of the two calls) doesn't cancel the
-            // sibling and lose its results. We log per-type failures so the signal
-            // doesn't get swallowed.
+            // sibling and lose its results. CancellationException is explicitly
+            // rethrown so structured cancellation (parent scope tearing down,
+            // WhileSubscribed grace expiring) propagates correctly — runCatching /
+            // catch(Throwable) would swallow it and leave the cancellation signal
+            // lost. Per-type failures are logged so the signal doesn't get swallowed.
             val unacknowledged = coroutineScope {
-                val inApp = async {
-                    runCatching { queryUnacknowledged(client, BillingClient.ProductType.INAPP) }
-                        .onFailure { logger.w("Recovery sweep: INAPP query failed", it) }
-                        .getOrElse { emptyList() }
-                }
-                val subs = async {
-                    runCatching { queryUnacknowledged(client, BillingClient.ProductType.SUBS) }
-                        .onFailure { logger.w("Recovery sweep: SUBS query failed", it) }
-                        .getOrElse { emptyList() }
-                }
+                val inApp = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.INAPP) }
+                val subs = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.SUBS) }
                 inApp.await() + subs.await()
             }
             if (unacknowledged.isEmpty()) return
@@ -166,10 +162,24 @@ internal class BillingClientStorage(
             // silently drop a recovery event; the launch context can absorb the
             // brief suspend.
             _purchasesUpdateFlow.emit(PurchasesUpdate.Recovered(unacknowledged))
-        } catch (t: Throwable) {
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
             // Best-effort: log and bail. Next connect retries.
-            logger.w("Purchase recovery sweep failed", t)
+            logger.w("Purchase recovery sweep failed", e)
         }
+    }
+
+    private suspend fun queryUnacknowledgedSafely(
+        client: BillingClient,
+        @BillingClient.ProductType productType: String
+    ): List<Purchase> = try {
+        queryUnacknowledged(client, productType)
+    } catch (ce: CancellationException) {
+        throw ce
+    } catch (e: Exception) {
+        logger.w("Recovery sweep: $productType query failed", e)
+        emptyList()
     }
 
     private suspend fun queryUnacknowledged(

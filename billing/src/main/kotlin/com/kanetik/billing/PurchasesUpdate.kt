@@ -45,31 +45,60 @@ import com.android.billingclient.api.Purchase
  * re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel
  * recreation, etc.).
  *
- * Handle / grant code is idempotent and absorbs this. **UI side effects are
- * not** — confetti, "thanks for your purchase!" toasts, and analytics events
- * will fire each time a re-subscribed collector receives the replayed event.
- * If you fire one-shot UX from a `Success` arm, dedupe by `purchase.purchaseToken`:
+ * Acknowledge handling is idempotent (`acknowledgePurchase(Purchase)`
+ * short-circuits on `isAcknowledged`). **Consume handling is not fully
+ * idempotent**: replaying a [Success] for an already-consumed consumable
+ * makes `handlePurchase(consume = true)` return
+ * [HandlePurchaseResult.Failure] wrapping
+ * [com.kanetik.billing.exception.BillingException.ItemNotOwnedException] —
+ * Play has no record of the purchase to consume. **UI side effects are also
+ * not idempotent** — confetti, "thanks for your purchase!" toasts, and
+ * analytics events will fire each time a re-subscribed collector receives
+ * the replayed event.
+ *
+ * Recommended pattern: dedupe both the handle call and any one-shot UX by
+ * `purchase.purchaseToken`, and treat `ItemNotOwnedException` on a consume
+ * attempt as the already-handled signal it is:
  *
  * ```
+ * private val handledTokens = MutableStateFlow<Set<String>>(emptySet())
  * private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
  *
  * billing.observePurchaseUpdates().collect { update ->
  *     when (update) {
  *         is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
- *             handle(purchase)  // safe to repeat — idempotent
- *             if (purchase.purchaseToken !in celebratedTokens.value) {
- *                 fireConfetti()
- *                 celebratedTokens.update { it + purchase.purchaseToken }
+ *             if (purchase.purchaseToken !in handledTokens.value) {
+ *                 when (val r = billing.handlePurchase(purchase, consume = true)) {
+ *                     HandlePurchaseResult.Success -> {
+ *                         handledTokens.update { it + purchase.purchaseToken }
+ *                         if (purchase.purchaseToken !in celebratedTokens.value) {
+ *                             fireConfetti()
+ *                             celebratedTokens.update { it + purchase.purchaseToken }
+ *                         }
+ *                     }
+ *                     HandlePurchaseResult.NotPurchased -> {} // pending
+ *                     is HandlePurchaseResult.Failure -> when (r.exception) {
+ *                         is BillingException.ItemNotOwnedException -> {
+ *                             // Replayed Success for an already-consumed purchase.
+ *                             // Treat as already-handled; mark token to skip on next replay.
+ *                             handledTokens.update { it + purchase.purchaseToken }
+ *                         }
+ *                         else -> showError(r.exception.userFacingCategory)
+ *                     }
+ *                 }
  *             }
  *         }
- *         is PurchasesUpdate.Recovered -> update.purchases.forEach(::handle)  // never fire confetti for recovery
+ *         is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) } // never fire confetti for recovery
  *         else -> {}
  *     }
  * }
  * ```
  *
- * Persist `celebratedTokens` (e.g. via `SavedStateHandle` or a small
- * preferences entry) if you need the dedupe to survive process death.
+ * Persist `handledTokens` and `celebratedTokens` (e.g. via `SavedStateHandle`
+ * or a small preferences entry) if you need the dedupe to survive process
+ * death. The architectural alternative — splitting recovery state from live
+ * events — is tracked in `docs/ROADMAP.md`; if it lands, the replay caveat
+ * goes away entirely.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>

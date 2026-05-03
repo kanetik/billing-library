@@ -2,6 +2,7 @@ package com.kanetik.billing
 
 import android.app.Activity
 import androidx.annotation.AnyThread
+import androidx.annotation.CheckResult
 import androidx.annotation.MainThread
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
@@ -183,6 +184,7 @@ public interface BillingActions {
      *   library's retry budget.
      */
     @AnyThread
+    @CheckResult(suggest = "branch on HandlePurchaseResult.Success / Failure to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
     public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             return HandlePurchaseResult.NotPurchased
@@ -194,7 +196,7 @@ public interface BillingActions {
                 acknowledgePurchase(purchase)
             }
             HandlePurchaseResult.Success
-        } catch (e: com.kanetik.billing.exception.BillingException) {
+        } catch (e: BillingException) {
             HandlePurchaseResult.Failure(e)
         }
     }
