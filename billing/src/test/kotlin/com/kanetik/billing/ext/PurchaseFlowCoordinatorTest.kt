@@ -69,6 +69,41 @@ class PurchaseFlowCoordinatorTest {
     }
 
     @Test
+    fun `launch dispatches launchFlow through the configured uiDispatcher`() = runTest {
+        // Wraps a delegate dispatcher to count dispatch() calls. Confirms the
+        // coordinator actually uses the injected uiDispatcher rather than
+        // hardcoding Dispatchers.Main, so a regression that drops the
+        // withContext(uiDispatcher) wrap is caught at PR time.
+        class CountingDispatcher(
+            private val delegate: kotlinx.coroutines.CoroutineDispatcher
+        ) : kotlinx.coroutines.CoroutineDispatcher() {
+            var dispatches = 0
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                dispatches++
+                delegate.dispatch(context, block)
+            }
+        }
+
+        val tracking = CountingDispatcher(StandardTestDispatcher(testScheduler))
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop,
+            uiDispatcher = tracking
+        )
+
+        coordinator.launch(activityResumed(), productDetails())
+
+        // The withContext(uiDispatcher) wrap should have caused at least one
+        // dispatch through our tracking wrapper.
+        assertThat(tracking.dispatches).isGreaterThan(0)
+        coVerify(exactly = 1) { billing.launchFlow(any(), any()) }
+    }
+
+    @Test
     fun `launch forwards obfuscatedAccountId and obfuscatedProfileId to toOneTimeFlowParams`() = runTest {
         val billing = mockk<BillingRepository>()
         coEvery { billing.launchFlow(any(), any()) } returns Unit

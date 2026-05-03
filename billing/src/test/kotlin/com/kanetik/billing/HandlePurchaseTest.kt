@@ -107,6 +107,42 @@ class HandlePurchaseTest {
     }
 
     @Test
+    fun `handlePurchase wraps Error subclasses (e g AssertionError) as Failure(UnknownException)`() = runTest {
+        // catch(Exception) wouldn't catch this — the typed-result contract
+        // requires catching Throwable so AssertionError from test fakes
+        // (e.g. a `assert {}` block in a custom impl) doesn't escape.
+        val thrown = AssertionError("simulated test-fake assertion")
+        val actions = RecordingBillingActions(consumeThrowsRaw = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        val result = actions.handlePurchase(purchase, consume = true)
+
+        assertThat(result).isInstanceOf(HandlePurchaseResult.Failure::class.java)
+        val failure = result as HandlePurchaseResult.Failure
+        assertThat(failure.exception).isInstanceOf(BillingException.UnknownException::class.java)
+        assertThat(failure.exception.result?.debugMessage).contains("AssertionError")
+        assertThat(failure.exception.result?.debugMessage).contains("simulated test-fake assertion")
+    }
+
+    @Test
+    fun `handlePurchase rethrows VirtualMachineError without wrapping`() = runTest {
+        // OutOfMemoryError / StackOverflowError / InternalError / UnknownError
+        // signal JVM-level catastrophes. Wrapping them would hide a degraded
+        // process from the host application.
+        val thrown = OutOfMemoryError("simulated OOM")
+        val actions = RecordingBillingActions(consumeThrowsRaw = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        var caught: Throwable? = null
+        try {
+            actions.handlePurchase(purchase, consume = true)
+        } catch (e: OutOfMemoryError) {
+            caught = e
+        }
+        assertThat(caught).isSameInstanceAs(thrown)
+    }
+
+    @Test
     fun `handlePurchase rethrows CancellationException without wrapping`() = runTest {
         // Structured cancellation must propagate. Wrapping CancellationException
         // into a Failure would silently swallow scope cancellation (e.g. ViewModel

@@ -199,19 +199,28 @@ public interface BillingActions {
         } catch (ce: kotlinx.coroutines.CancellationException) {
             // Always rethrow — structured cancellation must propagate.
             throw ce
+        } catch (vmError: VirtualMachineError) {
+            // OutOfMemoryError, StackOverflowError, InternalError, UnknownError.
+            // These signal JVM-level catastrophes; swallowing them into a
+            // typed Failure would hide a process that's already in a degraded
+            // state. Rethrow so the host application can surface or crash
+            // appropriately.
+            throw vmError
         } catch (e: BillingException) {
             HandlePurchaseResult.Failure(e)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             // Custom BillingActions implementations might throw something other
             // than BillingException (a defensive NPE from a `!!` contract check,
-            // an IllegalStateException from a fake, etc.). Honor the typed-result
-            // contract by wrapping into Failure(UnknownException) rather than
-            // letting non-BillingException throwables escape.
+            // an IllegalStateException from a fake, an AssertionError from a
+            // test double, etc.). Honor the typed-result contract by wrapping
+            // into Failure(UnknownException) rather than letting them escape.
+            // Catching Throwable rather than Exception so AssertionError is
+            // included; VirtualMachineError is rethrown above.
             HandlePurchaseResult.Failure(
                 BillingException.UnknownException(
                     com.android.billingclient.api.BillingResult.newBuilder()
                         .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.ERROR)
-                        .setDebugMessage("handlePurchase wrapped non-BillingException: ${e::class.simpleName}: ${e.message}")
+                        .setDebugMessage("handlePurchase wrapped non-BillingException: ${t::class.simpleName}: ${t.message}")
                         .build()
                 )
             )

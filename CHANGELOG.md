@@ -78,6 +78,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Set `false` if you run your own server-side reconciliation queue; default
   `true` enables auto-recovery of unacknowledged purchases on each connect.
 
+- **`PurchaseFlowCoordinator(...)` constructor gained a
+  `uiDispatcher: CoroutineDispatcher = Dispatchers.Main` parameter.** Same
+  compat story:
+  - **Kotlin callers using named args or relying on the default**:
+    source-compatible.
+  - **Kotlin callers using all-positional construction** (rare):
+    source-compatible (the new param sits at the end after `watchdogTimeoutMs`).
+  - **Java callers**: source-incompatible. No `@JvmOverloads` bridge.
+  - **All callers**: binary-incompatible. Recompile required.
+
+  The dispatcher is used for the explicit `withContext` wrap around
+  `BillingRepository.launchFlow` (defensive against custom `BillingRepository`
+  implementations that don't dispatch internally; tunable in tests).
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
@@ -92,8 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the matching `BillingErrorCategory` for the exception.
 - **`obfuscatedProfileId` parameter** on `ProductDetails.toOneTimeFlowParams(...)`
   and `PurchaseFlowCoordinator.launch(...)` — secondary opaque ID for apps
-  with multiple user profiles per install. Default-null preserves existing
-  call sites verbatim.
+  with multiple user profiles per install. See the Breaking section above
+  for the full Kotlin/Java/binary compat story.
 - **Automatic purchase recovery on connect** — on every successful Play Billing
   connection, the library queries owned `INAPP` + `SUBS` purchases in parallel
   and emits any `PURCHASED && !isAcknowledged` matches through
