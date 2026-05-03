@@ -49,10 +49,20 @@ public sealed class HandlePurchaseResult {
 
     /**
      * The acknowledge / consume call failed after the library's internal
-     * retry budget was exhausted. **Do not grant entitlement** — the
-     * unacknowledged purchase will be picked up by the auto-recovery sweep
-     * on the next successful Play Billing connection (see
-     * [com.kanetik.billing.PurchasesUpdate.Recovered]) and retried then.
+     * retry budget was exhausted. **Do not grant entitlement.**
+     *
+     * Recovery path depends on whether `recoverPurchasesOnConnect` is left
+     * at its default (`true`):
+     *  - **Default (`true`)**: the unacknowledged purchase is picked up by
+     *    the auto-recovery sweep on the next successful Play Billing
+     *    connection (see [com.kanetik.billing.PurchasesUpdate.Recovered])
+     *    and re-emitted to your collector. Re-call `handlePurchase` from
+     *    your `Recovered` branch to retry.
+     *  - **Opt-out (`recoverPurchasesOnConnect = false` on
+     *    [com.kanetik.billing.BillingRepositoryCreator.create])**: the
+     *    library will *not* re-emit the purchase. You're responsible for
+     *    your own retry / reconciliation path — typically server-driven
+     *    (validate against your backend; reconcile entitlement out of band).
      *
      * For UI: branch on `exception.userFacingCategory` to pick a localized
      * error message; never display `exception.message` (it's a debug dump).

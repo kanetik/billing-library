@@ -42,7 +42,7 @@ class PurchaseFlowCoordinatorTest {
         // BillingFlowParams.Builder validation (which doesn't work in pure-JVM tests).
         mockkStatic("com.kanetik.billing.ext.FlowParamsExtensionsKt")
         every {
-            any<ProductDetails>().toOneTimeFlowParams(any(), any())
+            any<ProductDetails>().toOneTimeFlowParams(any(), any(), any())
         } returns mockk(relaxed = true)
     }
 
@@ -66,6 +66,37 @@ class PurchaseFlowCoordinatorTest {
         val result = coordinator.launch(activityResumed(), productDetails())
         assertThat(result).isEqualTo(PurchaseFlowResult.Success)
         coVerify(exactly = 1) { billing.launchFlow(any(), any()) }
+    }
+
+    @Test
+    fun `launch forwards obfuscatedAccountId and obfuscatedProfileId to toOneTimeFlowParams`() = runTest {
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val product = productDetails()
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        coordinator.launch(
+            activity = activityResumed(),
+            productDetails = product,
+            obfuscatedAccountId = "account-123",
+            obfuscatedProfileId = "profile-456"
+        )
+
+        // Verify the extension was invoked with both IDs forwarded — guards against
+        // a regression where a new param gets added to the public API but isn't
+        // actually piped into the underlying BillingFlowParams build.
+        io.mockk.verify(exactly = 1) {
+            product.toOneTimeFlowParams(
+                obfuscatedAccountId = "account-123",
+                obfuscatedProfileId = "profile-456",
+                offerSelector = any()
+            )
+        }
     }
 
     @Test

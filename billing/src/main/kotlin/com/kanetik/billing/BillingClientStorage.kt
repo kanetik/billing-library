@@ -33,11 +33,27 @@ internal class BillingClientStorage(
      * before the consumer's `observePurchaseUpdates()` collector has had time
      * to attach (a real race when the lifecycle observer triggers `onStart`
      * before the launched collector runs). With replay=0, that emission would
-     * be lost; with replay=1, the late subscriber picks it up. The cost is a
-     * stale event replay on re-subscription, which is safe because handle/grant
-     * is idempotent: `acknowledgePurchase(Purchase)` short-circuits on
-     * `isAcknowledged`, and consume on an already-consumed purchase surfaces
-     * `ITEM_NOT_OWNED` (already typed and handled).
+     * be lost; with replay=1, the late subscriber picks it up.
+     *
+     * Cost — and consumer responsibility: the most recent emission is replayed
+     * to *every* new subscriber, including subscribers that re-attach during
+     * configuration changes (`repeatOnLifecycle`, ViewModel re-collect, etc.).
+     * Handle/grant code is idempotent and absorbs this:
+     * `acknowledgePurchase(Purchase)` short-circuits on `isAcknowledged`, and
+     * consume on an already-consumed purchase surfaces `ITEM_NOT_OWNED`
+     * (already typed and handled). **UI side effects are not idempotent**
+     * — confetti, "thanks!" toasts, and analytics events will fire each
+     * time a re-subscribed collector receives the replayed event. Consumers
+     * that fire one-shot UX must dedupe by `purchaseToken` or correlate
+     * against their own already-celebrated state. See [PurchasesUpdate]'s
+     * class-level KDoc and the README's "Re-subscription replay" section
+     * for the recommended pattern.
+     *
+     * The architectural alternative — splitting recovery state into a
+     * `StateFlow<List<Purchase>>` and keeping live events on a replay=0
+     * `SharedFlow` — eliminates the re-fire trade-off entirely but is a
+     * bigger redesign; tracked in `docs/ROADMAP.md` for revisit if a real
+     * consumer hits the re-fire bug.
      *
      * `extraBufferCapacity = 32`: head-room for slow collectors. The 1-slot
      * buffer that lived here previously could silently reject a second purchase
@@ -125,9 +141,22 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         try {
+            // Each product-type query runs in its own runCatching so a failure for
+            // one type (e.g. FEATURE_NOT_SUPPORTED on a device without SUBS, transient
+            // SERVICE_DISCONNECTED during one of the two calls) doesn't cancel the
+            // sibling and lose its results. We log per-type failures so the signal
+            // doesn't get swallowed.
             val unacknowledged = coroutineScope {
-                val inApp = async { queryUnacknowledged(client, BillingClient.ProductType.INAPP) }
-                val subs = async { queryUnacknowledged(client, BillingClient.ProductType.SUBS) }
+                val inApp = async {
+                    runCatching { queryUnacknowledged(client, BillingClient.ProductType.INAPP) }
+                        .onFailure { logger.w("Recovery sweep: INAPP query failed", it) }
+                        .getOrElse { emptyList() }
+                }
+                val subs = async {
+                    runCatching { queryUnacknowledged(client, BillingClient.ProductType.SUBS) }
+                        .onFailure { logger.w("Recovery sweep: SUBS query failed", it) }
+                        .getOrElse { emptyList() }
+                }
                 inApp.await() + subs.await()
             }
             if (unacknowledged.isEmpty()) return

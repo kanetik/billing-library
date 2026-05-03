@@ -127,18 +127,50 @@ val billing = BillingRepositoryCreator.create(
 
 ## Granting entitlement: multi-quantity
 
-Play supports multi-quantity purchases for consumables (the *Multi-quantity purchases* flag must be enabled per-product in Play Console; the user picks the quantity in the Play purchase dialog). Always grant `purchase.quantity` units, not 1:
+Play supports multi-quantity purchases for consumables (the *Multi-quantity purchases* flag must be enabled per-product in Play Console; the user picks the quantity in the Play purchase dialog). Always grant `purchase.quantity` units, not 1 — and only grant after `handlePurchase` returns `Success`:
 
 ```kotlin
 private suspend fun handle(purchase: Purchase) {
-    if (purchase.products.contains("coins_pack")) {
-        coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
+    when (val r = billing.handlePurchase(purchase, consume = true)) {
+        HandlePurchaseResult.Success -> {
+            if (purchase.products.contains("coins_pack")) {
+                coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
+            }
+        }
+        HandlePurchaseResult.NotPurchased -> {} // pending; wait
+        is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+        // never grant on Failure — recovery sweep retries on the next connection
     }
-    billing.handlePurchase(purchase, consume = true)
 }
 ```
 
 `purchase.quantity` defaults to `1` so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the *acknowledgement* side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your entitlement-grant code needs the awareness.
+
+## Re-subscription and replay
+
+The flow backing `observePurchaseUpdates()` uses `replay = 1` so that a `PurchasesUpdate.Recovered` emission from the auto-sweep isn't lost if the consumer's collector attaches a moment after the connection comes up. The trade-off: **the most recent emission is replayed to every new subscriber**, including a subscriber that re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel recreation, etc.).
+
+`handlePurchase` is idempotent — it absorbs replay safely (`acknowledgePurchase(Purchase)` short-circuits on `isAcknowledged`; consume on an already-consumed purchase surfaces `ItemNotOwnedException`, which the retry loop handles). **UI side effects are not idempotent.** Confetti, "thanks for your purchase!" toasts, and analytics events will fire each time a re-subscribed collector receives the replayed event. If you fire one-shot UX from a `Success` arm, dedupe by `purchaseToken`:
+
+```kotlin
+private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
+
+billing.observePurchaseUpdates().collect { update ->
+    when (update) {
+        is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
+            handle(purchase)  // safe to repeat — idempotent
+            if (purchase.purchaseToken !in celebratedTokens.value) {
+                fireConfetti()
+                celebratedTokens.update { it + purchase.purchaseToken }
+            }
+        }
+        is PurchasesUpdate.Recovered -> update.purchases.forEach(::handle)  // never fire confetti for recovery
+        else -> {}
+    }
+}
+```
+
+Persist `celebratedTokens` (e.g. via `SavedStateHandle` or a small preferences entry) if you need the dedupe to survive process death.
 
 ## API overview
 

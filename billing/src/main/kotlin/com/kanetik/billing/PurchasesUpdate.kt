@@ -35,6 +35,41 @@ import com.android.billingclient.api.Purchase
  * multi-quantity purchases (the Play Console flag must be enabled, and you can cap
  * via `BillingFlowParams`). The field defaults to 1 so single-unit code keeps
  * working — but ignoring it on a multi-quantity purchase silently under-grants.
+ *
+ * ## ⚠️ Re-subscription replay
+ *
+ * The backing flow uses `replay = 1` so that a [Recovered] emission from the
+ * auto-sweep isn't lost if the consumer's collector attaches a moment after
+ * the connection comes up. The trade-off is that **the most recent emission
+ * is replayed to every new subscriber**, including a subscriber that
+ * re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel
+ * recreation, etc.).
+ *
+ * Handle / grant code is idempotent and absorbs this. **UI side effects are
+ * not** — confetti, "thanks for your purchase!" toasts, and analytics events
+ * will fire each time a re-subscribed collector receives the replayed event.
+ * If you fire one-shot UX from a `Success` arm, dedupe by `purchase.purchaseToken`:
+ *
+ * ```
+ * private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
+ *
+ * billing.observePurchaseUpdates().collect { update ->
+ *     when (update) {
+ *         is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
+ *             handle(purchase)  // safe to repeat — idempotent
+ *             if (purchase.purchaseToken !in celebratedTokens.value) {
+ *                 fireConfetti()
+ *                 celebratedTokens.update { it + purchase.purchaseToken }
+ *             }
+ *         }
+ *         is PurchasesUpdate.Recovered -> update.purchases.forEach(::handle)  // never fire confetti for recovery
+ *         else -> {}
+ *     }
+ * }
+ * ```
+ *
+ * Persist `celebratedTokens` (e.g. via `SavedStateHandle` or a small
+ * preferences entry) if you need the dedupe to survive process death.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>

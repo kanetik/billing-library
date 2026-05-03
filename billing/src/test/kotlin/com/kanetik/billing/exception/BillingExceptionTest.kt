@@ -123,6 +123,69 @@ class BillingExceptionTest {
         assertThat(ex.message).isNotNull()
     }
 
+    // userFacingCategory mapping — these tests lock in the public bucketing.
+    // Re-classifying a subtype into the wrong UI bucket would silently change
+    // app UX without breaking compilation, which is the threat model here.
+
+    @Test
+    fun `userFacingCategory maps UserCanceled`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.USER_CANCELED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.UserCanceled)
+    }
+
+    @Test
+    fun `userFacingCategory maps Network bucket`() {
+        listOf(
+            BillingResponseCode.NETWORK_ERROR,
+            BillingResponseCode.SERVICE_DISCONNECTED,
+            BillingResponseCode.SERVICE_UNAVAILABLE
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.Network)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps BillingUnavailable`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.BILLING_UNAVAILABLE)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.BillingUnavailable)
+    }
+
+    @Test
+    fun `userFacingCategory maps ProductUnavailable bucket`() {
+        listOf(
+            BillingResponseCode.ITEM_UNAVAILABLE,
+            BillingResponseCode.ITEM_ALREADY_OWNED,
+            BillingResponseCode.ITEM_NOT_OWNED
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.ProductUnavailable)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps DeveloperError bucket`() {
+        listOf(
+            BillingResponseCode.DEVELOPER_ERROR,
+            BillingResponseCode.FEATURE_NOT_SUPPORTED
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.DeveloperError)
+        }
+    }
+
+    @Test
+    fun `userFacingCategory maps Other bucket`() {
+        // FatalErrorException (BillingResponseCode.ERROR) and UnknownException (anything else)
+        listOf(
+            BillingResponseCode.ERROR,
+            9999  // unknown — maps to UnknownException
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.Other)
+        }
+    }
+
     private fun result(responseCode: Int, debugMessage: String = ""): BillingResult =
         BillingResult.newBuilder()
             .setResponseCode(responseCode)

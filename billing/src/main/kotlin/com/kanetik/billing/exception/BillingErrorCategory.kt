@@ -56,9 +56,23 @@ public enum class BillingErrorCategory {
      * The library or app called Play Billing with malformed arguments
      * ([BillingException.DeveloperErrorException]) or the requested feature
      * isn't supported on this Play Store install
-     * ([BillingException.FeatureNotSupportedException]). **This is a bug in
-     * your code, not a runtime condition.** Should never reach production;
-     * surface as a generic error if it does and report to crash analytics.
+     * ([BillingException.FeatureNotSupportedException]).
+     *
+     * `DeveloperErrorException` is a bug in your code (PBL is rejecting the
+     * call shape — fix it; should never reach production). Report to crash
+     * analytics if it does.
+     *
+     * `FeatureNotSupportedException` is a legitimate runtime condition —
+     * older Play Store installs, regions where a feature isn't rolled out,
+     * or devices that lack a capability (e.g. subscriptions). Surface a
+     * "this isn't available on your device" message when you can identify
+     * which feature was being checked; otherwise the generic error is fine.
+     *
+     * Most consumers can render the same generic-error UX for both and
+     * report to crash analytics; if your app conditionally enables features
+     * via [com.kanetik.billing.BillingActions.isFeatureSupported], you may
+     * already be handling `FeatureNotSupportedException` upstream and won't
+     * see it leak into purchase flows.
      */
     DeveloperError,
 
