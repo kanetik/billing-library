@@ -59,8 +59,11 @@ class CheckoutActivity : ComponentActivity() {
                     is PurchasesUpdate.Success -> update.purchases.forEach { handle(it) }
                     is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
                         if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
-                        handle(purchase)
-                        handledRecoveredTokens.update { it + purchase.purchaseToken }
+                        // Only mark token as handled on Success — Failure leaves it for the
+                        // next sweep to retry, NotPurchased waits for the terminal state.
+                        if (handle(purchase)) {
+                            handledRecoveredTokens.update { it + purchase.purchaseToken }
+                        }
                     }
                     is PurchasesUpdate.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is PurchasesUpdate.Canceled -> {}
@@ -87,13 +90,17 @@ class CheckoutActivity : ComponentActivity() {
         billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
     }
 
-    private suspend fun handle(purchase: Purchase) {
+    /** @return true iff acknowledge/consume landed at Play (safe to mark token as handled). */
+    private suspend fun handle(purchase: Purchase): Boolean {
         // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
         // See "Handling handlePurchase failures correctly" below for the full pattern.
-        when (val r = billing.handlePurchase(purchase, consume = false)) {
-            HandlePurchaseResult.Success -> grantPremium()
-            HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
-            is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+        return when (val r = billing.handlePurchase(purchase, consume = false)) {
+            HandlePurchaseResult.Success -> { grantPremium(); true }
+            HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
+            is HandlePurchaseResult.Failure -> {
+                showError(r.exception.userFacingCategory)
+                false // recovery sweep retries on next clean connect; don't mark as handled
+            }
         }
     }
 }
@@ -270,6 +277,7 @@ try {
 | `FeatureNotSupportedException` | Feature missing on this Play version | `NONE` |
 | `UserCanceledException` | User dismissed the purchase flow | `NONE` |
 | `UnknownException` | Response code PBL doesn't document — log it | `NONE` |
+| `WrappedException` | Non-PBL throwable wrapped by `handlePurchase` (NPE, `IllegalStateException` from a custom `BillingActions` impl, `AssertionError` from a fake, etc.). Distinct from `UnknownException`; carries `originalCause` for diagnostics. | `NONE` |
 
 `RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly — the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
 

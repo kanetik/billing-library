@@ -101,6 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `BillingErrorCategory.Other` for UI purposes). See the Added section
   below for what `WrappedException` represents.
 
+- **`PurchasesUpdate` sealed class gained a new `Recovered` subtype.** Same
+  story as `BillingException.WrappedException`: exhaustive
+  `when (update: PurchasesUpdate) { ... }` without an `else` branch
+  becomes a Kotlin source break. Migration: add a branch for
+  `PurchasesUpdate.Recovered` (handle the same way as `Success` —
+  acknowledge / consume + grant entitlement, plus a
+  `purchaseToken`-based dedupe to absorb the recovery channel's
+  `replay = 1` re-emissions on re-subscribe). See the README "Purchase
+  recovery" section for the full pattern.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
