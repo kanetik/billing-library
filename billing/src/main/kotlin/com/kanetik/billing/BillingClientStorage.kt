@@ -8,65 +8,74 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.withContext
 
 internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
     private val logger: BillingLogger,
-    private val connectionShareScope: CoroutineScope,
+    connectionShareScope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val recoverPurchasesOnConnect: Boolean = true
 ) {
     /*
-     * Buffer + replay strategy
+     * Two-channel architecture
      * ------------------------
-     * `replay = 1`: a late subscriber sees the most recent emission. This matters
-     * for [PurchasesUpdate.Recovered] — the auto-sweep can fire on connect
-     * before the consumer's `observePurchaseUpdates()` collector has had time
-     * to attach (a real race when the lifecycle observer triggers `onStart`
-     * before the launched collector runs). With replay=0, that emission would
-     * be lost; with replay=1, the late subscriber picks it up.
+     * Live PBL events and recovery-sweep events have different replay
+     * requirements:
      *
-     * Cost — and consumer responsibility: the most recent emission is replayed
-     * to *every* new subscriber, including subscribers that re-attach during
-     * configuration changes (`repeatOnLifecycle`, ViewModel re-collect, etc.).
-     * Handle/grant code is idempotent and absorbs this:
-     * `acknowledgePurchase(Purchase)` short-circuits on `isAcknowledged`, and
-     * consume on an already-consumed purchase surfaces `ITEM_NOT_OWNED`
-     * (already typed and handled). **UI side effects are not idempotent**
-     * — confetti, "thanks!" toasts, and analytics events will fire each
-     * time a re-subscribed collector receives the replayed event. Consumers
-     * that fire one-shot UX must dedupe by `purchaseToken` or correlate
-     * against their own already-celebrated state. See [PurchasesUpdate]'s
-     * class-level KDoc and the README's "Re-subscription replay" section
-     * for the recommended pattern.
+     *  - Live events (purchase flow Success/Canceled/etc., listener-driven)
+     *    must NOT replay on re-subscription. A `repeatOnLifecycle` collector
+     *    that re-attaches after a configuration change should not see the
+     *    last `Success` event again — re-running entitlement grants and
+     *    one-shot UX (confetti, toasts, analytics) on every rotation is the
+     *    classic SharedFlow-replay footgun.
      *
-     * The architectural alternative — splitting recovery state into a
-     * `StateFlow<List<Purchase>>` and keeping live events on a replay=0
-     * `SharedFlow` — eliminates the re-fire trade-off entirely but is a
-     * bigger redesign; tracked in `docs/ROADMAP.md` for revisit if a real
-     * consumer hits the re-fire bug.
+     *  - Recovery events (auto-sweep on connect) MUST replay to a late
+     *    subscriber. The sweep can fire before the consumer's collector
+     *    attaches in some patterns; without replay the recovery is lost
+     *    and Play auto-refunds the unacknowledged purchase ~3 days later.
      *
-     * `extraBufferCapacity = 32`: head-room for slow collectors. The 1-slot
-     * buffer that lived here previously could silently reject a second purchase
-     * event if a collector was temporarily slow (e.g. a coroutine suspended
-     * mid-acknowledge). 32 is overkill for a sane flow (a user can only tap
-     * "Buy" so fast) and gives plenty of headroom. The sweep emits via the
-     * suspending [MutableSharedFlow.emit] (not `tryEmit`) so that a hypothetical
-     * buffer-full case suspends rather than drops.
+     * Earlier revisions used a single MutableSharedFlow with replay = 1,
+     * which forced consumers to dedupe live events to avoid the re-fire
+     * bug. The split here keeps each channel's replay semantics correct
+     * without imposing dedupe duty on every consumer.
+     *
+     * Public exposure: [purchasesUpdateFlow] merges both channels into one
+     * [Flow]. Late subscribers see the most recent recovery (if any) plus
+     * all future emissions from both channels. Live events flow through
+     * with no replay.
      */
-    private val _purchasesUpdateFlow = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 32)
-    val purchasesUpdateFlow: SharedFlow<PurchasesUpdate> = _purchasesUpdateFlow
-        .asSharedFlow()
+
+    /** Live PBL events from the purchases-updated listener. No replay. */
+    private val _liveUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 0, extraBufferCapacity = 32)
+
+    /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
+    private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
+
+    /**
+     * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
+     * underlying [SharedFlow]s; each subscription to this Flow subscribes to
+     * both channels. Returns [Flow] (not [SharedFlow]) because the type can't
+     * express "replay-on-subscribe for some emissions but not others" — that's
+     * exactly what the channel split provides, and exposing a SharedFlow at the
+     * top would re-introduce the single-replay-slot problem the split solves.
+     */
+    val purchasesUpdateFlow: Flow<PurchasesUpdate> = merge(_liveUpdates, _recoveredUpdates)
 
     /*
      * Billing connection sharing strategy
@@ -94,18 +103,26 @@ internal class BillingClientStorage(
      * Internal: live-client-bearing flow used by [DefaultBillingRepository] to obtain the
      * underlying [com.android.billingclient.api.BillingClient] for in-library calls.
      *
-     * The `onEach` hook fires the purchase-recovery sweep on every successful
-     * connection. It runs *upstream* of [shareIn] so it only executes when there's
-     * an active subscriber (preserving the [SharingStarted.WhileSubscribed] grace
-     * window — adding a permanent collector here would defeat it). The sweep is
-     * launched in [connectionShareScope] rather than awaited inline so a slow
-     * `queryPurchasesAsync` round-trip can't delay downstream connection emissions.
+     * The `transformLatest` block forwards each connection state downstream and, on
+     * `Connected`, runs the recovery sweep. `transformLatest` (not `onEach` + `launch`)
+     * is what binds the sweep's lifecycle to the upstream collection: when [shareIn]
+     * cancels via `WhileSubscribed`, an in-flight sweep is cancelled too. It also
+     * cancels overlapping sweeps from rapid reconnects — a new state event cancels
+     * the previous transform block and starts a new one.
+     *
+     * The sweep runs under [ioDispatcher] so its filtering / concat work doesn't
+     * occupy the Main thread (the connection share scope defaults to
+     * `ProcessLifecycleOwner.lifecycleScope`, which is Main-bound).
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val connectionFlow: SharedFlow<InternalConnectionState> = billingFactory
-        .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_purchasesUpdateFlow, logger))
-        .onEach { state ->
+        .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger))
+        .transformLatest { state ->
+            emit(state)
             if (recoverPurchasesOnConnect && state is InternalConnectionState.Connected) {
-                connectionShareScope.launch { sweepUnacknowledgedPurchases(state.client) }
+                withContext(ioDispatcher) {
+                    sweepUnacknowledgedPurchases(state.client)
+                }
             }
         }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
@@ -126,48 +143,61 @@ internal class BillingClientStorage(
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 
     /**
-     * Queries owned INAPP and SUBS purchases in parallel, filters for any that are
-     * `PURCHASED && !isAcknowledged`, and emits them through [purchasesUpdateFlow]
-     * as a [PurchasesUpdate.Recovered] event.
+     * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
+     * purchases in parallel, filters for `PURCHASED && !isAcknowledged`, and
+     * emits any matches through [_recoveredUpdates] as a
+     * [PurchasesUpdate.Recovered] event.
      *
-     * Failures are logged and swallowed — the sweep is best-effort. If the
-     * underlying query fails (network, service disconnect mid-call), the next
-     * successful connection will trigger another attempt.
+     * `SUBS` is gated on [BillingClient.isFeatureSupported] so apps running on
+     * Play installs / regions / devices without subscription support don't log
+     * a `FEATURE_NOT_SUPPORTED` warning on every connect — common enough to be
+     * noise rather than signal.
+     *
+     * Failures are logged and swallowed — the sweep is best-effort.
+     * `CancellationException` is rethrown explicitly so structured cancellation
+     * (parent scope tearing down, [SharingStarted.WhileSubscribed] grace
+     * expiring, transformLatest cancelling on next state) propagates correctly
+     * — `runCatching` / `catch (Throwable)` would swallow it.
      *
      * Idempotency: once the consumer's collector acknowledges / consumes a
-     * purchase, Play marks `isAcknowledged = true` and subsequent sweeps skip it.
-     * In the narrow window between emit and ack landing, a second sweep can re-emit
-     * the same purchase; the consumer's `acknowledgePurchase(Purchase)` overload's
+     * purchase, Play marks `isAcknowledged = true` (or removes the consumed
+     * purchase) and subsequent sweeps skip it. A narrow window between emit
+     * and ack landing exists, but `acknowledgePurchase(Purchase)`'s
      * `isAcknowledged` short-circuit absorbs the duplicate in the common case.
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         try {
-            // Each product-type query runs under its own try/catch so a failure for
-            // one type (e.g. FEATURE_NOT_SUPPORTED on a device without SUBS, transient
-            // SERVICE_DISCONNECTED during one of the two calls) doesn't cancel the
-            // sibling and lose its results. CancellationException is explicitly
-            // rethrown so structured cancellation (parent scope tearing down,
-            // WhileSubscribed grace expiring) propagates correctly — runCatching /
-            // catch(Throwable) would swallow it and leave the cancellation signal
-            // lost. Per-type failures are logged so the signal doesn't get swallowed.
             val unacknowledged = coroutineScope {
                 val inApp = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.INAPP) }
-                val subs = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.SUBS) }
+                val subs = async {
+                    if (subscriptionsSupported(client)) {
+                        queryUnacknowledgedSafely(client, BillingClient.ProductType.SUBS)
+                    } else {
+                        emptyList()
+                    }
+                }
                 inApp.await() + subs.await()
             }
             if (unacknowledged.isEmpty()) return
 
             logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
-            // silently drop a recovery event; the launch context can absorb the
-            // brief suspend.
-            _purchasesUpdateFlow.emit(PurchasesUpdate.Recovered(unacknowledged))
+            // silently drop a recovery event.
+            _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {
             // Best-effort: log and bail. Next connect retries.
             logger.w("Purchase recovery sweep failed", e)
         }
+    }
+
+    private fun subscriptionsSupported(client: BillingClient): Boolean {
+        // Synchronous PBL call; one IPC round-trip per connect, well under
+        // the cost of issuing a doomed queryPurchasesAsync(SUBS) plus
+        // logging the warning each time.
+        return client.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS)
+            .responseCode == BillingClient.BillingResponseCode.OK
     }
 
     private suspend fun queryUnacknowledgedSafely(
@@ -189,7 +219,7 @@ internal class BillingClientStorage(
         val params = QueryPurchasesParams.newBuilder().setProductType(productType).build()
         val result = client.queryPurchasesAsync(params)
         if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            // Throw so the outer try/catch in sweepUnacknowledgedPurchases logs it.
+            // Throw so the outer try/catch in queryUnacknowledgedSafely logs it.
             // Without this, a SERVICE_DISCONNECTED / ERROR for one product type
             // would silently return an empty list — recovery skipped, no signal.
             throw BillingException.fromResult(result.billingResult)

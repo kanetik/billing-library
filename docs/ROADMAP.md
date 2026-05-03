@@ -249,7 +249,6 @@ Tracked but not committed. Most are build-when-asked.
 | Java consumer interop pass (`@JvmStatic`, `@JvmOverloads`, etc.) | rejected for now | Skipped per Kotlin-first decision; revisit only if Java consumers complain. |
 | ABI stability tooling (binary-compatibility-validator) | scheduled for ~1.0 | Approaching 1.0: integrate the plugin to track public-ABI changes between versions. |
 | Compose-aware lifecycle helpers | demand-driven | If a consumer wants `rememberBillingRepository(...)` Compose-side affordances, build then. |
-| Split recovery state from live events (`StateFlow<List<Purchase>>` for unacknowledged + `replay = 0` `SharedFlow` for live updates) | demand-driven | The current architecture uses `replay = 1` on `observePurchaseUpdates()` so a late subscriber doesn't miss the recovery sweep, with the trade-off that re-subscribed collectors (`repeatOnLifecycle`, ViewModel recreation) re-receive the most recent live event and must dedupe UI side effects by `purchaseToken`. The alternative — a dedicated `StateFlow<List<Purchase>>` for "currently unacknowledged" plus `replay = 0` for purchase events — eliminates the re-fire trade-off entirely but reverts the `Recovered` sealed variant we just shipped and adds a second observation method. Worth the redesign if a real consumer reports the re-fire bug; documented dedupe pattern is the working answer until then (see README "Re-subscription and replay"). |
 
 ---
 

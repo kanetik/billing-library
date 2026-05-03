@@ -146,53 +146,14 @@ private suspend fun handle(purchase: Purchase) {
 
 `purchase.quantity` defaults to `1` so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the *acknowledgement* side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your entitlement-grant code needs the awareness.
 
-## Re-subscription and replay
+## Replay semantics
 
-The flow backing `observePurchaseUpdates()` uses `replay = 1` so that a `PurchasesUpdate.Recovered` emission from the auto-sweep isn't lost if the consumer's collector attaches a moment after the connection comes up. The trade-off: **the most recent emission is replayed to every new subscriber**, including a subscriber that re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel recreation, etc.).
+`observePurchaseUpdates()` is internally a merge of two channels:
 
-Two replay-aware behaviors to plan around:
+- **Live events** (`Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
+- **Recovery events** (`Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
 
-1. **Acknowledge is idempotent; consume is not fully.** Re-acknowledging an already-acknowledged purchase short-circuits via `Purchase.isAcknowledged`. Re-consuming an already-consumed consumable returns `HandlePurchaseResult.Failure(ItemNotOwnedException)` — Play has no record of the purchase to consume. Treat `ItemNotOwnedException` on a consume attempt as the already-handled signal it is, not a real error.
-2. **UI side effects are not idempotent.** Confetti, "thanks for your purchase!" toasts, and analytics events will fire each time a re-subscribed collector receives the replayed event.
-
-Recommended pattern — dedupe both the handle call and any one-shot UX by `purchaseToken`:
-
-```kotlin
-private val handledTokens = MutableStateFlow<Set<String>>(emptySet())
-private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
-
-billing.observePurchaseUpdates().collect { update ->
-    when (update) {
-        is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
-            if (purchase.purchaseToken in handledTokens.value) return@forEach
-            when (val r = billing.handlePurchase(purchase, consume = true)) {
-                HandlePurchaseResult.Success -> {
-                    handledTokens.update { it + purchase.purchaseToken }
-                    if (purchase.purchaseToken !in celebratedTokens.value) {
-                        fireConfetti()
-                        celebratedTokens.update { it + purchase.purchaseToken }
-                    }
-                }
-                HandlePurchaseResult.NotPurchased -> {} // pending
-                is HandlePurchaseResult.Failure -> when (r.exception) {
-                    is BillingException.ItemNotOwnedException -> {
-                        // Replayed Success for an already-consumed purchase. Mark token
-                        // so subsequent replays skip the consume call entirely.
-                        handledTokens.update { it + purchase.purchaseToken }
-                    }
-                    else -> showError(r.exception.userFacingCategory)
-                }
-            }
-        }
-        is PurchasesUpdate.Recovered -> update.purchases.forEach(::handle)  // never fire confetti for recovery
-        else -> {}
-    }
-}
-```
-
-Persist `handledTokens` and `celebratedTokens` (e.g. via `SavedStateHandle` or a small preferences entry) if you need the dedupe to survive process death.
-
-The cleaner architectural fix — splitting recovery state into a `StateFlow<List<Purchase>>` with `replay = 0` for the live `SharedFlow` — is captured in `docs/ROADMAP.md` and would eliminate this caveat entirely. Until a real consumer reports the re-fire bug, the dedupe pattern is the working answer.
+You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `Success` branch and you'll see it exactly once per purchase, even across rotations. The `Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
 
 ## API overview
 

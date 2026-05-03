@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BillingException` on failure) was too easy to defeat with
   `runCatching { handlePurchase(...) }; grantPremium()` — the entitlement
   grant ran whether or not the acknowledge landed, and Play auto-refunded
-  the unacknowledged purchase ~3 days later.
+  the unacknowledged purchase ~3 days later. Annotated with `@CheckResult`
+  so Android lint warns on ignored return values (Kotlin doesn't enforce
+  return-value usage at the language level).
 
   ```kotlin
   // Before:
@@ -32,6 +34,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Lower-level `consumePurchase` and `acknowledgePurchase` are unchanged —
   they still throw `BillingException` directly. Only the high-level
   `handlePurchase` helper gets the typed-result treatment.
+
+- **`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` return type
+  changed** from `SharedFlow<PurchasesUpdate>` to `Flow<PurchasesUpdate>`.
+  Most consumers using `.collect { }` are unaffected; consumers using
+  `SharedFlow`-specific APIs (`.replayCache`, `.subscriptionCount`, etc.)
+  must adapt. The change is forced by the underlying split-channel
+  architecture (live events on `replay = 0`, recovery events on
+  `replay = 1`); a single `SharedFlow` can't express that.
+
+- **`ProductDetails.toOneTimeFlowParams(...)` and
+  `PurchaseFlowCoordinator.launch(...)` gained an `obfuscatedProfileId`
+  parameter.** Source-compatible for callers using positional args
+  `(obfuscatedAccountId, offerSelector)` (the new param sits at the end of
+  the list after `offerSelector`), but **binary-incompatible** — existing
+  compiled consumer `.class` files calling the old signature need a rebuild
+  to link against the new method descriptor. Recommended call style is
+  named args.
 
 ### Added
 

@@ -93,6 +93,7 @@ public object BillingRepositoryCreator {
             ),
             logger = logger,
             connectionShareScope = scope,
+            ioDispatcher = ioDispatcher,
             recoverPurchasesOnConnect = recoverPurchasesOnConnect
         ),
         logger = logger,

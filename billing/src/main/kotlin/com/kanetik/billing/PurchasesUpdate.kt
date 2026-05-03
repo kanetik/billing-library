@@ -36,69 +36,21 @@ import com.android.billingclient.api.Purchase
  * via `BillingFlowParams`). The field defaults to 1 so single-unit code keeps
  * working — but ignoring it on a multi-quantity purchase silently under-grants.
  *
- * ## ⚠️ Re-subscription replay
+ * ## Replay semantics
  *
- * The backing flow uses `replay = 1` so that a [Recovered] emission from the
- * auto-sweep isn't lost if the consumer's collector attaches a moment after
- * the connection comes up. The trade-off is that **the most recent emission
- * is replayed to every new subscriber**, including a subscriber that
- * re-attaches during a configuration change (`repeatOnLifecycle`, ViewModel
- * recreation, etc.).
+ * Live events ([Success], [Pending], [Canceled], [ItemAlreadyOwned],
+ * [ItemUnavailable], [UnknownResponse]) **do not replay** to re-attached
+ * subscribers — a `repeatOnLifecycle` collector that comes back after a
+ * configuration change does not see the previous live event again. This is
+ * the right semantic for purchase-flow outcomes: the entitlement grant and
+ * any one-shot UX (confetti, toasts, analytics) fired exactly once when the
+ * event arrived; replaying them on rotation would be a bug.
  *
- * Acknowledge handling is idempotent (`acknowledgePurchase(Purchase)`
- * short-circuits on `isAcknowledged`). **Consume handling is not fully
- * idempotent**: replaying a [Success] for an already-consumed consumable
- * makes `handlePurchase(consume = true)` return
- * [HandlePurchaseResult.Failure] wrapping
- * [com.kanetik.billing.exception.BillingException.ItemNotOwnedException] —
- * Play has no record of the purchase to consume. **UI side effects are also
- * not idempotent** — confetti, "thanks for your purchase!" toasts, and
- * analytics events will fire each time a re-subscribed collector receives
- * the replayed event.
- *
- * Recommended pattern: dedupe both the handle call and any one-shot UX by
- * `purchase.purchaseToken`, and treat `ItemNotOwnedException` on a consume
- * attempt as the already-handled signal it is:
- *
- * ```
- * private val handledTokens = MutableStateFlow<Set<String>>(emptySet())
- * private val celebratedTokens = MutableStateFlow<Set<String>>(emptySet())
- *
- * billing.observePurchaseUpdates().collect { update ->
- *     when (update) {
- *         is PurchasesUpdate.Success -> update.purchases.forEach { purchase ->
- *             if (purchase.purchaseToken !in handledTokens.value) {
- *                 when (val r = billing.handlePurchase(purchase, consume = true)) {
- *                     HandlePurchaseResult.Success -> {
- *                         handledTokens.update { it + purchase.purchaseToken }
- *                         if (purchase.purchaseToken !in celebratedTokens.value) {
- *                             fireConfetti()
- *                             celebratedTokens.update { it + purchase.purchaseToken }
- *                         }
- *                     }
- *                     HandlePurchaseResult.NotPurchased -> {} // pending
- *                     is HandlePurchaseResult.Failure -> when (r.exception) {
- *                         is BillingException.ItemNotOwnedException -> {
- *                             // Replayed Success for an already-consumed purchase.
- *                             // Treat as already-handled; mark token to skip on next replay.
- *                             handledTokens.update { it + purchase.purchaseToken }
- *                         }
- *                         else -> showError(r.exception.userFacingCategory)
- *                     }
- *                 }
- *             }
- *         }
- *         is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) } // never fire confetti for recovery
- *         else -> {}
- *     }
- * }
- * ```
- *
- * Persist `handledTokens` and `celebratedTokens` (e.g. via `SavedStateHandle`
- * or a small preferences entry) if you need the dedupe to survive process
- * death. The architectural alternative — splitting recovery state from live
- * events — is tracked in `docs/ROADMAP.md`; if it lands, the replay caveat
- * goes away entirely.
+ * [Recovered] events **do replay** to a late subscriber via a separate
+ * recovery channel with `replay = 1`. The auto-sweep can fire on connect
+ * before the consumer's collector attaches; the replay ensures the
+ * recovered purchase isn't lost. Re-emission for the *same* sweep happens
+ * only across re-subscriptions, not after a fresh sweep replaces it.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
