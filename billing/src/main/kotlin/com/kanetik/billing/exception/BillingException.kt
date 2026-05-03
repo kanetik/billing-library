@@ -11,10 +11,12 @@ import com.kanetik.billing.RetryType
  * Most [com.kanetik.billing.BillingActions] methods that fail throw a concrete
  * subtype of [BillingException] — [com.kanetik.billing.BillingActions.queryPurchases],
  * [com.kanetik.billing.BillingActions.queryProductDetails],
+ * [com.kanetik.billing.BillingActions.queryProductDetailsWithUnfetched],
  * [com.kanetik.billing.BillingActions.consumePurchase],
  * [com.kanetik.billing.BillingActions.acknowledgePurchase],
  * [com.kanetik.billing.BillingActions.launchFlow],
- * [com.kanetik.billing.BillingActions.showInAppMessages]. The high-level
+ * [com.kanetik.billing.BillingActions.showInAppMessages],
+ * [com.kanetik.billing.BillingActions.isFeatureSupported]. The high-level
  * [com.kanetik.billing.BillingActions.handlePurchase] helper is the exception:
  * it returns a sealed [com.kanetik.billing.HandlePurchaseResult] with a
  * `Failure(BillingException)` variant instead, so consumers can't accidentally

@@ -56,13 +56,23 @@ public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
 
     /**
-     * Purchases that just completed via an active [com.kanetik.billing.BillingActions.launchFlow]
-     * call. Hand each one to [com.kanetik.billing.BillingActions.handlePurchase] (with
-     * `consume = true` for consumables, `false` otherwise) to satisfy Play's
-     * acknowledgement requirement.
+     * Live purchase update with `BillingResponseCode == OK` — typically a
+     * purchase that just completed via [com.kanetik.billing.BillingActions.launchFlow],
+     * but also covers two edge cases the underlying PBL listener delivers
+     * through this same path:
+     *  - **`UNSPECIFIED_STATE` purchases**: rare, undocumented PBL state.
+     *    `handlePurchase` no-ops on these (returns
+     *    [com.kanetik.billing.HandlePurchaseResult.NotPurchased]).
+     *  - **Empty OK callbacks** (`purchases.isEmpty()`): PBL occasionally
+     *    fires the listener with no purchases; the listener forwards as
+     *    `Success(emptyList())` so consumers don't have to special-case it.
      *
-     * For consumables, read `purchase.quantity` when granting entitlement —
-     * see the class-level multi-quantity note.
+     * For each `PURCHASED`-state entry: hand it to
+     * [com.kanetik.billing.BillingActions.handlePurchase] (with
+     * `consume = true` for consumables, `false` otherwise) to satisfy
+     * Play's acknowledgement requirement. For consumables, read
+     * `purchase.quantity` when granting entitlement — see the class-level
+     * multi-quantity note.
      */
     public data class Success(override val purchases: List<Purchase>) : PurchasesUpdate()
 
