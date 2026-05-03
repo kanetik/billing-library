@@ -7,10 +7,8 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -120,9 +118,12 @@ public class PurchaseFlowCoordinator(
                 obfuscatedAccountId = obfuscatedAccountId,
                 obfuscatedProfileId = obfuscatedProfileId
             )
-            withContext(Dispatchers.Main) {
-                billingRepository.launchFlow(activity, flowParams)
-            }
+            // No explicit Main dispatch here — BillingRepository.launchFlow
+            // already wraps in withContext(uiDispatcher) using the dispatcher
+            // configured via BillingRepositoryCreator. Forcing Dispatchers.Main
+            // here would override the consumer's configured dispatcher and
+            // break tests that pass a TestDispatcher in.
+            billingRepository.launchFlow(activity, flowParams)
             launched = true
             logger.d("PurchaseFlow[$correlationId]: launched successfully")
             startWatchdog(correlationId)

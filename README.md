@@ -95,7 +95,7 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 
 Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
 
-The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no new code, no startup hook.
+The library handles this for you. On every successful Play Billing connection (app start, returning from background, post-disconnect reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (update)` collectors do need a new branch for `PurchasesUpdate.Recovered`; see the snippet below.)
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
@@ -107,8 +107,12 @@ private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
 is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
     if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success,
-        is HandlePurchaseResult.Failure -> handledRecoveredTokens.update { it + purchase.purchaseToken }
+        HandlePurchaseResult.Success ->
+            handledRecoveredTokens.update { it + purchase.purchaseToken }
+        is HandlePurchaseResult.Failure -> {
+            // Don't mark as handled — leave it for the next sweep to retry.
+            // Surface the error if you want, but DO NOT grant entitlement.
+        }
         HandlePurchaseResult.NotPurchased -> {}
     }
 }

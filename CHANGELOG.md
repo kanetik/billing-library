@@ -45,12 +45,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ProductDetails.toOneTimeFlowParams(...)` and
   `PurchaseFlowCoordinator.launch(...)` gained an `obfuscatedProfileId`
-  parameter.** Source-compatible for callers using positional args
-  `(obfuscatedAccountId, offerSelector)` (the new param sits at the end of
-  the list after `offerSelector`), but **binary-incompatible** — existing
-  compiled consumer `.class` files calling the old signature need a rebuild
-  to link against the new method descriptor. Recommended call style is
-  named args.
+  parameter.**
+  - **Kotlin callers**: source-compatible. Positional `(obfuscatedAccountId,
+    offerSelector)` calls still resolve correctly (the new param sits at the
+    end of the list after `offerSelector` and defaults to null), and named-arg
+    callers are unaffected.
+  - **Java callers**: source-incompatible. Neither API uses `@JvmOverloads`,
+    so Kotlin's default-arg machinery doesn't generate a Java-visible bridge
+    for the old signature. Java callsites need to add the new parameter
+    explicitly (or pass `null`).
+  - **All callers**: binary-incompatible. Existing compiled consumer `.class`
+    files calling the old signature need a rebuild to link against the new
+    method descriptor.
+
+  Recommended Kotlin call style is named args; Java consumers should pin to
+  a library version and rebuild together.
 
 ### Added
 

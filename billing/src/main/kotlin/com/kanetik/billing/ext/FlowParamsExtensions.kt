@@ -56,8 +56,11 @@ import com.android.billingclient.api.ProductDetails
  *   user profiles per install (e.g. family-sharing scenarios). Same PII rules as
  *   [obfuscatedAccountId]. Leave null to omit. Most apps will only need
  *   [obfuscatedAccountId]. Positioned after [offerSelector] so adding it doesn't
- *   break source-compat for existing positional callers using
+ *   break source-compat for existing **Kotlin** positional callers using
  *   `(obfuscatedAccountId, offerSelector)`. Pass via named arg for clarity.
+ *   Java callers see the new parameter as required (no `@JvmOverloads` bridge),
+ *   so this is a Java source break — pass `null` explicitly or rebuild against
+ *   the new signature.
  */
 public fun ProductDetails.toOneTimeFlowParams(
     obfuscatedAccountId: String? = null,

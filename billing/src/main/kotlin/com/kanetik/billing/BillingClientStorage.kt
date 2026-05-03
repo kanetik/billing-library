@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
@@ -74,8 +75,17 @@ internal class BillingClientStorage(
      * express "replay-on-subscribe for some emissions but not others" — that's
      * exactly what the channel split provides, and exposing a SharedFlow at the
      * top would re-introduce the single-replay-slot problem the split solves.
+     *
+     * `distinctUntilChanged` collapses consecutive identical emissions for
+     * active collectors. The recovery sweep emits `Recovered(emptyList())` on
+     * every successful connection (to keep the replay cache fresh against
+     * stale snapshots); on an unstable connection that flips repeatedly, those
+     * empties would otherwise stream through to active collectors as redundant
+     * no-ops. Replay-on-new-subscribe is unaffected — the dedupe is downstream
+     * of the SharedFlows and only filters the merged active-emission stream.
      */
-    val purchasesUpdateFlow: Flow<PurchasesUpdate> = merge(_liveUpdates, _recoveredUpdates)
+    val purchasesUpdateFlow: Flow<PurchasesUpdate> =
+        merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged()
 
     /*
      * Billing connection sharing strategy

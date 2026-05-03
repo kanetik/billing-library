@@ -96,8 +96,15 @@ public sealed class PurchasesUpdate {
      * non-consumables; surfaces `ItemNotOwnedException` for already-consumed
      * consumables). Track handled tokens in a `Set<String>` to skip them
      * deterministically; persist via `SavedStateHandle` (or similar) if the
-     * dedupe needs to survive process death. Live `Success` events do not
-     * need this dedupe — they go through a separate `replay = 0` channel.
+     * dedupe needs to survive process death.
+     *
+     * **Only mark tokens as handled on [HandlePurchaseResult.Success]**, not
+     * on [HandlePurchaseResult.Failure]. A failure means the acknowledge /
+     * consume didn't land — the next sweep needs to see the purchase again
+     * to retry; suppressing the next replay would orphan it.
+     *
+     * Live `Success` events do not need this dedupe — they go through a
+     * separate `replay = 0` channel.
      *
      * **Why recovery matters:** Play auto-refunds purchases that aren't
      * acknowledged within 3 days. App crashes, network failures, or force-quits
