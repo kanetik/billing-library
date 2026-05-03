@@ -91,12 +91,15 @@ public sealed class PurchasesUpdate {
      * the recovery channel uses `replay = 1`, a subscriber that re-attaches
      * after successfully handling a recovered purchase will receive the same
      * `Purchase` snapshot again — the snapshot is from before your handle
-     * call landed, so its `isAcknowledged` flag is still `false`. Re-handling
-     * the snapshot makes a redundant Play call (typically benign for
-     * non-consumables; surfaces `ItemNotOwnedException` for already-consumed
-     * consumables). Track handled tokens in a `Set<String>` to skip them
-     * deterministically; persist via `SavedStateHandle` (or similar) if the
-     * dedupe needs to survive process death.
+     * call landed, so its `isAcknowledged` flag is still `false` and the
+     * library's [com.kanetik.billing.BillingActions.acknowledgePurchase]`(Purchase)`
+     * `isAcknowledged` short-circuit doesn't fire. Re-handling the snapshot
+     * surfaces a [HandlePurchaseResult.Failure]:
+     * `BillingException.DeveloperErrorException` for already-acknowledged
+     * non-consumables, `ItemNotOwnedException` for already-consumed consumables.
+     * Track handled tokens in a `Set<String>` to skip them deterministically;
+     * persist via `SavedStateHandle` (or similar) if the dedupe needs to
+     * survive process death.
      *
      * **Only mark tokens as handled on [HandlePurchaseResult.Success]**, not
      * on [HandlePurchaseResult.Failure]. A failure means the acknowledge /

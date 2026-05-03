@@ -68,6 +68,20 @@ internal class BillingClientStorage(
     /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
     private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
 
+    /*
+     * Per-type cache of the last-known-unacknowledged purchases. Used by
+     * [sweepUnacknowledgedPurchases] to emit best-known state on a partial
+     * failure: if INAPP succeeds with [A] but SUBS transiently fails, we still
+     * emit Recovered([A] ∪ lastKnownSubs) so the consumer doesn't lose the A
+     * recovery just because SUBS hiccupped. Updated only on successful per-type
+     * queries; preserved across sweeps when that type fails. Sweeps are
+     * serialized via [transformLatest] on the connection upstream, so concurrent
+     * mutation isn't possible — `@Volatile` is defensive against future refactors.
+     */
+    @Volatile private var cachedInAppUnacknowledged: List<Purchase> = emptyList()
+
+    @Volatile private var cachedSubsUnacknowledged: List<Purchase> = emptyList()
+
     /**
      * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
@@ -203,32 +217,36 @@ internal class BillingClientStorage(
                 inAppDeferred.await() to subsDeferred.await()
             }
 
-            // If either per-type query failed, skip the emit. Emitting
-            // Recovered(emptyList()) on a partial failure would overwrite a
-            // valid previous Recovered([A]) in the replay slot — late subscribers
-            // would then miss A entirely. Preserve the previous replay; the next
-            // successful sweep refreshes it.
-            if (inApp.isFailure || subs.isFailure) {
+            // Update per-type caches only on success. On a per-type failure,
+            // the cache stays at its last known good value — the next sweep
+            // either confirms or replaces it.
+            inApp.onSuccess { cachedInAppUnacknowledged = it }
+            subs.onSuccess { cachedSubsUnacknowledged = it }
+
+            // Skip emit ONLY if both per-type queries failed. Otherwise emit
+            // best-known state (fresh side + cached side) so a transient SUBS
+            // failure doesn't suppress an INAPP recovery (and vice versa).
+            // Skipping on partial failure was the previous approach but it
+            // stranded real INAPP recoveries until a fully clean reconnect.
+            if (inApp.isFailure && subs.isFailure) {
                 logger.w(
-                    "Recovery sweep skipped emit due to partial query failure " +
-                        "(inApp=${inApp.isFailure}, subs=${subs.isFailure}) — " +
-                        "previous Recovered preserved; next connect retries"
+                    "Recovery sweep: both queries failed, no emit (caches preserved)"
                 )
                 return
             }
-
-            val unacknowledged = inApp.getOrThrow() + subs.getOrThrow()
-
-            if (unacknowledged.isNotEmpty()) {
-                logger.d("Recovery sweep found ${unacknowledged.size} unacknowledged purchase(s)")
+            if (inApp.isFailure || subs.isFailure) {
+                logger.w(
+                    "Recovery sweep: partial failure (inApp=${inApp.isFailure}, " +
+                        "subs=${subs.isFailure}) — emitting best-known state " +
+                        "from caches; failed side will refresh on next sweep"
+                )
             }
-            // Always emit on a complete sweep, even when empty. _recoveredUpdates
-            // has replay = 1; if a previous sweep emitted Recovered([A]) and the
-            // consumer acknowledged A, the replay cache would still hold
-            // Recovered([A]) and a subscriber attaching after a config change
-            // would re-receive it. Emitting Recovered([]) when the sweep completes
-            // with no unacknowledged purchases overwrites the stale replay slot
-            // with an empty payload, which is a safe no-op for any consumer.
+
+            val unacknowledged = cachedInAppUnacknowledged + cachedSubsUnacknowledged
+            if (unacknowledged.isNotEmpty()) {
+                logger.d("Recovery sweep result: ${unacknowledged.size} unacknowledged purchase(s)")
+            }
+            // Always emit (even when empty) so the replay cache stays fresh.
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
             // silently drop a recovery event.
             _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
@@ -236,18 +254,19 @@ internal class BillingClientStorage(
             throw ce
         } catch (e: Exception) {
             // Best-effort: log and bail. Next connect retries. Don't emit on
-            // failure — the previous Recovered (if any) is preserved.
+            // failure — caches and previous replay are preserved.
             logger.w("Purchase recovery sweep failed", e)
         }
     }
 
     /**
-     * `true` iff the Play Billing client is *known* not to support
-     * subscriptions on this install (`FEATURE_NOT_SUPPORTED`). Transient
-     * failures (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, etc.) return
-     * `true` so the sweep still attempts the SUBS query — those are recoverable
-     * states on a device that does support subs, and silently skipping the SUBS
-     * recovery would leak unacknowledged subscription purchases.
+     * Returns `true` if subscription purchases should be queried on this
+     * connect, `false` only if the Play Billing client reports
+     * `FEATURE_NOT_SUPPORTED`. Transient failures (`SERVICE_DISCONNECTED`,
+     * `SERVICE_UNAVAILABLE`, etc.) fall through to `true` so the sweep still
+     * attempts the SUBS query — those are recoverable states on a device
+     * that does support subs, and silently skipping the SUBS recovery would
+     * leak unacknowledged subscription purchases.
      */
     private fun subscriptionsSupported(client: BillingClient): Boolean {
         // Synchronous PBL call; one IPC round-trip per connect, well under

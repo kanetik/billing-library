@@ -47,9 +47,11 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
             billing.observePurchaseUpdates().collect { update ->
                 _state.update { it.copy(lastUpdate = update) }
                 appendLog("purchase update: ${update::class.simpleName}")
-                // Success and Recovered get the same handling: acknowledge / consume +
-                // grant entitlement. Recovered fires when the library's auto-sweep on
-                // connect finds an unacknowledged purchase from a prior session — see
+                // Success and Recovered get the same handlePurchase call (acknowledge
+                // or consume). Real apps would also grant entitlement on
+                // HandlePurchaseResult.Success — this sample just logs the outcome.
+                // Recovered fires when the library's auto-sweep on connect finds an
+                // unacknowledged purchase from a prior session — see
                 // PurchasesUpdate.Recovered KDoc and the README's "Purchase recovery" section.
                 val purchasesToHandle = when (update) {
                     is PurchasesUpdate.Success -> update.purchases
