@@ -146,9 +146,17 @@ class BillingExceptionTest {
     }
 
     @Test
-    fun `userFacingCategory maps BillingUnavailable`() {
-        assertThat(BillingException.fromResult(result(BillingResponseCode.BILLING_UNAVAILABLE)).userFacingCategory)
-            .isEqualTo(BillingErrorCategory.BillingUnavailable)
+    fun `userFacingCategory maps BillingUnavailable bucket`() {
+        // BillingUnavailableException + FeatureNotSupportedException both
+        // represent runtime device-state conditions ("this isn't available
+        // on your device") and share the same UI bucket.
+        listOf(
+            BillingResponseCode.BILLING_UNAVAILABLE,
+            BillingResponseCode.FEATURE_NOT_SUPPORTED
+        ).forEach { code ->
+            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
+                .isEqualTo(BillingErrorCategory.BillingUnavailable)
+        }
     }
 
     @Test
@@ -164,14 +172,9 @@ class BillingExceptionTest {
     }
 
     @Test
-    fun `userFacingCategory maps DeveloperError bucket`() {
-        listOf(
-            BillingResponseCode.DEVELOPER_ERROR,
-            BillingResponseCode.FEATURE_NOT_SUPPORTED
-        ).forEach { code ->
-            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
-                .isEqualTo(BillingErrorCategory.DeveloperError)
-        }
+    fun `userFacingCategory maps DeveloperError`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.DEVELOPER_ERROR)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.DeveloperError)
     }
 
     @Test

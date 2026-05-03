@@ -187,6 +187,15 @@ internal class BillingClientStorage(
      * `isAcknowledged` short-circuit absorbs the duplicate in the common case.
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
+        // v0.1.x limitation: SUBS purchases are emitted through the same
+        // PurchasesUpdate.Recovered variant as one-time products, even when
+        // they're subscription replacements (carry a non-empty
+        // linkedPurchaseToken in originalJson). Consumers handling subs must
+        // parse linkedPurchaseToken themselves and treat replacement purchases
+        // as plan changes rather than fresh grants — see PurchasesUpdate.Recovered
+        // KDoc and the README "Purchase recovery" section. v0.2.0 will ship a
+        // typed PurchasesUpdate.SubscriptionReplacement variant that classifies
+        // these at the source so the wrong handling can't compile.
         try {
             val (inApp, subs) = coroutineScope {
                 val inAppDeferred = async { queryUnacknowledgedSafely(client, BillingClient.ProductType.INAPP) }

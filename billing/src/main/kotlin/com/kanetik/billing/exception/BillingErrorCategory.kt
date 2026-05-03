@@ -33,11 +33,22 @@ public enum class BillingErrorCategory {
     Network,
 
     /**
-     * Billing isn't available on this device or account
-     * ([BillingException.BillingUnavailableException]). Common causes: Play
-     * Services disabled, non-Play distribution (some Huawei devices), account
-     * not eligible for purchases. Terminal — no point retrying. Consider
-     * hiding billing-related UI entirely until billing becomes available.
+     * Billing isn't available on this device, account, or for the specific
+     * feature the call requested. Includes:
+     *  - [BillingException.BillingUnavailableException] — billing API itself
+     *    isn't available (Play Services disabled, non-Play distribution
+     *    such as some Huawei devices, account not eligible for purchases).
+     *  - [BillingException.FeatureNotSupportedException] — the specific
+     *    feature isn't supported on this Play Store install (older Play
+     *    versions, regional rollout limitations, device capability gaps —
+     *    e.g. subscriptions on a device that doesn't have them).
+     *
+     * Both are runtime device-state conditions, not caller bugs. Terminal —
+     * no point retrying. Surface a "this isn't available on your device"
+     * message; consider hiding the affected billing UI until availability
+     * changes (apps that conditionally enable features via
+     * [com.kanetik.billing.BillingActions.isFeatureSupported] usually
+     * handle this upstream).
      */
     BillingUnavailable,
 
@@ -54,25 +65,16 @@ public enum class BillingErrorCategory {
 
     /**
      * The library or app called Play Billing with malformed arguments
-     * ([BillingException.DeveloperErrorException]) or the requested feature
-     * isn't supported on this Play Store install
-     * ([BillingException.FeatureNotSupportedException]).
+     * ([BillingException.DeveloperErrorException]).
      *
-     * `DeveloperErrorException` is a bug in your code (PBL is rejecting the
-     * call shape — fix it; should never reach production). Report to crash
-     * analytics if it does.
+     * **This is a bug in your code, not a runtime condition** — PBL is
+     * rejecting the call shape. Fix it; should never reach production.
+     * Report to crash analytics if it does, and surface a generic
+     * "something went wrong" message to the user.
      *
-     * `FeatureNotSupportedException` is a legitimate runtime condition —
-     * older Play Store installs, regions where a feature isn't rolled out,
-     * or devices that lack a capability (e.g. subscriptions). Surface a
-     * "this isn't available on your device" message when you can identify
-     * which feature was being checked; otherwise the generic error is fine.
-     *
-     * Most consumers can render the same generic-error UX for both and
-     * report to crash analytics; if your app conditionally enables features
-     * via [com.kanetik.billing.BillingActions.isFeatureSupported], you may
-     * already be handling `FeatureNotSupportedException` upstream and won't
-     * see it leak into purchase flows.
+     * (Note: `FeatureNotSupportedException` was previously bucketed here
+     * but moved to [BillingUnavailable] — it's a runtime device-state
+     * condition, not a caller bug.)
      */
     DeveloperError,
 

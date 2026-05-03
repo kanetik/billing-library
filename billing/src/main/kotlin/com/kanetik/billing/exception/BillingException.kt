@@ -92,12 +92,12 @@ public sealed class BillingException(
             is NetworkErrorException,
             is ServiceDisconnectedException,
             is ServiceUnavailableException -> BillingErrorCategory.Network
-            is BillingUnavailableException -> BillingErrorCategory.BillingUnavailable
+            is BillingUnavailableException,
+            is FeatureNotSupportedException -> BillingErrorCategory.BillingUnavailable
             is ItemUnavailableException,
             is ItemAlreadyOwnedException,
             is ItemNotOwnedException -> BillingErrorCategory.ProductUnavailable
-            is DeveloperErrorException,
-            is FeatureNotSupportedException -> BillingErrorCategory.DeveloperError
+            is DeveloperErrorException -> BillingErrorCategory.DeveloperError
             is FatalErrorException,
             is UnknownException,
             is WrappedException -> BillingErrorCategory.Other

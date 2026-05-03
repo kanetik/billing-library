@@ -112,7 +112,7 @@ class HandlePurchaseTest {
     }
 
     @Test
-    fun `handlePurchase wraps Error subclasses (e g AssertionError) as Failure(WrappedException)`() = runTest {
+    fun `handlePurchase wraps non-fatal Error subclasses like AssertionError as Failure(WrappedException)`() = runTest {
         // catch(Exception) wouldn't catch this — the typed-result contract
         // requires catching Throwable so AssertionError from test fakes
         // (e.g. a `assert {}` block in a custom impl) doesn't escape.
