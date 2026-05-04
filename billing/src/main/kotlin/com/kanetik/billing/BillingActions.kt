@@ -210,14 +210,6 @@ public interface BillingActions {
             return HandlePurchaseResult.NotPurchased
         }
         if (!consume && purchase.isAcknowledged) {
-            // Short-circuit: no PBL call needed — and crucially, we don't
-            // want to call acknowledgePurchase on an already-acked purchase
-            // (Play returns DEVELOPER_ERROR, which would surface as
-            // Failure(DeveloperErrorException) and make "already acked"
-            // indistinguishable from a real ack failure for retry-on-Failure
-            // consumers). consume=true does NOT get this short-circuit —
-            // consumables aren't acked, they're consumed, and Play doesn't
-            // expose isConsumed on Purchase for a parallel check.
             return HandlePurchaseResult.AlreadyAcknowledged
         }
         return try {
