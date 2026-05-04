@@ -56,8 +56,9 @@ internal class DefaultBillingRepository(
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions
         // aren't tied to subscriber attachment; the Flow returned here merges
-        // the live and recovery channels (see BillingClientStorage's two-channel
-        // architecture comment for why the split exists).
+        // the three channels (live PBL events, recovery sweeps, and external
+        // revocations) — see BillingClientStorage's channel-architecture
+        // comment for why the split exists.
         return billingClientStorage.purchasesUpdateFlow
     }
 
