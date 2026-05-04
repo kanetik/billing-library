@@ -40,10 +40,17 @@ import com.kanetik.billing.exception.BillingException
  *    inspects [Purchase.isAcknowledged] before reaching out to PBL). The
  *    stale-snapshot case is the one remaining caveat: a `Purchase`
  *    cached locally with `isAcknowledged = false` whose Play-side state
- *    has flipped to `true` (e.g., a `Recovered` snapshot that already
+ *    has flipped to `true` (e.g., a `Recovered` snapshot that was already
  *    acked successfully but is being replayed) will still surface as
- *    `Failure(DeveloperErrorException)` until the next sweep yields a
- *    fresh object.
+ *    `Failure(DeveloperErrorException)` on re-handle. The recovery sweep
+ *    won't re-emit such a purchase as a fresh acknowledged object — it
+ *    filters `PURCHASED && !isAcknowledged`, so once Play marks the
+ *    purchase acknowledged it drops out of the sweep entirely. The stale
+ *    snapshot persists in the recovery channel's replay slot until a
+ *    later sweep emits a different result, or until the consumer queries
+ *    fresh purchases via [com.android.billingclient.api.BillingClient.queryPurchasesAsync].
+ *    (Issue #6 — Recovered dedupe — addresses this case directly by
+ *    filtering replayed snapshots against handled tokens.)
  *
  * Lower-level [com.kanetik.billing.BillingActions.consumePurchase] and
  * [com.kanetik.billing.BillingActions.acknowledgePurchase] still throw

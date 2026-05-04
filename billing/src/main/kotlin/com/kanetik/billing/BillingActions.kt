@@ -165,8 +165,12 @@ public interface BillingActions {
      *     indistinguishable from a real ack failure. Stale snapshots
      *     (locally `isAcknowledged = false` but Play-side `true` —
      *     e.g., a `Recovered` replay after a successful ack) still
-     *     surface as `Failure(DeveloperErrorException)` until the next
-     *     sweep yields a fresh object; see [HandlePurchaseResult.Failure].
+     *     surface as `Failure(DeveloperErrorException)` on re-handle;
+     *     the recovery sweep won't re-issue an acknowledged purchase
+     *     (it filters `PURCHASED && !isAcknowledged`), so the stale
+     *     snapshot persists in the replay cache until a later sweep
+     *     emits a different result or the consumer queries fresh
+     *     purchases. See [HandlePurchaseResult.Failure].
      *  3. For [consume] = true, the underlying consume call is the one that also
      *     satisfies Play's acknowledgement requirement (Play treats consume as
      *     implicit acknowledgement for consumables). The `consume = true`
