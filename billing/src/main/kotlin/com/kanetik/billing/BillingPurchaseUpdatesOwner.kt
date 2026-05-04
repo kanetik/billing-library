@@ -16,16 +16,23 @@ import kotlinx.coroutines.flow.Flow
  *  - [FlowOutcome] (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`,
  *    `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
  *    their `purchases` list as owned-state.
+ *  - [PurchaseRevoked] — external revocation signal pushed in via
+ *    [BillingRepository.emitExternalRevocation]; revoke entitlement for the
+ *    carried `purchaseToken` and surface UX appropriate to the
+ *    [RevocationReason].
  *
  * Both one-time and subscription updates flow through the same stream — see
  * [PurchaseEvent] for the full state-machine guidance.
  *
- * Internally hot and shared via two underlying SharedFlows (live PBL events with
- * `replay = 0`, recovery-sweep events with `replay = 1`). Each subscription to
- * this flow subscribes to both channels: late subscribers see the most recent
- * recovery sweep (if any) plus all future emissions; live events do **not** replay
- * to re-attached subscribers (configuration changes, `repeatOnLifecycle`, etc.),
- * which avoids the "confetti fires twice on rotation" bug.
+ * Internally hot and shared via three underlying SharedFlows (live PBL events with
+ * `replay = 0`, recovery-sweep events with `replay = 1`, revocation events with
+ * `replay = 16` — sized for the realistic FCM-burst case where multiple
+ * revocations may pile up before any subscriber attaches). Each subscription to
+ * this flow subscribes to all three channels: late subscribers see the most
+ * recent recovery sweep plus up to 16 cached revocations plus all future
+ * emissions; live events do **not** replay to re-attached subscribers
+ * (configuration changes, `repeatOnLifecycle`, etc.), which avoids the
+ * "confetti fires twice on rotation" bug.
  *
  * Returned as [Flow] (not [kotlinx.coroutines.flow.SharedFlow]) because the type
  * can't express "replay-on-subscribe for some emissions but not others" — the

@@ -72,6 +72,7 @@ class CheckoutActivity : ComponentActivity() {
                     is FlowOutcome.ItemUnavailable -> showSoldOut()
                     is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
                     is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+                    is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
                 }
             }
         }
@@ -98,6 +99,7 @@ class CheckoutActivity : ComponentActivity() {
         // See "Handling handlePurchase failures correctly" below for the full pattern.
         return when (val r = billing.handlePurchase(purchase, consume = false)) {
             HandlePurchaseResult.Success -> { grantPremium(); true }
+            HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
@@ -148,28 +150,32 @@ The library handles this for you. On every fresh Play Billing connection (app st
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
-A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). The library's `acknowledgePurchase(Purchase)` `isAcknowledged` short-circuit doesn't fire on the stale snapshot, so re-running `handlePurchase` issues a duplicate acknowledge/consume call to Play — already-acknowledged non-consumables surface `DeveloperErrorException`, already-consumed consumables surface `ItemNotOwnedException`. Both arrive as `HandlePurchaseResult.Failure`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
+The library handles `Recovered` dedupe for you. `BillingActions.handlePurchase` (and the lower-level `acknowledgePurchase` / `consumePurchase`) records the purchase token after the underlying acknowledge or consume call lands successfully against Play. The recovery channel still has `replay = 1` so the cache reflects current Play state, but `observePurchaseUpdates()` filters the cached snapshot against the acked-token set *at delivery time* (via a synchronous `map` that reads the current set per emission) — so even a late subscriber that attaches after you've already handled the purchase receives the cached sweep result re-filtered against the current acked set, not the stale pre-ack snapshot. Empty `Recovered` (intrinsic or filtered-to-empty) is dropped before delivery. There's nothing to dedupe in your collector:
 
 ```kotlin
-private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
-
 is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
-    if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success -> {
-            grantEntitlement(purchase)  // recovery is the whole point — actually grant
-            handledRecoveredTokens.update { it + purchase.purchaseToken }
+        HandlePurchaseResult.Success -> grantEntitlement(purchase)  // recovery is the whole point — actually grant
+        HandlePurchaseResult.AlreadyAcknowledged -> {
+            // Not reachable from a Recovered snapshot in practice — the sweep
+            // pre-filters PURCHASED && !isAcknowledged, so the local
+            // isAcknowledged flag is false and handlePurchase doesn't
+            // short-circuit. Listed for exhaustiveness; the arm fires from
+            // a manual queryPurchases reconciliation where you have a fresh
+            // Purchase with isAcknowledged=true.
+            grantEntitlement(purchase)
         }
         is HandlePurchaseResult.Failure -> {
-            // Don't mark as handled — leave it for the next sweep to retry.
             // Surface the error if you want, but DO NOT grant entitlement.
+            // The library doesn't mark the token as acknowledged on Failure,
+            // so the next sweep will surface this purchase again for retry.
         }
         HandlePurchaseResult.NotPurchased -> {}
     }
 }
 ```
 
-(Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
+You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — but the `Set<String>` dedupe consumers used to need against `replay = 1` re-emission is no longer required. Tracking lives for the singleton repository's lifetime (typically the process), bounded by purchase activity; a fresh sweep on reconnect re-queries Play and surfaces only genuinely-unacked tokens. (Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
 
 ```kotlin
 billing.observePurchaseUpdates().collect { event ->
@@ -180,11 +186,9 @@ billing.observePurchaseUpdates().collect { event ->
         }
         is OwnedPurchases.Recovered -> {
             // Same handle() call as Live — but no confetti. Background recovery,
-            // not a fresh purchase. NOTE: `Recovered` replays its most recent
-            // snapshot to re-subscribed collectors (config change, etc.) with
-            // `isAcknowledged = false` even after you handle them. Dedupe by
-            // `purchase.purchaseToken` in real apps — see "Purchase recovery"
-            // below for the full pattern.
+            // not a fresh purchase. The library tracks acknowledged tokens internally
+            // and suppresses replay of `Recovered` for already-handled purchases —
+            // you don't need a consumer-side `Set<String>` dedupe.
             event.purchases.forEach { handle(it) }
         }
         is FlowOutcome -> { /* sub-when on Pending / Canceled / etc. */ }
@@ -227,6 +231,7 @@ private suspend fun handle(purchase: Purchase) {
                 coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
             }
         }
+        HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
         // never grant on Failure — recovery sweep retries on the next connection
@@ -238,22 +243,23 @@ private suspend fun handle(purchase: Purchase) {
 
 ## Replay semantics
 
-`observePurchaseUpdates()` is internally a merge of two channels:
+`observePurchaseUpdates()` is internally a merge of three channels:
 
 - **Live events** (`OwnedPurchases.Live` and every `FlowOutcome` variant — `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
-- **Recovery events** (`OwnedPurchases.Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
+- **Recovery events** (`OwnedPurchases.Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up. The library tracks tokens passed through `acknowledgePurchase` / `consumePurchase` / `handlePurchase` and filters them out at delivery time (a synchronous `map` reads the current acked-token set per emission); `Recovered` events that filter to empty (or are intrinsically empty) are suppressed entirely. A re-subscribed collector that already handled the recovered purchase does not see the stale snapshot again.
+- **Revocation events** (`PurchaseRevoked`) — `replay = 16`, on a dedicated channel separate from the recovery channel. A late subscriber (one that attaches after the consumer's FCM listener pushed one or more `PurchaseRevoked` events via `emitExternalRevocation`) catches up to the last 16 cached revocations. The buffer is sized for the realistic FCM-burst case (multi-product chargebacks resolving simultaneously, or several revocations decoded at process start before the UI is up); larger bursts still cap at 16 — for guaranteed delivery of every event past that, persist on the consumer side before calling `emitExternalRevocation`.
 
-You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `OwnedPurchases.Live` branch and you'll see it exactly once per purchase, even across rotations. The `OwnedPurchases.Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
+You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `OwnedPurchases.Live` branch and you'll see it exactly once per purchase, even across rotations. You also don't need to dedupe the `OwnedPurchases.Recovered` branch for `replay = 1` re-emission of already-handled purchases (the library does that). Still treat `Recovered` idempotently if you trigger one-shot UX off it for other state-machine reasons (badge animations, analytics events, etc.).
 
 ## API overview
 
 | Type | Role |
 |---|---|
 | `BillingRepositoryCreator.create(...)` | Public entry point. Returns `BillingRepository`. |
-| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. |
+| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. Adds `emitExternalRevocation(token, reason)` for transport-agnostic server-driven revocation — see "Server-driven revocation". |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
-| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchaseEvent>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
+| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchaseEvent>`. Hot internally; merges three channels — a no-replay live channel, a replay=1 recovery channel, and a replay=16 revocation channel (for `PurchaseRevoked` events pushed via `emitExternalRevocation`; sized for FCM-burst replay) — see "Replay semantics". |
 | `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase`. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
@@ -264,7 +270,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 | Subpackage | Contains |
 |---|---|
-| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchaseEvent`, `OwnedPurchases`, `FlowOutcome`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchaseEvent`, `OwnedPurchases`, `FlowOutcome`, `PurchaseRevoked`, `RevocationReason`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
 | `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
@@ -339,16 +345,19 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 
 ### Handling `handlePurchase` failures correctly
 
-`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Don't grant entitlement outside the `Success` branch** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `AlreadyAcknowledged`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
 
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
     HandlePurchaseResult.Success -> grantPremium()
+    HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
     // do NOT grant on Failure — the recovery sweep retries on next connect
 }
 ```
+
+The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase` already has `isAcknowledged = true` — the library short-circuits before reaching out to Play. Treat it as entitlement-equivalent to `Success`; it exists as a separate variant so consumers can distinguish "we just acked" from "it was already done" for logging / metrics, and so `Failure` no longer overlaps with `Failure(DeveloperErrorException)` from a redundant acknowledge call. **Consumers can now safely untrack-on-Failure for retry on the next recovery sweep** — `Failure` unambiguously means a transient or terminal ack failure worth retrying, never an "already-acked, this will fail forever" loop. The `consume = true` path does not produce `AlreadyAcknowledged` — consumables aren't acked, they're consumed, and Play doesn't expose an `isConsumed` field on `Purchase` for a parallel check.
 
 The auto-recovery sweep (see [`OwnedPurchases.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
@@ -505,6 +514,7 @@ billing.observePurchaseUpdates()
             // — this snippet shows just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
+                HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
                 is HandlePurchaseResult.Failure -> {
                     // Don't grant — recovery sweep retries on the next clean connect.
@@ -595,6 +605,63 @@ This is the recommended pattern. Library-side caching would tax consumers with t
 RTDN is server-side — Cloud Pub/Sub from Play to your backend. The library is client-side only. For RTDN integration, see Google's [Real-time developer notifications guide](https://developer.android.com/google/play/billing/getting-ready#configure-rtdn).
 
 If your backend posts notifications back to the client (e.g., "subscription state changed"), call `queryPurchases` to refresh and let the existing `observePurchaseUpdates` pipeline handle the result.
+
+## Server-driven revocation
+
+Refunds, chargebacks, and other server-driven entitlement reversals don't arrive through PBL's `PurchasesUpdatedListener` — they originate on Play's side and reach your app via RTDN→Cloud Pub/Sub→your backend→(FCM push, polling, deeplink, whatever transport you've wired). Without a first-class hook, consumers end up maintaining a parallel revocation pipeline alongside `observePurchaseUpdates()`.
+
+The library exposes a single transport-agnostic emit API on `BillingRepository`:
+
+```kotlin
+public suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason)
+```
+
+The library does **not** subscribe to FCM, RTDN, or anything server-side — that's your decision (transport, auth, decoding). Your FCM listener (or polling worker, etc.) decodes the payload into a `(purchaseToken, RevocationReason)` pair and calls `emitExternalRevocation`. The event surfaces as `PurchaseRevoked` through the same flow you already collect:
+
+```kotlin
+class FcmRevocationReceiver : FirebaseMessagingService() {
+    @Inject lateinit var billing: BillingRepository
+
+    // Service-scoped CoroutineScope so emitExternalRevocation runs without
+    // blocking the FCM callback thread. SupervisorJob keeps a single emit
+    // failure from cancelling sibling work; the scope is cancelled in
+    // onDestroy below so emits don't outlive the service.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        val token = message.data["purchaseToken"] ?: return
+        // Message-type strings here are app-defined — what your backend chose
+        // to put in the FCM payload. They don't have to match RTDN's
+        // SUBSCRIPTION_REVOKED / SUBSCRIPTION_EXPIRED constants; the backend
+        // already decoded those before sending the FCM. Pick whatever's
+        // convenient for your backend ↔ client contract.
+        val reason = when (message.data["type"]) {
+            "REFUND" -> RevocationReason.Refunded
+            "CHARGEBACK" -> RevocationReason.Chargeback
+            "SUBS_EXPIRED" -> RevocationReason.SubscriptionExpired
+            else -> RevocationReason.Other
+        }
+        scope.launch { billing.emitExternalRevocation(token, reason) }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+}
+```
+
+(For longer-running work or for guaranteed delivery across process death, use WorkManager instead — `emitExternalRevocation` is a fast, in-memory hand-off, but the surrounding decode + persistence is a different question.)
+
+`PurchaseRevoked` events route through a dedicated `replay = 16` channel — separate from `OwnedPurchases.Recovered`, so a revocation that arrives before the consumer's collector attaches isn't evicted by an empty recovery sweep. (Common case: the FCM listener decodes the payload at process start, before the UI is up.) Up to 16 revocations cached for late subscribers, sized for the realistic FCM-burst case (multi-product chargebacks resolving simultaneously, or several revocations decoded at process start). The same dedupe rule applies: a re-attached collector replays its share of the cache, so gate on `purchaseToken` if your handler isn't idempotent. Bursts beyond 16 events drop the oldest first — for guaranteed delivery of every event past that bound, persist on the consumer side before calling `emitExternalRevocation`.
+
+`RevocationReason` buckets:
+- `Refunded` — Play refunded the purchase (consumer-initiated or merchant-initiated).
+- `Chargeback` — payment dispute resolved against the merchant; warrants a security-policy response on top of revocation.
+- `SubscriptionExpired` — subscription has fully expired (auto-renew off **and** the paid-through period elapsed). PBL distinguishes this from `SUBSCRIPTION_CANCELED` which means auto-renew was disabled but the user still has entitlement until the period ends. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
+- `Other` — none of the above (manual revocation by support, fraud-detection action, etc.).
+
+The library is intentionally agnostic to the *contents* of the reason — it neither validates the mapping nor reads it for any internal decision. The enum exists so downstream collectors get a typed switch for differentiated UX (chargeback may flag the account; a plain refund probably just shows a neutral notice).
 
 ## Testing
 

@@ -189,11 +189,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `purchaseToken`-based dedupe pattern documented in the README "Purchase
   recovery" section.
 
+- **`HandlePurchaseResult` sealed class gained a new `AlreadyAcknowledged`
+  subtype.** Same story as the other sealed-type additions in this release:
+  exhaustive `when (r: HandlePurchaseResult) { ... }` without an `else`
+  branch becomes a Kotlin source break. Migration: add a branch for
+  `HandlePurchaseResult.AlreadyAcknowledged` — typically map it to the
+  same grant call as `Success` (it's entitlement-equivalent), and
+  optionally log it distinctly so telemetry can separate "we just acked"
+  from "it was already done". See the README
+  "Handling `handlePurchase` failures correctly" section.
+
+- **`PurchaseEvent` gained a third top-level variant: `PurchaseRevoked`.**
+  Same exhaustiveness story as the two-tier split above — `when (event)`
+  sites need a `is PurchaseRevoked -> ...` arm. `PurchaseRevoked` is **not**
+  nested under `OwnedPurchases` or `FlowOutcome`: it's neither owned-state
+  nor a flow-attempt outcome but a third category (external signal), and it
+  carries no `Purchase` objects (the source is a server-side notification
+  carrying a `purchaseToken`, not a re-issued PBL callback). Branch on
+  `event.purchaseToken` and `event.reason` (a `RevocationReason` enum) and
+  revoke the matching entitlement. The library does not emit `PurchaseRevoked`
+  itself; it surfaces events the consumer pushes via the new
+  `BillingRepository.emitExternalRevocation` API (see Added below). See the
+  README "Server-driven revocation" section for the full pattern.
+
+- **`BillingRepository` interface gained a `suspend emitExternalRevocation(purchaseToken, reason)`
+  method.** Source break for any consumer implementing `BillingRepository`
+  directly (rare — most consumers use `BillingRepositoryCreator.create(...)`,
+  which returns the library-provided implementation). Custom implementations
+  must add the new method; the simplest pass-through is to delegate to a
+  `MutableSharedFlow<PurchaseRevoked>` that feeds into the `PurchaseEvent`
+  stream backing `observePurchaseUpdates()`.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
-  `Success`, `NotPurchased`, `Failure(exception)`. See the breaking-change
-  note above.
+  `Success`, `AlreadyAcknowledged`, `NotPurchased`, `Failure(exception)`.
+  See the breaking-change note above.
+- **`HandlePurchaseResult.AlreadyAcknowledged` variant** (`data object`) —
+  returned by `handlePurchase(purchase, consume = false)` when
+  `purchase.isAcknowledged` is already `true`. The library short-circuits
+  before reaching out to PBL (no acknowledge call is made), closing the
+  recovery hole where calling acknowledge on an already-acked purchase
+  surfaced `Failure(DeveloperErrorException)` and made "already acked"
+  indistinguishable from a real ack failure. Treat as entitlement-
+  equivalent to `Success`; log distinctly if telemetry needs to
+  separate the two. The `consume = true` path does not produce this
+  variant — consumables are consumed, not acknowledged, and Play
+  doesn't expose an `isConsumed` field on `Purchase` for a parallel
+  check.
 - **`BillingException.WrappedException(cause)` sealed subtype** — synthesized
   by `handlePurchase` when a custom `BillingActions` implementation throws
   something other than `BillingException` (an `IllegalStateException` from
@@ -230,7 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user-initiated purchases (fire confetti) from background recovery (silent).
   Handle code is identical to `Live` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
-- **`PurchasesUpdate.Failure(exception, purchases)` sealed variant** —
+- **`FlowOutcome.Failure(exception, purchases)` sealed variant** —
   carries the typed `BillingException` Play Billing surfaced for failure
   response codes (`NETWORK_ERROR`, `BILLING_UNAVAILABLE`,
   `SERVICE_UNAVAILABLE`, `SERVICE_DISCONNECTED`, `FEATURE_NOT_SUPPORTED`,
@@ -248,12 +291,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consumer-implemented persistence (the library does not pick a persistence
   layer), and grace-expiry re-evaluation on every emission so an extended
   outage correctly transitions `InGrace → Revoked` without external
-  triggers. See the README "EntitlementCache (opt-in)" section. Refund /
-  revocation handling lands once the sibling `PurchasesUpdate.Revoked`
-  variant ships (PR #2 follow-up).
+  triggers. See the README "EntitlementCache (opt-in)" section. Direct
+  `PurchaseRevoked` consumption lands as a follow-up — for now the cache
+  only acts on `OwnedPurchases.Live` / `OwnedPurchases.Recovered` /
+  `FlowOutcome.Failure`. (PR #12 already shipped the variant + emit API;
+  the cache doesn't yet pattern-match it.)
+- **`PurchaseRevoked(purchaseToken, reason)` top-level `PurchaseEvent`
+  variant + `RevocationReason` enum** (`Refunded`, `Chargeback`,
+  `SubscriptionExpired`, `Other`) — synthetic revocation event for
+  server-driven entitlement reversals (refunds, chargebacks, etc.). Sits
+  alongside `OwnedPurchases` and `FlowOutcome` as a third `PurchaseEvent`
+  category rather than nested under either, because it's neither owned
+  state nor a flow-attempt outcome. Carries no `Purchase` object
+  (revocations originate from a server-side notification, not a re-issued
+  PBL callback); branch on `purchaseToken` directly. The library does not
+  emit `PurchaseRevoked` itself.
+- **`BillingRepository.emitExternalRevocation(purchaseToken, reason)`** —
+  transport-agnostic emit API. The library does not subscribe to FCM, RTDN,
+  Pub/Sub, or any server-side channel; consumers wiring up RTDN→FCM
+  ingestion (or polling, or deeplinks) decode the payload and call this
+  method. Routed through a dedicated `replay = 16` channel (separate from
+  the `OwnedPurchases.Recovered` channel, since the recovery channel is
+  typed narrower than `PurchaseEvent`) so up to 16 revocations arriving
+  before a subscriber attaches survive — sized for the realistic FCM-burst
+  case (multi-product chargebacks, several revocations decoded at process
+  start). See the README "Server-driven revocation" section.
 
 ### Changed
 
+- **`handlePurchase(purchase, consume = false)` no longer returns
+  `Failure(DeveloperErrorException)` for already-acknowledged purchases.**
+  The library now short-circuits at the top of `handlePurchase` when
+  `!consume && purchase.isAcknowledged` is true and returns the new
+  `HandlePurchaseResult.AlreadyAcknowledged` variant — no PBL
+  call is made. Consumers can now safely untrack-on-Failure for retry
+  on the next recovery sweep without risking a permanent retry loop on
+  an already-acked purchase. `Failure` unambiguously means a transient
+  or terminal ack failure worth retrying. The `consume = true` path is
+  unchanged (consume always runs regardless of `isAcknowledged`, since
+  Play doesn't expose an `isConsumed` analog on `Purchase`).
 - **`handlePurchase` KDoc** now leads with the failure-handling consequence:
   *"do NOT grant entitlement unless this returns normally — Play will
   auto-refund within 3 days and the user's premium will silently evaporate."*
@@ -277,13 +353,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sample** updated to handle both `OwnedPurchases.Live` and
   `OwnedPurchases.Recovered`, plus a single `is FlowOutcome` arm covering
   the attempt-outcome variants.
+- **Recovered events now suppress already-acknowledged purchase tokens
+  internally; consumer-side dedupe of Recovered is no longer necessary.**
+  `BillingClientStorage` tracks tokens passed through
+  `acknowledgePurchase` / `consumePurchase` / `handlePurchase` for its
+  own instance lifetime (typically the singleton repository, often the
+  process). The recovery channel keeps its `replay = 1` cache (reflecting
+  the latest sweep's raw result), but `observePurchaseUpdates()` filters
+  the cached snapshot against the acked-token set at delivery time (a
+  synchronous `map` reads the current set per emission) — so a late
+  subscriber that attaches *after* the consumer has already handled the
+  recovered purchase receives the cached sweep result re-filtered against
+  the current acked set, not the stale pre-ack snapshot. Empty `Recovered`
+  (intrinsic or filtered-to-empty) is dropped before delivery. Late
+  subscribers no longer need to maintain a `Set<String>` of handled
+  tokens to dedupe replay.
 
 ### Migration notes
 
 `PurchasesUpdate` is gone — replaced by the `PurchaseEvent` marker
-interface and its two sealed roots (`OwnedPurchases`, `FlowOutcome`).
-Existing `when (update: PurchasesUpdate) { ... }` sites need to switch
-to the new types:
+interface, its two sealed roots (`OwnedPurchases`, `FlowOutcome`), and the
+top-level `PurchaseRevoked` variant. Existing
+`when (update: PurchasesUpdate) { ... }` sites need to switch to the new
+types and add the third arm:
 
 ```kotlin
 when (event) {
@@ -294,13 +386,19 @@ when (event) {
     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
     is FlowOutcome.ItemUnavailable -> showSoldOut()
     is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+    is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
 }
 ```
 
 The handle/grant code is the same for `Live` and `Recovered`. **Do not
 write `event.purchases` to your entitlement cache from any `FlowOutcome`
 branch** — those events describe attempt outcomes, not owned state. See
-the README "Two-tier `PurchaseEvent`" callout under Quick start.
+the README "Two-tier `PurchaseEvent`" callout under Quick start. The
+`PurchaseRevoked` arm is new — wire it to whatever revocation flow (clear
+the premium flag, kick to a paywall, log for audit, etc.) makes sense for
+your app. The library does not emit `PurchaseRevoked` on its own; events
+arrive only when the consumer pushes them via
+`BillingRepository.emitExternalRevocation`.
 
 ## [0.1.0] - 2026-04-30
 

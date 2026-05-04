@@ -34,4 +34,4 @@ For non-consumables, change `handlePurchase(purchase, consume = true)` to `consu
 
 ## Why a project reference, not the published artifact?
 
-`sample/build.gradle.kts` uses `implementation(project(":billing"))` rather than `implementation("com.kanetik.billing:billing:0.1.0")`. Library changes propagate to the sample on the next rebuild — no `publishToMavenLocal` step required during library development. Consumers in their own projects use the Maven coordinate; the sample is a development tool, not a consumer.
+`sample/build.gradle.kts` uses `implementation(project(":billing"))` rather than `implementation("com.kanetik.billing:billing:0.1.1")`. Library changes propagate to the sample on the next rebuild — no `publishToMavenLocal` step required during library development. Consumers in their own projects use the Maven coordinate; the sample is a development tool, not a consumer.

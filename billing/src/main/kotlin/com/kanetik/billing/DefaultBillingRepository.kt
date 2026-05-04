@@ -56,9 +56,18 @@ internal class DefaultBillingRepository(
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions
         // aren't tied to subscriber attachment; the Flow returned here merges
-        // the live and recovery channels (see BillingClientStorage's two-channel
-        // architecture comment for why the split exists).
+        // the three channels (live PBL events, recovery sweeps, and external
+        // revocations) — see BillingClientStorage's channel-architecture
+        // comment for why the split exists.
         return billingClientStorage.purchasesUpdateFlow
+    }
+
+    @AnyThread
+    override suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
+        // Routed through the dedicated revocation channel (replay = 16) — see
+        // BillingClientStorage.emitExternalRevocation and the BillingRepository
+        // interface KDoc for why.
+        billingClientStorage.emitExternalRevocation(purchaseToken, reason)
     }
 
     @AnyThread
@@ -129,12 +138,22 @@ internal class DefaultBillingRepository(
         // a result back the consume succeeded, and PBL guarantees the token is set
         // on success. The !! guards against an unexpected PBL contract violation
         // by failing loudly rather than returning a phantom null.
-        return executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
+        val token = executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
+        // Record the token so the recovery sweep filters this purchase out of
+        // future Recovered emissions (Play treats consume as implicit
+        // acknowledgement for consumables; subsequent sweeps still see the
+        // token until Play removes the purchase from query results).
+        billingClientStorage.markAcknowledged(token)
+        return token
     }
 
     @AnyThread
     override suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams) {
         executeBillingOperation({ client -> client.acknowledgePurchase(params) })
+        // Record the token only after a successful acknowledge. A failure
+        // throws above; suppressing the next sweep on a failed ack would
+        // orphan the purchase.
+        billingClientStorage.markAcknowledged(params.purchaseToken)
     }
 
     @UiThread

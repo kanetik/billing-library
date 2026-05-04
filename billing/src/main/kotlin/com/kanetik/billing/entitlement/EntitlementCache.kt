@@ -4,6 +4,7 @@ import com.android.billingclient.api.Purchase
 import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
+import com.kanetik.billing.PurchaseRevoked
 import com.kanetik.billing.exception.BillingErrorCategory
 import com.kanetik.billing.exception.BillingException
 import kotlinx.coroutines.CoroutineScope
@@ -95,8 +96,11 @@ import kotlinx.coroutines.sync.withLock
  * intentionally no-ops here — they don't change owned-purchase state, and a
  * Pending purchase explicitly must not grant entitlement (per Play's rules).
  *
- * Refund / revocation handling will land via `PurchaseRevoked`
- * once sibling issue #2 ships — see the TODO inside [reduce].
+ * Refund / revocation handling: PR #12 shipped the `PurchaseRevoked`
+ * variant and `emitExternalRevocation` API; the cache currently consumes
+ * the event with a no-op placeholder. Wiring it through to a `Revoked`
+ * state transition (no grace — Play has explicitly revoked) is the next
+ * follow-up — see the TODO inside [reduce].
  *
  * @param purchasesUpdates The hot purchase-update stream — typically
  *   [com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates].
@@ -226,12 +230,14 @@ public class EntitlementCache(
                     handleObservation(event.purchases, fromRecoverySweep = true)
                 }
                 is FlowOutcome.Failure -> handleFailure(event.exception)
-                // TODO(#2): handle PurchaseRevoked once sibling PR #2 lands.
-                //  When a Revoked event arrives carrying a purchase whose token
-                //  matches the cached snapshot's purchaseToken, transition to
-                //  EntitlementState.Revoked unconditionally (no grace — Play
-                //  has explicitly revoked the entitlement, e.g. chargeback /
-                //  refund). Tracked as follow-up to this PR.
+                is PurchaseRevoked -> {
+                    // TODO: pattern-match on event.purchaseToken against the
+                    //  cached snapshot's purchaseToken; on match, transition
+                    //  to EntitlementState.Revoked unconditionally (no grace —
+                    //  Play has explicitly revoked the entitlement, e.g.
+                    //  chargeback / refund). PR #12 shipped the variant + emit
+                    //  API; cache consumption is the remaining follow-up.
+                }
                 is FlowOutcome.Pending,
                 is FlowOutcome.Canceled,
                 is FlowOutcome.ItemAlreadyOwned,

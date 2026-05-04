@@ -10,9 +10,11 @@ import com.kanetik.billing.exception.BillingException
  *
  * `PurchaseEvent` is intentionally a marker interface with **no `purchases`
  * property**. Reading purchases requires narrowing to one of the two sealed
- * roots — [OwnedPurchases] or [FlowOutcome] — first. This split exists because
- * the two roots carry semantically different payloads, and treating them
- * uniformly is the most common silent footgun in entitlement code:
+ * roots — [OwnedPurchases] or [FlowOutcome] — first (or to the standalone
+ * [PurchaseRevoked] event, which carries no `Purchase` objects at all). This
+ * split exists because the categories carry semantically different payloads,
+ * and treating them uniformly is the most common silent footgun in
+ * entitlement code:
  *
  *  - **[OwnedPurchases]** — owned-state updates. Variants ([OwnedPurchases.Live],
  *    [OwnedPurchases.Recovered]) report purchases the user owns that need
@@ -30,10 +32,17 @@ import com.kanetik.billing.exception.BillingException
  *    typically empty (or, for `Pending`, purchases that haven't completed
  *    yet) and **must not** be written to an entitlement cache — doing so
  *    silently corrupts state.
+ *  - **[PurchaseRevoked]** — external revocation signal pushed in by the
+ *    consumer via [com.kanetik.billing.BillingRepository.emitExternalRevocation].
+ *    Carries a `purchaseToken` + [RevocationReason] rather than a `Purchase`;
+ *    the library is transport-agnostic, so the consumer decodes RTDN /
+ *    Pub/Sub / FCM (or polling, deeplinks, etc.) and emits the typed event
+ *    here so revocations flow alongside normal purchase outcomes.
  *
- * The marker-interface design forces every consumer to narrow to a root before
- * reading purchases, which makes the FlowOutcome-isn't-owned-state rule a
- * compile-time concern rather than a runtime convention.
+ * The marker-interface design forces every consumer to narrow to a root (or
+ * to [PurchaseRevoked]) before reading purchases, which makes the
+ * FlowOutcome-isn't-owned-state rule a compile-time concern rather than a
+ * runtime convention.
  *
  * ## Branch shape
  *
@@ -48,6 +57,7 @@ import com.kanetik.billing.exception.BillingException
  *         is FlowOutcome.ItemUnavailable -> showSoldOut()
  *         is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
  *         is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+ *         is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
  *     }
  * }
  * ```
@@ -58,6 +68,7 @@ import com.kanetik.billing.exception.BillingException
  * when (event) {
  *     is OwnedPurchases -> event.purchases.forEach { handleAndGrant(it) }
  *     is FlowOutcome -> { /* surface UX per sub-variant */ }
+ *     is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
  * }
  * ```
  *
@@ -81,8 +92,22 @@ import com.kanetik.billing.exception.BillingException
  * [OwnedPurchases.Recovered] events **do replay** to a late subscriber via a
  * separate recovery channel with `replay = 1`. The auto-sweep can fire on
  * connect before the consumer's collector attaches; the replay ensures the
- * recovered purchase isn't lost. Re-emission for the *same* sweep happens
- * only across re-subscriptions, not after a fresh sweep replaces it.
+ * recovered purchase isn't lost. `observePurchaseUpdates()`'s `map` reads
+ * the library's internal acked-token set on each delivery and filters the
+ * cached snapshot against it, so a re-attached subscriber that has already
+ * handled the recovered purchase receives the cache re-filtered against the
+ * current acked set — not the stale pre-ack snapshot. See the
+ * [OwnedPurchases.Recovered] KDoc.
+ *
+ * [PurchaseRevoked] events flow through their own dedicated `replay = 16`
+ * channel: revocations arriving before a subscriber attaches (the FCM
+ * listener decoded the RTDN payload and called
+ * [com.kanetik.billing.BillingRepository.emitExternalRevocation] before the
+ * UI was ready to observe) must not be lost — and a small burst of
+ * revocations (multi-product chargebacks, several payloads at process
+ * start) shouldn't collapse to one. A re-attached collector replays its
+ * share of the cache; gate by `purchaseToken` if your handler isn't
+ * idempotent.
  */
 public sealed interface PurchaseEvent
 
@@ -181,31 +206,36 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * products never carry a `linkedPurchaseToken`, so IAP-only apps are
      * unaffected.
      *
-     * **`purchases` may be empty.** The sweep emits a `Recovered` event on
-     * *every* successful connection, including ones that find nothing — this
-     * keeps the replay cache fresh so a subscriber that attaches after a
-     * configuration change doesn't replay a stale recovery from a prior
-     * session. Treat empty as a no-op (`forEach { handle(it) }` over an
-     * empty list does nothing).
+     * **The library tracks acknowledged tokens internally and filters them
+     * out of `Recovered` at delivery time.** `BillingClientStorage` maintains
+     * a `MutableStateFlow<Set<String>>` of tokens passed through
+     * [com.kanetik.billing.BillingActions.acknowledgePurchase] /
+     * [com.kanetik.billing.BillingActions.consumePurchase] (including via
+     * [com.kanetik.billing.BillingActions.handlePurchase]). The recovery
+     * channel still holds the raw sweep result (including any acked tokens
+     * Play hasn't propagated yet) in its `replay = 1` cache, but
+     * `observePurchaseUpdates()`'s `map` reads the acked-token set on every
+     * delivery — so both fresh sweep emissions AND the replay slot delivered
+     * to a late subscriber are filtered against the current set. If every
+     * purchase in the cache is already acknowledged, the filter produces an
+     * empty `Recovered` which is dropped before delivery, so the subscriber
+     * sees nothing (rather than a stale `Recovered` for already-handled
+     * purchases). Consumers no longer need to maintain their own `Set<String>`
+     * dedupe. The set's lifetime is tied to the [BillingClientStorage]
+     * instance — typically the singleton repository's lifetime, often the
+     * process. Growth is bounded by purchase activity and is not cleared on
+     * connection-share teardown; in practice this is a handful of entries
+     * per session, but the docs are honest about the unbounded-in-theory
+     * shape so a long-lived process on a power user can't surprise a future
+     * maintainer.
      *
-     * **Dedupe by `purchaseToken` if you re-subscribe between sweeps.** Because
-     * the recovery channel uses `replay = 1`, a subscriber that re-attaches
-     * after successfully handling a recovered purchase will receive the same
-     * `Purchase` snapshot again — the snapshot is from before your handle
-     * call landed, so its `isAcknowledged` flag is still `false` and the
-     * library's [com.kanetik.billing.BillingActions.acknowledgePurchase]`(Purchase)`
-     * `isAcknowledged` short-circuit doesn't fire. Re-handling the snapshot
-     * surfaces a [HandlePurchaseResult.Failure]:
-     * `BillingException.DeveloperErrorException` for already-acknowledged
-     * non-consumables, `ItemNotOwnedException` for already-consumed consumables.
-     * Track handled tokens in a `Set<String>` to skip them deterministically;
-     * persist via `SavedStateHandle` (or similar) if the dedupe needs to
-     * survive process death.
+     * Idempotent handling is still a good idea if you trigger one-shot UX off
+     * `Recovered` (badge animations, analytics events, etc.) — but the
+     * dedupe `Set<String>` consumers used to need is no longer required.
      *
-     * **Only mark tokens as handled on [HandlePurchaseResult.Success]**, not
-     * on [HandlePurchaseResult.Failure]. A failure means the acknowledge /
-     * consume didn't land — the next sweep needs to see the purchase again
-     * to retry; suppressing the next replay would orphan it.
+     * **Only acknowledge / consume succeeds count as "handled".** A
+     * [HandlePurchaseResult.Failure] does not mark the token as acknowledged —
+     * the next sweep still surfaces the purchase so the consumer can retry.
      *
      * [Live] events do not need this dedupe — they go through a
      * separate `replay = 0` channel.
@@ -301,4 +331,100 @@ public sealed class FlowOutcome : PurchaseEvent {
         val code: Int,
         override val purchases: List<Purchase>
     ) : FlowOutcome()
+}
+
+/**
+ * A synthetic revocation event pushed into
+ * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] by a consumer via
+ * [BillingRepository.emitExternalRevocation]. Carries the affected
+ * `purchaseToken` and a [RevocationReason] bucket describing why the
+ * entitlement was revoked.
+ *
+ * `PurchaseRevoked` is neither owned-state ([OwnedPurchases]) nor a flow
+ * attempt outcome ([FlowOutcome]) — it's a third category implemented
+ * directly on [PurchaseEvent]. The event carries no Play [Purchase] objects
+ * (the source is a server-side notification carrying a token, not a
+ * re-issued PBL purchase callback), which is why this type lives outside
+ * the two `purchases`-bearing sealed roots.
+ *
+ * The library is transport-agnostic: it does **not** subscribe to FCM,
+ * Real-Time Developer Notifications (RTDN), Pub/Sub, or any server-side
+ * channel. Consumers driving server-side revocation are responsible for
+ * decoding the transport (RTDN→Pub/Sub→FCM, polling, deeplinks, etc.)
+ * into a `(purchaseToken, reason)` pair and pushing it through the emit
+ * API. The single sealed-flow consumer in your app then handles
+ * revocations alongside normal purchase outcomes, instead of maintaining
+ * a parallel pipeline.
+ *
+ * Routed through a dedicated `replay = 16` channel so revocations arriving
+ * before a subscriber attaches survive — see the [PurchaseEvent]-level
+ * "Replay semantics" notes for the full picture.
+ */
+public data class PurchaseRevoked(
+    val purchaseToken: String,
+    val reason: RevocationReason,
+) : PurchaseEvent
+
+/**
+ * Why a purchase was revoked, as decoded by the consumer from the originating
+ * transport (RTDN payload, server reconciliation result, support-tool action,
+ * etc.). The library does not validate the mapping — the enum exists to give
+ * downstream collectors a typed switch for differentiated UX (e.g. a
+ * chargeback might warrant a security-flag entry while a refund warrants a
+ * neutral "we've reversed your purchase" notice).
+ */
+public enum class RevocationReason {
+    /**
+     * Play refunded the purchase — either user-initiated (the user requested
+     * a refund through Play Store / Google Pay) or merchant-initiated (your
+     * support team issued a refund via the Play Console or the Voided
+     * Purchases API). Source channels differ by product type:
+     *  - **Subscriptions:** RTDN `SubscriptionNotification.notificationType =
+     *    SUBSCRIPTION_REVOKED` when the revocation source is a refund.
+     *  - **One-time products:** RTDN does not currently emit a "refunded"
+     *    notification type for one-time products (only `PURCHASED` and
+     *    `CANCELED`). Track these via the
+     *    [Voided Purchases API](https://developer.android.com/google/play/billing/voided-purchases-api)
+     *    on your backend, then push them through `emitExternalRevocation`
+     *    on the client (e.g., via FCM).
+     *
+     * Revoke entitlement; consider a neutral confirmation toast.
+     */
+    Refunded,
+
+    /**
+     * A chargeback / payment dispute was resolved against the merchant — the
+     * cardholder's bank reversed the charge. Distinct from [Refunded]
+     * because chargebacks frequently warrant a security-policy response
+     * (flag the account, revoke promotional credit, block re-purchase from
+     * the same payment method) on top of plain entitlement revocation.
+     * Consumers wiring their backend's chargeback webhook map to this value.
+     */
+    Chargeback,
+
+    /**
+     * A subscription has fully expired — auto-renew was canceled and the
+     * paid-through period (plus any grace period) has elapsed, so Play has
+     * stopped billing and the user no longer has active entitlement.
+     * Subscription consumers map RTDN `SubscriptionNotification`
+     * `SUBSCRIPTION_EXPIRED` to this value (PBL distinguishes the active
+     * "auto-renew off but still paid through" `SUBSCRIPTION_CANCELED` state
+     * from the terminal `SUBSCRIPTION_EXPIRED` state — only the latter
+     * actually revokes entitlement). Included for forward compatibility —
+     * the v0.1.x library does **not** emit this itself (subscription
+     * helpers ship in v0.2.0); consumers running their own subscription
+     * reconciliation can use this bucket today and the v0.2.0 helpers
+     * will surface the same value automatically.
+     */
+    SubscriptionExpired,
+
+    /**
+     * Other revocation source — consumer-supplied. Use when none of the
+     * specific reasons fit (e.g. a support agent revoked entitlement
+     * manually for a TOS violation, a fraud-detection system flagged the
+     * purchase, a server-side reconciliation discovered the purchase no
+     * longer exists in Play, etc.). The library does not interpret this
+     * value beyond passing it through.
+     */
+    Other,
 }

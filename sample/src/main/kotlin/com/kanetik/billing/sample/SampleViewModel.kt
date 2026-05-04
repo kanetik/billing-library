@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingConnectionResult
 import com.kanetik.billing.BillingRepository
@@ -14,6 +15,8 @@ import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
+import com.kanetik.billing.PurchaseRevoked
+import com.kanetik.billing.RevocationReason
 import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementState
@@ -80,35 +83,28 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 appendLog("purchase event: ${event::class.simpleName}")
                 when (event) {
                     is OwnedPurchases.Live -> event.purchases.forEach { handlePurchaseAndLog(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
-                        // Recovered re-replays its most recent snapshot to re-subscribed
-                        // collectors after a config change / ViewModel recreation, so dedupe
-                        // by purchaseToken — a stale snapshot still has isAcknowledged=false
-                        // and would surface ItemNotOwnedException on a re-handle. See
-                        // OwnedPurchases.Recovered KDoc and the README "Purchase recovery"
-                        // section. Persist `handledRecoveredTokens` if dedupe needs to
-                        // survive process death (this sample doesn't bother).
-                        if (purchase.purchaseToken in handledRecoveredTokens) return@forEach
-                        if (handlePurchaseAndLog(purchase)) {
-                            handledRecoveredTokens += purchase.purchaseToken
-                        }
-                    }
+                    is OwnedPurchases.Recovered -> event.purchases.forEach { handlePurchaseAndLog(it) }
                     is FlowOutcome -> {
                         // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
                         // UnknownResponse — sample just logs the variant name above.
-                        // Real apps should branch per sub-variant: e.g. show a "payment
-                        // pending" notice on Pending, restore entitlement on
-                        // ItemAlreadyOwned, etc. Critically: do NOT write event.purchases
-                        // to an entitlement cache from this branch — see PurchaseEvent KDoc.
+                        // Real apps should branch per sub-variant. Critically: do NOT
+                        // write event.purchases to an entitlement cache from this branch
+                        // — see PurchaseEvent KDoc. The library tracks acknowledged
+                        // tokens internally now (#6), so consumer-side dedupe of
+                        // Recovered is no longer required.
+                    }
+                    is PurchaseRevoked -> {
+                        // Real apps revoke entitlement here (clear premium flag, kick
+                        // back to a paywall, etc.). The sample just logs — the goal of
+                        // showing this branch is to demonstrate that revocation events
+                        // arrive on the same flow as OwnedPurchases / FlowOutcome, so
+                        // consumers don't need to maintain a parallel pipeline.
+                        appendLog("revoked: ${event.purchaseToken} (${event.reason})")
                     }
                 }
             }
         }
     }
-
-    // Tokens already handled from the Recovered branch — gate against re-replay
-    // overflowing already-acked purchases through handlePurchase a second time.
-    private val handledRecoveredTokens: MutableSet<String> = mutableSetOf()
 
     /**
      * For `android.test.purchased`, consume = true so a fresh run can re-purchase.
@@ -116,12 +112,26 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
      * Real apps would also grant entitlement on HandlePurchaseResult.Success — this
      * sample just logs the outcome.
      *
-     * @return true iff acknowledge/consume landed (safe to mark token as handled).
+     * @return true iff the result is safe to treat as handled / granted —
+     *   either Success (acknowledge/consume call landed) or AlreadyAcknowledged
+     *   (no PBL call needed because the purchase was already acknowledged
+     *   server-side; entitlement-equivalent for the consumer).
      */
-    private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase): Boolean {
+    private suspend fun handlePurchaseAndLog(purchase: Purchase): Boolean {
         return when (val outcome = billing.handlePurchase(purchase, consume = true)) {
             HandlePurchaseResult.Success -> {
                 appendLog("handlePurchase OK for ${purchase.products}")
+                true
+            }
+            HandlePurchaseResult.AlreadyAcknowledged -> {
+                // Branch is unreachable in the sample (consume=true never
+                // short-circuits on isAcknowledged), but the sealed type's
+                // exhaustiveness still requires the arm. For non-consumable
+                // (consume=false) flows, treat AlreadyAcknowledged as a
+                // grant signal — entitlement-equivalent to Success — and
+                // log distinctly so telemetry can separate "we just acked"
+                // from "it was already done by a prior session / sweep".
+                appendLog("handlePurchase already-acked for ${purchase.products} (no PBL call made)")
                 true
             }
             HandlePurchaseResult.NotPurchased -> {
@@ -148,6 +158,22 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(loading = false) }
                 appendLog("queryProductDetails FAILED: ${e::class.simpleName} (${e.retryType})")
             }
+        }
+    }
+
+    /**
+     * Demo path: simulate a server-side revocation (e.g. a refund processed by
+     * Play that arrived via RTDN→FCM in a real app) by pushing a synthetic
+     * [PurchaseRevoked] event through the same flow consumers already collect.
+     * The library is transport-agnostic — `emitExternalRevocation` just routes
+     * the event through the dedicated revocation replay-cache channel.
+     */
+    fun simulateRevocation() {
+        viewModelScope.launch {
+            billing.emitExternalRevocation(
+                purchaseToken = "synthetic-token-${System.currentTimeMillis()}",
+                reason = RevocationReason.Refunded,
+            )
         }
     }
 
