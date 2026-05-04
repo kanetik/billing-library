@@ -154,6 +154,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user-initiated purchases (fire confetti) from background recovery (silent).
   Handle code is identical to `Success` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
+- **`PurchasesUpdate.Failure(exception, purchases)` sealed variant** —
+  carries the typed `BillingException` Play Billing surfaced for failure
+  response codes (`NETWORK_ERROR`, `BILLING_UNAVAILABLE`,
+  `SERVICE_UNAVAILABLE`, `SERVICE_DISCONNECTED`, `FEATURE_NOT_SUPPORTED`,
+  `DEVELOPER_ERROR`, `ERROR`, `ITEM_NOT_OWNED`). Consumers that previously
+  branched these as `UnknownResponse(code)` can switch to branching on
+  `exception.userFacingCategory` / `exception.retryType`. `UnknownResponse`
+  is now reserved for response codes PBL doesn't document.
+- **`com.kanetik.billing.entitlement` package** (opt-in) — centralizes the
+  `(isEntitled, lastConfirmedTs, source)` state machine that every consumer
+  was reinventing on top of `observePurchaseUpdates()`. Public types:
+  `EntitlementCache`, `EntitlementState` (`Granted` / `InGrace` / `Revoked`),
+  `GracePolicy`, `GraceReason` (`BillingUnavailable` / `TransientFailure`),
+  `EntitlementSnapshot`, `EntitlementStorage`. Exposes a
+  `StateFlow<EntitlementState>` with debounce-on-failure grace logic,
+  consumer-implemented persistence (the library does not pick a persistence
+  layer), and grace-expiry re-evaluation on every emission so an extended
+  outage correctly transitions `InGrace → Revoked` without external
+  triggers. See the README "EntitlementCache (opt-in)" section. Refund /
+  revocation handling lands once the sibling `PurchasesUpdate.Revoked`
+  variant ships (PR #2 follow-up).
 
 ### Changed
 

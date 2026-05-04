@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.ProductDetails
 import com.kanetik.billing.BillingConnectionResult
+import com.kanetik.billing.entitlement.EntitlementState
 
 class MainActivity : ComponentActivity() {
 
@@ -63,6 +64,7 @@ private fun SampleScreen(
     ) {
         Text("Kanetik Billing Sample", style = MaterialTheme.typography.headlineSmall)
         ConnectionRow(state.connection)
+        EntitlementRow(state.entitlement)
         Button(onClick = viewModel::loadProducts) {
             Text("Query products")
         }
@@ -84,6 +86,18 @@ private fun ConnectionRow(result: BillingConnectionResult?) {
         null -> "Connecting…"
         is BillingConnectionResult.Success -> "Connected"
         else -> "Connection error: ${result::class.simpleName}"
+    }
+    Card(modifier = Modifier.fillMaxSize()) {
+        Text(text = label, modifier = Modifier.padding(12.dp))
+    }
+}
+
+@Composable
+private fun EntitlementRow(state: EntitlementState) {
+    val label = when (state) {
+        is EntitlementState.Granted -> "Entitlement: GRANTED"
+        is EntitlementState.InGrace -> "Entitlement: IN GRACE (reason=${state.reason}, expiresAtMs=${state.expiresAtMs})"
+        is EntitlementState.Revoked -> "Entitlement: REVOKED"
     }
     Card(modifier = Modifier.fillMaxSize()) {
         Text(text = label, modifier = Modifier.padding(12.dp))

@@ -1,6 +1,7 @@
 package com.kanetik.billing
 
 import com.android.billingclient.api.Purchase
+import com.kanetik.billing.exception.BillingException
 
 /**
  * A single purchase update emitted by [BillingPurchaseUpdatesOwner.observePurchaseUpdates].
@@ -23,7 +24,12 @@ import com.android.billingclient.api.Purchase
  *  - [Canceled] — user dismissed the flow.
  *  - [ItemAlreadyOwned] — non-consumable already owned; treat as already-granted.
  *  - [ItemUnavailable] — product not available (region, country, etc.).
- *  - [UnknownResponse] — anything else (raw response code in [UnknownResponse.code]).
+ *  - [Failure] — Play returned a typed-failure response code (network error,
+ *    billing-unavailable, service unavailable, etc.). Carries the matching
+ *    [com.kanetik.billing.exception.BillingException] subtype so consumers can
+ *    branch on `userFacingCategory` / `retryType` without re-deriving.
+ *  - [UnknownResponse] — response codes PBL doesn't document (raw code in
+ *    [UnknownResponse.code]). Should be vanishingly rare.
  *
  * When a single Play callback contains both pending and settled purchases (rare —
  * Play typically delivers one per callback), the listener emits both [Success] and
@@ -169,6 +175,27 @@ public sealed class PurchasesUpdate {
     public data class Canceled(override val purchases: List<Purchase>) : PurchasesUpdate()
     public data class UnknownResponse(
         val code: Int,
+        override val purchases: List<Purchase>
+    ) : PurchasesUpdate()
+
+    /**
+     * A purchase-update callback that surfaced a typed [BillingException] subtype
+     * Play Billing classifies as a failure (network errors, billing-unavailable,
+     * service unavailable, etc.). Carries the original exception so consumers can
+     * branch on subtype, [BillingException.userFacingCategory], or
+     * [BillingException.retryType] without re-deriving from response codes.
+     *
+     * `purchases` is whatever Play returned in the failing callback — typically
+     * empty, but preserved here for symmetry with the other variants.
+     *
+     * Library-internal entitlement helpers (e.g. `EntitlementCache` in
+     * [com.kanetik.billing.entitlement]) consume this variant to drive
+     * grace-window logic on transient outages. Most consumer code can treat
+     * Failure the same way it would treat [UnknownResponse] — surface a
+     * "couldn't reach Play, try again" message from [BillingException.userFacingCategory].
+     */
+    public data class Failure(
+        public val exception: BillingException,
         override val purchases: List<Purchase>
     ) : PurchasesUpdate()
 }
