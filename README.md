@@ -98,6 +98,7 @@ class CheckoutActivity : ComponentActivity() {
         // See "Handling handlePurchase failures correctly" below for the full pattern.
         return when (val r = billing.handlePurchase(purchase, consume = false)) {
             HandlePurchaseResult.Success -> { grantPremium(); true }
+            HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
@@ -153,10 +154,20 @@ The library handles `Recovered` dedupe for you. `BillingActions.handlePurchase` 
 ```kotlin
 is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success -> grantEntitlement(purchase)
+        HandlePurchaseResult.Success -> grantEntitlement(purchase)  // recovery is the whole point — actually grant
+        HandlePurchaseResult.AlreadyAcknowledged -> {
+            // Not reachable from a Recovered snapshot in practice — the sweep
+            // pre-filters PURCHASED && !isAcknowledged, so the local
+            // isAcknowledged flag is false and handlePurchase doesn't
+            // short-circuit. Listed for exhaustiveness; the arm fires from
+            // a manual queryPurchases reconciliation where you have a fresh
+            // Purchase with isAcknowledged=true.
+            grantEntitlement(purchase)
+        }
         is HandlePurchaseResult.Failure -> {
             // Surface the error if you want, but DO NOT grant entitlement.
-            // Token is not marked as handled — the next sweep retries.
+            // The library doesn't mark the token as acknowledged on Failure,
+            // so the next sweep will surface this purchase again for retry.
         }
         HandlePurchaseResult.NotPurchased -> {}
     }
@@ -219,6 +230,7 @@ private suspend fun handle(purchase: Purchase) {
                 coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
             }
         }
+        HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
         // never grant on Failure — recovery sweep retries on the next connection
@@ -331,16 +343,19 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 
 ### Handling `handlePurchase` failures correctly
 
-`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Don't grant entitlement outside the `Success` branch** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `AlreadyAcknowledged`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
 
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
     HandlePurchaseResult.Success -> grantPremium()
+    HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
     // do NOT grant on Failure — the recovery sweep retries on next connect
 }
 ```
+
+The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase` already has `isAcknowledged = true` — the library short-circuits before reaching out to Play. Treat it as entitlement-equivalent to `Success`; it exists as a separate variant so consumers can distinguish "we just acked" from "it was already done" for logging / metrics, and so `Failure` no longer overlaps with `Failure(DeveloperErrorException)` from a redundant acknowledge call. **Consumers can now safely untrack-on-Failure for retry on the next recovery sweep** — `Failure` unambiguously means a transient or terminal ack failure worth retrying, never an "already-acked, this will fail forever" loop. The `consume = true` path does not produce `AlreadyAcknowledged` — consumables aren't acked, they're consumed, and Play doesn't expose an `isConsumed` field on `Purchase` for a parallel check.
 
 The auto-recovery sweep (see [`OwnedPurchases.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
@@ -430,6 +445,7 @@ billing.observePurchaseUpdates()
             // — this snippet shows just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
+                HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
                 is HandlePurchaseResult.Failure -> {
                     // Don't grant — recovery sweep retries on the next clean connect.

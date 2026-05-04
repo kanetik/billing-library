@@ -38,6 +38,45 @@ class HandlePurchaseTest {
     }
 
     @Test
+    fun `handlePurchase with consume=false on already-acknowledged PURCHASED short-circuits to AlreadyAcknowledged without PBL call`() = runTest {
+        // Consumers who used to see Failure(DeveloperErrorException) here
+        // now get a typed AlreadyAcknowledged variant — and crucially, no
+        // PBL call is made (which is what produced the DEVELOPER_ERROR).
+        val actions = RecordingBillingActions()
+        val purchase = fakePurchase(
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            isAcknowledged = true
+        )
+
+        val result = actions.handlePurchase(purchase, consume = false)
+
+        assertThat(result).isEqualTo(HandlePurchaseResult.AlreadyAcknowledged)
+        // Most important assertion: the library did NOT reach out to PBL.
+        assertThat(actions.acknowledged).isEmpty()
+        assertThat(actions.consumed).isEmpty()
+    }
+
+    @Test
+    fun `handlePurchase with consume=true does NOT short-circuit on isAcknowledged — still consumes`() = runTest {
+        // The consume=true path must run regardless of isAcknowledged state:
+        // consumables aren't acked, they're consumed, and Play doesn't
+        // expose isConsumed on Purchase for a parallel check. (If isAcknowledged
+        // somehow surfaces true on a consumable, the consume call still needs
+        // to run to actually decrement Play's owned-purchases inventory.)
+        val actions = RecordingBillingActions()
+        val purchase = fakePurchase(
+            purchaseState = Purchase.PurchaseState.PURCHASED,
+            isAcknowledged = true
+        )
+
+        val result = actions.handlePurchase(purchase, consume = true)
+
+        assertThat(result).isEqualTo(HandlePurchaseResult.Success)
+        assertThat(actions.consumed).containsExactly(purchase)
+        assertThat(actions.acknowledged).isEmpty()
+    }
+
+    @Test
     fun `handlePurchase returns NotPurchased on PENDING regardless of consume flag`() = runTest {
         val actions = RecordingBillingActions()
         val pending = fakePurchase(purchaseState = Purchase.PurchaseState.PENDING)

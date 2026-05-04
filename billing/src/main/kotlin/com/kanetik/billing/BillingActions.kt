@@ -129,6 +129,7 @@ public interface BillingActions {
      * ```
      * when (val r = billing.handlePurchase(purchase, consume = false)) {
      *     HandlePurchaseResult.Success -> grantPremium()
+     *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made
      *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
      *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
      * }
@@ -154,11 +155,28 @@ public interface BillingActions {
      *  1. Only act on [Purchase.PurchaseState.PURCHASED] — pending and canceled
      *     purchases must wait for their terminal state. Calling this on a non-
      *     PURCHASED purchase returns [HandlePurchaseResult.NotPurchased].
-     *  2. For [consume] = false, the [acknowledgePurchase]`(Purchase)` overload's
-     *     `isAcknowledged` short-circuit applies (already-acked → Success).
+     *  2. For [consume] = false, the call short-circuits when
+     *     [Purchase.isAcknowledged] is already `true` — no Play Billing
+     *     call is made and the result is
+     *     [HandlePurchaseResult.AlreadyAcknowledged]. For *fresh*
+     *     [Purchase] objects this closes the recovery hole where
+     *     calling acknowledge on an already-acked purchase surfaced
+     *     `Failure(DeveloperErrorException)` and made "already acked"
+     *     indistinguishable from a real ack failure. Stale snapshots
+     *     (locally `isAcknowledged = false` but Play-side `true` —
+     *     e.g., a `Recovered` replay after a successful ack) still
+     *     surface as `Failure(DeveloperErrorException)` on re-handle;
+     *     the recovery sweep won't re-issue an acknowledged purchase
+     *     (it filters `PURCHASED && !isAcknowledged`), so the stale
+     *     snapshot persists in the replay cache until a later sweep
+     *     emits a different result or the consumer queries fresh
+     *     purchases. See [HandlePurchaseResult.Failure].
      *  3. For [consume] = true, the underlying consume call is the one that also
      *     satisfies Play's acknowledgement requirement (Play treats consume as
-     *     implicit acknowledgement for consumables).
+     *     implicit acknowledgement for consumables). The `consume = true`
+     *     path does **not** short-circuit on [Purchase.isAcknowledged] —
+     *     consumables are consumed, not acknowledged, and Play does not
+     *     expose an `isConsumed` field on [Purchase] for a parallel check.
      *
      * If you need the consumed token specifically (for server reporting),
      * call [consumePurchase]`(Purchase)` directly instead — it still throws
@@ -178,16 +196,21 @@ public interface BillingActions {
      * @param consume `true` to consume (for consumables); `false` to acknowledge
      *   (for non-consumables).
      * @return [HandlePurchaseResult.Success] if the call landed,
+     *   [HandlePurchaseResult.AlreadyAcknowledged] if `consume = false` and
+     *   [Purchase.isAcknowledged] was already `true` (no PBL call made),
      *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
      *   state, or [HandlePurchaseResult.Failure] (carrying the underlying
      *   `BillingException`) if the acknowledge / consume call failed after the
      *   library's retry budget.
      */
     @AnyThread
-    @CheckResult(suggest = "branch on HandlePurchaseResult.Success / Failure to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
+    @CheckResult(suggest = "branch on all HandlePurchaseResult variants (Success / AlreadyAcknowledged / NotPurchased / Failure) to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
     public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             return HandlePurchaseResult.NotPurchased
+        }
+        if (!consume && purchase.isAcknowledged) {
+            return HandlePurchaseResult.AlreadyAcknowledged
         }
         return try {
             if (consume) {

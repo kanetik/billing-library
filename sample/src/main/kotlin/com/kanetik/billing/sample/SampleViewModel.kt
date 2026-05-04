@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingConnectionResult
 import com.kanetik.billing.BillingRepository
@@ -81,17 +82,39 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
      * For non-consumable IAP in real apps, pass consume = false to acknowledge-only.
      * Real apps would also grant entitlement on HandlePurchaseResult.Success — this
      * sample just logs the outcome.
+     *
+     * @return true iff the result is safe to treat as handled / granted —
+     *   either Success (acknowledge/consume call landed) or AlreadyAcknowledged
+     *   (no PBL call needed because the purchase was already acknowledged
+     *   server-side; entitlement-equivalent for the consumer).
      */
-    private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase) {
-        when (val outcome = billing.handlePurchase(purchase, consume = true)) {
-            HandlePurchaseResult.Success ->
+    private suspend fun handlePurchaseAndLog(purchase: Purchase): Boolean {
+        return when (val outcome = billing.handlePurchase(purchase, consume = true)) {
+            HandlePurchaseResult.Success -> {
                 appendLog("handlePurchase OK for ${purchase.products}")
-            HandlePurchaseResult.NotPurchased ->
+                true
+            }
+            HandlePurchaseResult.AlreadyAcknowledged -> {
+                // Branch is unreachable in the sample (consume=true never
+                // short-circuits on isAcknowledged), but the sealed type's
+                // exhaustiveness still requires the arm. For non-consumable
+                // (consume=false) flows, treat AlreadyAcknowledged as a
+                // grant signal — entitlement-equivalent to Success — and
+                // log distinctly so telemetry can separate "we just acked"
+                // from "it was already done by a prior session / sweep".
+                appendLog("handlePurchase already-acked for ${purchase.products} (no PBL call made)")
+                true
+            }
+            HandlePurchaseResult.NotPurchased -> {
                 appendLog("handlePurchase skipped (not in PURCHASED state)")
-            is HandlePurchaseResult.Failure ->
+                false
+            }
+            is HandlePurchaseResult.Failure -> {
                 appendLog(
                     "handlePurchase FAILED: ${outcome.exception::class.simpleName} (${outcome.exception.userFacingCategory})"
                 )
+                false
+            }
         }
     }
 
