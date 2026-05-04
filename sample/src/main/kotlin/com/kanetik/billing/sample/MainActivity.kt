@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -102,14 +103,14 @@ private fun EntitlementRow(state: EntitlementState) {
         is EntitlementState.InGrace -> "Entitlement: IN GRACE (reason=${state.reason}, expiresAtMs=${state.expiresAtMs})"
         is EntitlementState.Revoked -> "Entitlement: REVOKED"
     }
-    Card(modifier = Modifier.fillMaxSize()) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, modifier = Modifier.padding(12.dp))
     }
 }
 
 @Composable
 private fun ProductCard(product: ProductDetails, onBuy: () -> Unit) {
-    Card(modifier = Modifier.fillMaxSize()) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = product.productId, style = MaterialTheme.typography.titleMedium)
             Text(text = product.name)

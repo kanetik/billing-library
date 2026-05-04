@@ -373,6 +373,7 @@ import com.kanetik.billing.entitlement.EntitlementState
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementStorage
 import com.kanetik.billing.entitlement.GracePolicy
+import java.util.concurrent.TimeUnit
 
 class PremiumViewModel(
     billing: BillingRepository,

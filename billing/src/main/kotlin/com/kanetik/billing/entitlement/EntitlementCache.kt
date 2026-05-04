@@ -10,6 +10,7 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import androidx.annotation.AnyThread
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -248,18 +249,23 @@ public class EntitlementCache(
         }
 
         // Periodic tick detects grace expiry without a fresh upstream event.
-        // Tick lifecycle is bound to the upstream collect: if purchasesUpdates
-        // ever completes normally, we cancel the tick so this start() Job can
-        // finish too — without this, an infinite tick keeps the parent alive
-        // forever even after the upstream is done.
+        // Wrapped in supervisorScope so a tick failure (defensive — tick is
+        // straightforward but errors in user-supplied storage on a tick-driven
+        // grace transition could surface here) doesn't cancel the upstream
+        // collector. Tick lifecycle is bound to the upstream collect: if
+        // purchasesUpdates ever completes normally, we cancel the tick so
+        // this start() Job can finish too — without this, an infinite tick
+        // keeps the parent alive forever even after the upstream is done.
         val job = scope.launch {
-            val tickJob = launch { tickGraceWindow() }
-            try {
-                purchasesUpdates.collect { event ->
-                    reduce(event)
+            supervisorScope {
+                val tickJob = launch { tickGraceWindow() }
+                try {
+                    purchasesUpdates.collect { event ->
+                        reduce(event)
+                    }
+                } finally {
+                    tickJob.cancel()
                 }
-            } finally {
-                tickJob.cancel()
             }
         }
         collectionJob = job
@@ -269,28 +275,35 @@ public class EntitlementCache(
     private suspend fun tickGraceWindow() {
         while (true) {
             delay(graceTickIntervalMs)
-            mutex.withLock {
+            val toPersist = mutex.withLock {
                 val current = _state.value
                 if (current is EntitlementState.InGrace && clock() >= current.expiresAtMs) {
                     transitionToRevoked()
+                } else {
+                    null
                 }
             }
+            // Persist outside the mutex (same rationale as reduce()).
+            toPersist?.let { writeStorageBestEffort(it) }
         }
     }
 
     // Visible for tests + the start() collector. Synchronised on `mutex` so
-    // concurrent emissions (upstream collector + tick) serialise.
+    // concurrent emissions (upstream collector + tick) serialise on state
+    // updates. Storage writes happen OUTSIDE the mutex so a slow consumer
+    // EntitlementStorage (DataStore, encrypted prefs, etc.) doesn't stall
+    // the upstream collector or the grace tick.
     internal suspend fun reduce(event: PurchaseEvent) {
-        mutex.withLock {
+        val toPersist: List<EntitlementSnapshot> = mutex.withLock {
+            val pending = mutableListOf<EntitlementSnapshot>()
             // Re-evaluate grace expiry on every emission so an outage longer
             // than the policy correctly transitions InGrace → Revoked even
             // before we've classified the new event.
             val current = _state.value
             if (current is EntitlementState.InGrace && clock() >= current.expiresAtMs) {
-                transitionToRevoked()
+                pending += transitionToRevoked()
             }
-
-            when (event) {
+            val eventSnapshot: EntitlementSnapshot? = when (event) {
                 is OwnedPurchases.Live -> handleObservation(event.purchases)
                 is OwnedPurchases.Recovered -> handleObservation(event.purchases)
                 is FlowOutcome.Failure -> handleFailure(event.exception)
@@ -305,21 +318,22 @@ public class EntitlementCache(
                     // owned-purchase signal that should mutate cache state.
                     // UnknownResponse is reserved for codes PBL doesn't
                     // document — log/observe at the consumer layer if needed.
+                    null
                 }
             }
+            eventSnapshot?.let { pending += it }
+            pending
         }
+        // Storage writes outside the mutex — slow I/O can't block reduce or
+        // the grace tick. A subsequent reduce() may overwrite this snapshot
+        // before its write lands; that's fine, both writes happen in order
+        // (suspending I/O is FIFO from this single collector coroutine).
+        toPersist.forEach { writeStorageBestEffort(it) }
     }
 
-    private suspend fun handleObservation(purchases: List<Purchase>) {
-        val match = purchases.firstOrNull(productPredicate)
-        if (match != null) {
-            val snapshot = EntitlementSnapshot(
-                isEntitled = true,
-                confirmedAtMs = clock(),
-                purchaseToken = match.purchaseToken,
-            )
-            transitionToGranted(snapshot)
-        }
+    /** Returns the snapshot to persist, or null if no transition produced one. */
+    private fun handleObservation(purchases: List<Purchase>): EntitlementSnapshot? {
+        val match = purchases.firstOrNull(productPredicate) ?: return null
         // No-match cases (both Live and Recovered) intentionally do NOT
         // revoke. Live can carry empty/UNSPECIFIED_STATE callbacks or
         // products unrelated to this cache's productPredicate, and Recovered
@@ -338,9 +352,16 @@ public class EntitlementCache(
         //  - Grace-window expiry on persistent [FlowOutcome.Failure].
         // Recovered is grant-only here: it surfaces unacked purchases for
         // entitlement confirmation and does NOT speak to the revoke side.
+        val snapshot = EntitlementSnapshot(
+            isEntitled = true,
+            confirmedAtMs = clock(),
+            purchaseToken = match.purchaseToken,
+        )
+        return transitionToGranted(snapshot)
     }
 
-    private suspend fun handleRevoked(event: PurchaseRevoked) {
+    /** Returns the snapshot to persist, or null if the revocation didn't match the cached purchase. */
+    private fun handleRevoked(event: PurchaseRevoked): EntitlementSnapshot? {
         // Match the revocation against the cached snapshot's purchaseToken.
         // If it matches, the purchase that established our entitlement has
         // been revoked Play-side — transition to Revoked unconditionally
@@ -354,25 +375,26 @@ public class EntitlementCache(
                 confirmedAtMs = clock(),
                 purchaseToken = event.purchaseToken,
             )
-            transitionToRevoked(revokedSnapshot)
+            return transitionToRevoked(revokedSnapshot)
         }
+        return null
     }
 
-    private suspend fun handleFailure(exception: BillingException) {
+    /** Returns the snapshot to persist, or null if no persist is needed (no-op or InGrace transition). */
+    private fun handleFailure(exception: BillingException): EntitlementSnapshot? {
         val current = _state.value
         // Failures only move us to InGrace if we were previously confirmed
         // entitled. A Failure while already Revoked stays Revoked — there's
         // nothing to extend grace for.
         if (current !is EntitlementState.Granted && current !is EntitlementState.InGrace) {
-            return
+            return null
         }
 
         val reason = exception.toGraceReason()
         val window = gracePolicy.windowMsFor(reason)
         if (window == 0L) {
             // Grace disabled for this reason — transition straight to Revoked.
-            transitionToRevoked()
-            return
+            return transitionToRevoked()
         }
 
         // Anchor grace expiry to the last confirmed observation, not clock().
@@ -392,9 +414,8 @@ public class EntitlementCache(
         val expiresAt = confirmedAt + window
         if (clock() >= expiresAt) {
             // Window has already elapsed since the last confirmation — skip
-            // InGrace entirely and revoke now. Persisted via transitionToRevoked.
-            transitionToRevoked()
-            return
+            // InGrace entirely and revoke now.
+            return transitionToRevoked()
         }
         _state.value = EntitlementState.InGrace(
             expiresAtMs = expiresAt,
@@ -404,58 +425,62 @@ public class EntitlementCache(
         // already-persisted confirmedAtMs + the policy window; persisting the
         // grace state itself would risk storage tampering reseting the
         // window.
+        return null
     }
 
-    private suspend fun transitionToGranted(snapshot: EntitlementSnapshot) {
+    /**
+     * State-only Granted transition; returns the snapshot to persist (caller
+     * does the storage.write outside the mutex).
+     */
+    private fun transitionToGranted(snapshot: EntitlementSnapshot): EntitlementSnapshot {
         lastConfirmedSnapshot = snapshot
         _state.value = EntitlementState.Granted
-        try {
-            storage.write(snapshot)
-        } catch (ce: CancellationException) {
-            // Re-throw — structured concurrency. A cancelled scope shouldn't
-            // be silently turned into a logged "Granted write failed".
-            throw ce
-        } catch (e: Throwable) {
-            // Swallow rather than crash the cache — an unwritable storage
-            // layer shouldn't take down the user's premium UI — but log so
-            // integrators notice their EntitlementStorage impl is misbehaving.
-            logger.e("EntitlementCache: failed to write Granted snapshot to storage", e)
-        }
+        return snapshot
     }
 
-    private suspend fun transitionToRevoked(snapshot: EntitlementSnapshot? = null) {
-        // Always persist a Revoked snapshot — without this, grace-expiry paths
-        // (tick + on-emission re-evaluation) would leave storage holding the
-        // last Granted state, and the next process start would hydrate as
-        // Granted incorrectly. If no fresh snapshot is supplied (typical for
-        // grace-expiry transitions), build one from lastConfirmedSnapshot's
-        // purchaseToken so the persisted record still ties back to the
-        // purchase that just expired its grace.
+    /**
+     * State-only Revoked transition; returns the snapshot to persist (caller
+     * does the storage.write outside the mutex). Always returns a Revoked
+     * snapshot — without persisting, grace-expiry paths would leave storage
+     * holding the last Granted state, and the next process start would
+     * hydrate as Granted incorrectly. If no fresh snapshot is supplied
+     * (typical for grace-expiry transitions), builds one from
+     * lastConfirmedSnapshot's purchaseToken so the persisted record still
+     * ties back to the purchase that just expired its grace.
+     */
+    private fun transitionToRevoked(snapshot: EntitlementSnapshot? = null): EntitlementSnapshot {
         val toPersist = snapshot ?: EntitlementSnapshot(
             isEntitled = false,
             confirmedAtMs = clock(),
             purchaseToken = lastConfirmedSnapshot?.purchaseToken,
         )
         lastConfirmedSnapshot = toPersist
-        // Set _state BEFORE persisting so the UI sees Revoked immediately,
-        // even if the consumer's storage layer is slow (DataStore, signed
-        // prefs against a remote key, etc.). The persist still happens; a
-        // failure there is logged below. Persistence is for surviving
-        // process restart; the live state.value drives the UI.
+        // Set _state immediately so the UI sees Revoked even with slow
+        // storage. Persistence happens outside the mutex via the caller.
         _state.value = EntitlementState.Revoked
+        return toPersist
+    }
+
+    /**
+     * Persists a snapshot best-effort, outside the mutex. Storage write
+     * failures are logged but absorbed (an unwritable storage layer
+     * shouldn't crash the cache); CancellationException is re-thrown to
+     * preserve structured concurrency.
+     */
+    private suspend fun writeStorageBestEffort(snapshot: EntitlementSnapshot) {
         try {
-            storage.write(toPersist)
+            storage.write(snapshot)
         } catch (ce: CancellationException) {
-            // Re-throw — structured concurrency.
             throw ce
         } catch (e: Throwable) {
-            // Failure to persist Revoked is more serious than failure to
-            // persist Granted — the next process start could hydrate as
-            // Granted from the stale snapshot and the user would briefly see
-            // entitlement they no longer have. Log loudly; consumers wanting
-            // durability guarantees should surface this from inside their
-            // EntitlementStorage impl too.
-            logger.e("EntitlementCache: failed to write Revoked snapshot to storage; next process start may hydrate as Granted from stale snapshot", e)
+            if (snapshot.isEntitled) {
+                logger.e("EntitlementCache: failed to write Granted snapshot to storage", e)
+            } else {
+                // Failure to persist Revoked is more serious than failure to
+                // persist Granted — the next process start could hydrate as
+                // Granted from the stale snapshot.
+                logger.e("EntitlementCache: failed to write Revoked snapshot to storage; next process start may hydrate as Granted from stale snapshot", e)
+            }
         }
     }
 
