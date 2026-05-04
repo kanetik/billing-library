@@ -51,7 +51,7 @@ internal class DefaultBillingRepository(
         return billingClientStorage.connectionResultFlow
     }
 
-    override fun observePurchaseUpdates(): Flow<PurchasesUpdate> {
+    override fun observePurchaseUpdates(): Flow<PurchaseEvent> {
         // Hot at the listener level — PBL fires the PurchasesUpdatedListener
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions
@@ -62,7 +62,7 @@ internal class DefaultBillingRepository(
     }
 
     override suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
-        // Routed through the recovery channel (replay = 1) — see
+        // Routed through the dedicated revocation channel (replay = 1) — see
         // BillingClientStorage.emitExternalRevocation and the BillingRepository
         // interface KDoc for why.
         billingClientStorage.emitExternalRevocation(purchaseToken, reason)

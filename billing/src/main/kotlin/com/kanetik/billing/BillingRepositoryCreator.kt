@@ -70,7 +70,7 @@ public object BillingRepositoryCreator {
      *   queries owned `INAPP` + `SUBS` purchases on every successful Play Billing
      *   connection and emits any `PURCHASED && !isAcknowledged` purchases through
      *   [BillingPurchaseUpdatesOwner.observePurchaseUpdates] as
-     *   [PurchasesUpdate.Recovered][com.kanetik.billing.PurchasesUpdate.Recovered].
+     *   [OwnedPurchases.Recovered][com.kanetik.billing.OwnedPurchases.Recovered].
      *
      *   Set `false` only if you run your own server-side reconciliation queue
      *   that drives acknowledgement out-of-band. The default exists because

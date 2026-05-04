@@ -12,17 +12,17 @@ package com.kanetik.billing
  */
 public interface BillingRepository : BillingActions, BillingPurchaseUpdatesOwner, BillingConnector {
     /**
-     * Push a synthetic [PurchasesUpdate.Revoked] event into
+     * Push a synthetic [PurchaseRevoked] event into
      * [observePurchaseUpdates][BillingPurchaseUpdatesOwner.observePurchaseUpdates].
      * The library is transport-agnostic — the consumer is responsible for
      * decoding RTDN / FCM / polling / deeplink signals into a
      * `(purchaseToken, reason)` pair and calling this method.
      *
-     * Routed through the same replay-cache channel as
-     * [PurchasesUpdate.Recovered] (`replay = 1`) so a revocation arriving
-     * before a subscriber attaches isn't lost — the typical consumer pattern
-     * (FCM listener decodes the RTDN payload at process start, the UI
-     * collector attaches a moment later) needs this guarantee to be useful.
+     * Routed through a dedicated replay-cache channel (`replay = 1`) so a
+     * revocation arriving before a subscriber attaches isn't lost — the
+     * typical consumer pattern (FCM listener decodes the RTDN payload at
+     * process start, the UI collector attaches a moment later) needs this
+     * guarantee to be useful.
      *
      * Suspending: `emit` semantics, not `tryEmit` — the call suspends if the
      * underlying buffer is full rather than silently dropping the event.

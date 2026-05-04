@@ -34,10 +34,10 @@ internal class BillingClientStorage(
     private val recoverPurchasesOnConnect: Boolean = true
 ) {
     /*
-     * Two-channel architecture
-     * ------------------------
-     * Live PBL events and recovery-sweep events have different replay
-     * requirements:
+     * Three-channel architecture
+     * --------------------------
+     * Live PBL events, recovery-sweep events, and external revocation events
+     * have different replay requirements:
      *
      *  - Live events (purchase flow Success/Canceled/etc., listener-driven)
      *    must NOT replay on re-subscription. A `repeatOnLifecycle` collector
@@ -51,49 +51,78 @@ internal class BillingClientStorage(
      *    attaches in some patterns; without replay the recovery is lost
      *    and Play auto-refunds the unacknowledged purchase ~3 days later.
      *
+     *  - Revocation events (external `emitExternalRevocation` calls driven
+     *    by the consumer's RTDN→Pub/Sub→FCM pipeline) MUST replay to a late
+     *    subscriber. Revocations frequently arrive on a background FCM
+     *    listener before the UI's collector attaches; without replay the
+     *    revocation is silently dropped and entitlement stays granted.
+     *
      * Earlier revisions used a single MutableSharedFlow with replay = 1,
      * which forced consumers to dedupe live events to avoid the re-fire
      * bug. The split here keeps each channel's replay semantics correct
-     * without imposing dedupe duty on every consumer.
+     * without imposing dedupe duty on every consumer. Revocation gets its
+     * own channel rather than sharing the recovery channel because the
+     * recovery channel is typed narrower as [OwnedPurchases.Recovered] —
+     * which doesn't accept [PurchaseRevoked] — and conceptually a revocation
+     * is a third, distinct category (external signal, not owned-state and
+     * not flow attempt outcome).
      *
-     * Public exposure: [purchasesUpdateFlow] merges both channels into one
-     * [Flow]. Late subscribers see the most recent recovery (if any) plus
-     * all future emissions from both channels. Live events flow through
-     * with no replay.
+     * Public exposure: [purchasesUpdateFlow] merges all three channels into
+     * one [Flow]. Late subscribers see the most recent recovery and the most
+     * recent revocation (if any) plus all future emissions from all three
+     * channels. Live events flow through with no replay.
      */
 
     /** Live PBL events from the purchases-updated listener. No replay. */
-    private val _liveUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 0, extraBufferCapacity = 32)
-
-    /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
-    private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
+    private val _liveUpdates = MutableSharedFlow<PurchaseEvent>(replay = 0, extraBufferCapacity = 32)
 
     /**
-     * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
+     * Recovery-sweep events. Typed narrower as [OwnedPurchases.Recovered] —
+     * the only thing emitted on this channel is the sweep result, so the
+     * narrower type both documents intent and lets the downstream
+     * [distinctUntilChanged] predicate read `purchases` directly without
+     * narrowing. Replay = 1 so a late subscriber catches the most recent
+     * sweep.
+     */
+    private val _recoveredUpdates = MutableSharedFlow<OwnedPurchases.Recovered>(replay = 1, extraBufferCapacity = 4)
+
+    /**
+     * External revocation events (consumer-driven via
+     * [emitExternalRevocation]). Typed narrower as [PurchaseRevoked] for the
+     * same reasons as [_recoveredUpdates]. Replay = 1 so a revocation that
+     * arrives before a subscriber attaches isn't lost.
+     */
+    private val _revocationUpdates = MutableSharedFlow<PurchaseRevoked>(replay = 1, extraBufferCapacity = 4)
+
+    /**
+     * Public-facing merged stream of [PurchaseEvent]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
-     * both channels. Returns [Flow] (not [SharedFlow]) because the type can't
-     * express "replay-on-subscribe for some emissions but not others" — that's
-     * exactly what the channel split provides, and exposing a SharedFlow at the
-     * top would re-introduce the single-replay-slot problem the split solves.
+     * all three channels. Returns [Flow] (not [SharedFlow]) because the type
+     * can't express "replay-on-subscribe for some emissions but not others" —
+     * that's exactly what the channel split provides, and exposing a SharedFlow
+     * at the top would re-introduce the single-replay-slot problem the split
+     * solves.
      *
      * The surgical [distinctUntilChanged] predicate collapses *only* consecutive
-     * empty [PurchasesUpdate.Recovered] emissions. The recovery sweep emits
+     * empty [OwnedPurchases.Recovered] emissions. The recovery sweep emits
      * `Recovered(emptyList())` on every successful connection (to keep the
      * replay cache fresh against stale snapshots); on an unstable connection
      * that flips repeatedly, those empties would otherwise stream through to
      * active collectors as redundant no-ops. Everything else passes through
-     * unchanged: non-empty [Recovered] emissions (consecutive identical ones
-     * represent legitimate retry signals — the previous handle attempt failed
-     * and the next sweep needs to surface the purchase again), and all live
-     * events including consecutive identical [Canceled]/[ItemAlreadyOwned]/etc.
-     * (each represents a distinct user purchase attempt that consumers may log,
-     * count, or reset UI state on independently). Replay-on-new-subscribe is
-     * unaffected — the dedupe is downstream of the SharedFlows.
+     * unchanged: non-empty [OwnedPurchases.Recovered] emissions (consecutive
+     * identical ones represent legitimate retry signals — the previous handle
+     * attempt failed and the next sweep needs to surface the purchase again),
+     * [PurchaseRevoked] emissions (each is a discrete external signal), and
+     * all live events including consecutive identical [FlowOutcome.Canceled]
+     * / [FlowOutcome.ItemAlreadyOwned] / etc. (each represents a distinct user
+     * purchase attempt that consumers may log, count, or reset UI state on
+     * independently). Replay-on-new-subscribe is unaffected — the dedupe is
+     * downstream of the SharedFlows.
      */
-    val purchasesUpdateFlow: Flow<PurchasesUpdate> =
-        merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged { old, new ->
-            old is PurchasesUpdate.Recovered &&
-                new is PurchasesUpdate.Recovered &&
+    val purchasesUpdateFlow: Flow<PurchaseEvent> =
+        merge(_liveUpdates, _recoveredUpdates, _revocationUpdates).distinctUntilChanged { old, new ->
+            old is OwnedPurchases.Recovered &&
+                new is OwnedPurchases.Recovered &&
                 old.purchases.isEmpty() &&
                 new.purchases.isEmpty()
         }
@@ -164,22 +193,22 @@ internal class BillingClientStorage(
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 
     /**
-     * Pushes a [PurchasesUpdate.Revoked] event through the recovery channel
-     * (`replay = 1`) so a late subscriber catches the most recent revocation.
-     * Used by [DefaultBillingRepository.emitExternalRevocation] to route
-     * consumer-supplied revocation signals through the same plumbing as
-     * recovered purchases. Suspending `emit` rather than `tryEmit` so a
+     * Pushes a [PurchaseRevoked] event through the dedicated revocation
+     * channel (`replay = 1`) so a late subscriber catches the most recent
+     * revocation. Used by [DefaultBillingRepository.emitExternalRevocation]
+     * to route consumer-supplied revocation signals through the public
+     * [purchasesUpdateFlow]. Suspending `emit` rather than `tryEmit` so a
      * transient buffer-full doesn't silently drop the event.
      */
     suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
-        _recoveredUpdates.emit(PurchasesUpdate.Revoked(purchaseToken, reason))
+        _revocationUpdates.emit(PurchaseRevoked(purchaseToken, reason))
     }
 
     /**
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
      * purchases in parallel, filters for `PURCHASED && !isAcknowledged`, and
      * emits any matches through [_recoveredUpdates] as a
-     * [PurchasesUpdate.Recovered] event.
+     * [OwnedPurchases.Recovered] event.
      *
      * `SUBS` is gated on [BillingClient.isFeatureSupported] so apps running on
      * Play installs / regions / devices without subscription support don't log
@@ -200,13 +229,13 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         // v0.1.x limitation: SUBS purchases are emitted through the same
-        // PurchasesUpdate.Recovered variant as one-time products, even when
+        // OwnedPurchases.Recovered variant as one-time products, even when
         // they're subscription replacements (carry a non-empty
         // linkedPurchaseToken in originalJson). Consumers handling subs must
         // parse linkedPurchaseToken themselves and treat replacement purchases
-        // as plan changes rather than fresh grants — see PurchasesUpdate.Recovered
+        // as plan changes rather than fresh grants — see OwnedPurchases.Recovered
         // KDoc and the README "Purchase recovery" section. v0.2.0 will ship a
-        // typed PurchasesUpdate.SubscriptionReplacement variant that classifies
+        // typed OwnedPurchases.SubscriptionReplacement variant that classifies
         // these at the source so the wrong handling can't compile.
         try {
             val (inApp, subs) = coroutineScope {
@@ -278,7 +307,7 @@ internal class BillingClientStorage(
             // cache stays fresh against stale prior emissions.
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
             // silently drop a recovery event.
-            _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
+            _recoveredUpdates.emit(OwnedPurchases.Recovered(unacknowledged))
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {

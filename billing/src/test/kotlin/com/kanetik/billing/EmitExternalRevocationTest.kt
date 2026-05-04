@@ -19,8 +19,8 @@ import org.junit.Test
 
 /**
  * Tests for [BillingRepository.emitExternalRevocation] and the underlying
- * [BillingClientStorage.emitExternalRevocation] routing through the recovery
- * channel (replay = 1).
+ * [BillingClientStorage.emitExternalRevocation] routing through the dedicated
+ * revocation channel (replay = 1).
  *
  * The factory is stubbed with an empty connection flow — these tests do not
  * exercise the Play Billing connection or recovery sweep; they exercise the
@@ -36,12 +36,12 @@ class EmitExternalRevocationTest {
     private val shareScopes = mutableListOf<Job>()
 
     @Test
-    fun `emitExternalRevocation produces a Revoked event downstream`() = runTest {
+    fun `emitExternalRevocation produces a PurchaseRevoked event downstream`() = runTest {
         val repo = newRepository(this)
 
         try {
             // Subscribe before emitting so the live-attach path is exercised.
-            val collected = mutableListOf<PurchasesUpdate>()
+            val collected = mutableListOf<PurchaseEvent>()
             // Take a single emission — the suspending merge() upstream stays alive
             // forever, so we bound the collection to keep runTest's
             // "all coroutines completed" check happy.
@@ -60,35 +60,33 @@ class EmitExternalRevocationTest {
 
             assertThat(collected).hasSize(1)
             val event = collected.single()
-            assertThat(event).isInstanceOf(PurchasesUpdate.Revoked::class.java)
-            val revoked = event as PurchasesUpdate.Revoked
+            assertThat(event).isInstanceOf(PurchaseRevoked::class.java)
+            val revoked = event as PurchaseRevoked
             assertThat(revoked.purchaseToken).isEqualTo("token-abc")
             assertThat(revoked.reason).isEqualTo(RevocationReason.Refunded)
-            // Per contract — Revoked carries no Purchase object.
-            assertThat(revoked.purchases).isEmpty()
         } finally {
             cancelShareScopes()
         }
     }
 
     @Test
-    fun `Revoked event survives a late subscriber via replay-cache plumbing`() = runTest {
+    fun `PurchaseRevoked event survives a late subscriber via replay-cache plumbing`() = runTest {
         val repo = newRepository(this)
 
         try {
             // Emit BEFORE any subscriber attaches — exercises the replay = 1 channel
-            // semantic that is the whole point of routing Revoked through the
-            // recovery channel rather than the live channel.
+            // semantic that is the whole point of routing PurchaseRevoked through a
+            // dedicated replay channel rather than the live channel.
             repo.emitExternalRevocation(
                 purchaseToken = "late-token",
                 reason = RevocationReason.Chargeback,
             )
 
-            // Subscribe afterward; first() should resolve to the replayed Revoked
-            // event without the test hanging.
+            // Subscribe afterward; first() should resolve to the replayed
+            // PurchaseRevoked event without the test hanging.
             val first = repo.observePurchaseUpdates().first()
-            assertThat(first).isInstanceOf(PurchasesUpdate.Revoked::class.java)
-            val revoked = first as PurchasesUpdate.Revoked
+            assertThat(first).isInstanceOf(PurchaseRevoked::class.java)
+            val revoked = first as PurchaseRevoked
             assertThat(revoked.purchaseToken).isEqualTo("late-token")
             assertThat(revoked.reason).isEqualTo(RevocationReason.Chargeback)
         } finally {
@@ -108,8 +106,8 @@ class EmitExternalRevocationTest {
                 val repo = newRepository(this)
                 repo.emitExternalRevocation(purchaseToken = "tok-$reason", reason = reason)
                 val event = repo.observePurchaseUpdates().first()
-                assertThat(event).isInstanceOf(PurchasesUpdate.Revoked::class.java)
-                val revoked = event as PurchasesUpdate.Revoked
+                assertThat(event).isInstanceOf(PurchaseRevoked::class.java)
+                val revoked = event as PurchaseRevoked
                 assertThat(revoked.reason).isEqualTo(reason)
                 assertThat(revoked.purchaseToken).isEqualTo("tok-$reason")
             }
