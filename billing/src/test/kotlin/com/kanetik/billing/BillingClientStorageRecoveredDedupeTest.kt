@@ -31,7 +31,7 @@ import org.junit.Test
  *
  *  - Purchases whose tokens have been marked as acknowledged via
  *    [BillingClientStorage.markAcknowledged] are filtered out of
- *    [PurchasesUpdate.Recovered] emissions.
+ *    [OwnedPurchases.Recovered] emissions.
  *  - When the filter removes every purchase from a sweep, no event
  *    is emitted (rather than `Recovered(emptyList())`).
  *  - When some purchases are acked and some aren't, the emission
@@ -113,7 +113,7 @@ class BillingClientStorageRecoveredDedupeTest {
         storage.markAcknowledged("token-2")
 
         // Drive the connection flow so the sweep runs.
-        val collected = mutableListOf<PurchasesUpdate>()
+        val collected = mutableListOf<PurchaseEvent>()
         val job = launch {
             storage.purchasesUpdateFlow.collect { collected += it }
         }
@@ -214,7 +214,7 @@ class BillingClientStorageRecoveredDedupeTest {
         // would be filtered to empty, no new emission overwrites the cache —
         // so we explicitly test that a fresh sweep does NOT add a second
         // emission to a continuing collector.
-        val collectedAfterAck = mutableListOf<PurchasesUpdate>()
+        val collectedAfterAck = mutableListOf<PurchaseEvent>()
         val job = launch {
             storage.purchasesUpdateFlow.collect { collectedAfterAck += it }
         }
@@ -243,12 +243,12 @@ class BillingClientStorageRecoveredDedupeTest {
      */
     private suspend fun TestScope.collectFirstRecovered(
         storage: BillingClientStorage
-    ): PurchasesUpdate.Recovered {
+    ): OwnedPurchases.Recovered {
         // Drive the connection so the sweep runs.
         val connJob = launch { storage.connectionFlow.collect {} }
         return try {
             withTimeout(5_000) {
-                storage.purchasesUpdateFlow.first { it is PurchasesUpdate.Recovered } as PurchasesUpdate.Recovered
+                storage.purchasesUpdateFlow.first { it is OwnedPurchases.Recovered } as OwnedPurchases.Recovered
             }
         } finally {
             connJob.cancel()

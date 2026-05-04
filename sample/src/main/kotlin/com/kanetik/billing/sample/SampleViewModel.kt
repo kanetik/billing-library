@@ -10,8 +10,10 @@ import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingConnectionResult
 import com.kanetik.billing.BillingRepository
 import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.HandlePurchaseResult
-import com.kanetik.billing.PurchasesUpdate
+import com.kanetik.billing.OwnedPurchases
+import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -44,13 +46,21 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         viewModelScope.launch {
-            billing.observePurchaseUpdates().collect { update ->
-                _state.update { it.copy(lastUpdate = update) }
-                appendLog("purchase update: ${update::class.simpleName}")
-                when (update) {
-                    is PurchasesUpdate.Success -> update.purchases.forEach { handlePurchaseAndLog(it) }
-                    is PurchasesUpdate.Recovered -> update.purchases.forEach { handlePurchaseAndLog(it) }
-                    else -> {} // Pending / Canceled / etc. — sample just logs the variant name above
+            billing.observePurchaseUpdates().collect { event ->
+                _state.update { it.copy(lastEvent = event) }
+                appendLog("purchase event: ${event::class.simpleName}")
+                when (event) {
+                    is OwnedPurchases.Live -> event.purchases.forEach { handlePurchaseAndLog(it) }
+                    is OwnedPurchases.Recovered -> event.purchases.forEach { handlePurchaseAndLog(it) }
+                    is FlowOutcome -> {
+                        // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
+                        // UnknownResponse — sample just logs the variant name above.
+                        // Real apps should branch per sub-variant. Critically: do NOT
+                        // write event.purchases to an entitlement cache from this branch
+                        // — see PurchaseEvent KDoc. The library tracks acknowledged
+                        // tokens internally now (#6), so consumer-side dedupe of
+                        // Recovered is no longer required.
+                    }
                 }
             }
         }
@@ -125,7 +135,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 data class SampleUiState(
     val connection: BillingConnectionResult? = null,
     val products: List<ProductDetails> = emptyList(),
-    val lastUpdate: PurchasesUpdate? = null,
+    val lastEvent: PurchaseEvent? = null,
     val loading: Boolean = false,
     val log: List<String> = emptyList(),
 )

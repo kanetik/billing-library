@@ -134,7 +134,7 @@ public interface BillingActions {
      * }
      * ```
      *
-     * The auto-recovery sweep ([com.kanetik.billing.PurchasesUpdate.Recovered])
+     * The auto-recovery sweep ([com.kanetik.billing.OwnedPurchases.Recovered])
      * re-emits the unacknowledged purchase on the next successful connection,
      * so a transient [HandlePurchaseResult.Failure] is recoverable; a
      * granted-then-refunded purchase is not. **This recovery is conditional

@@ -40,10 +40,10 @@ internal class BillingClientStorage(
      * Live PBL events and recovery-sweep events have different replay
      * requirements:
      *
-     *  - Live events (purchase flow Success/Canceled/etc., listener-driven)
+     *  - Live events (purchase flow Live/Canceled/etc., listener-driven)
      *    must NOT replay on re-subscription. A `repeatOnLifecycle` collector
      *    that re-attaches after a configuration change should not see the
-     *    last `Success` event again — re-running entitlement grants and
+     *    last `Live` event again — re-running entitlement grants and
      *    one-shot UX (confetti, toasts, analytics) on every rotation is the
      *    classic SharedFlow-replay footgun.
      *
@@ -64,16 +64,13 @@ internal class BillingClientStorage(
      */
 
     /** Live PBL events from the purchases-updated listener. No replay. */
-    private val _liveUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 0, extraBufferCapacity = 32)
-
-    /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
-    private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
+    private val _liveUpdates = MutableSharedFlow<PurchaseEvent>(replay = 0, extraBufferCapacity = 32)
 
     /**
      * Tokens already acknowledged / consumed via [BillingActions.handlePurchase]
      * (or the lower-level [BillingActions.acknowledgePurchase] / [BillingActions.consumePurchase])
      * during the lifetime of this [BillingClientStorage] instance. Used to filter
-     * already-handled purchases out of [PurchasesUpdate.Recovered] emissions
+     * already-handled purchases out of [OwnedPurchases.Recovered] emissions
      * before they reach subscribers — both fresh sweep results that race a
      * concurrent ack landing, and replay-1 re-emissions to late subscribers
      * after the consumer has already handled the snapshot.
@@ -89,7 +86,7 @@ internal class BillingClientStorage(
 
     /**
      * Records [token] as acknowledged / consumed. Subsequent recovery sweeps
-     * filter purchases bearing this token out of [PurchasesUpdate.Recovered]
+     * filter purchases bearing this token out of [OwnedPurchases.Recovered]
      * emissions; if the filtered list ends up empty, no event is emitted.
      */
     internal fun markAcknowledged(token: String) {
@@ -97,7 +94,14 @@ internal class BillingClientStorage(
     }
 
     /**
-     * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
+     * Recovery-sweep events. Typed narrower as [OwnedPurchases.Recovered] —
+     * the only thing emitted on this channel is the sweep result. Replay = 1
+     * so a late subscriber catches the most recent sweep.
+     */
+    private val _recoveredUpdates = MutableSharedFlow<OwnedPurchases.Recovered>(replay = 1, extraBufferCapacity = 4)
+
+    /**
+     * Public-facing merged stream of [PurchaseEvent]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
      * both channels. Returns [Flow] (not [SharedFlow]) because the type can't
      * express "replay-on-subscribe for some emissions but not others" — that's
@@ -109,7 +113,7 @@ internal class BillingClientStorage(
      * results entirely (see [sweepUnacknowledgedPurchases]), so consecutive
      * empty / no-op `Recovered` events never reach this flow in the first place.
      */
-    val purchasesUpdateFlow: Flow<PurchasesUpdate> = merge(_liveUpdates, _recoveredUpdates)
+    val purchasesUpdateFlow: Flow<PurchaseEvent> = merge(_liveUpdates, _recoveredUpdates)
 
     /*
      * Billing connection sharing strategy
@@ -180,7 +184,7 @@ internal class BillingClientStorage(
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
      * purchases in parallel, filters for `PURCHASED && !isAcknowledged`, and
      * emits any matches through [_recoveredUpdates] as a
-     * [PurchasesUpdate.Recovered] event.
+     * [OwnedPurchases.Recovered] event.
      *
      * `SUBS` is gated on [BillingClient.isFeatureSupported] so apps running on
      * Play installs / regions / devices without subscription support don't log
@@ -203,13 +207,13 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         // v0.1.x limitation: SUBS purchases are emitted through the same
-        // PurchasesUpdate.Recovered variant as one-time products, even when
+        // OwnedPurchases.Recovered variant as one-time products, even when
         // they're subscription replacements (carry a non-empty
         // linkedPurchaseToken in originalJson). Consumers handling subs must
         // parse linkedPurchaseToken themselves and treat replacement purchases
-        // as plan changes rather than fresh grants — see PurchasesUpdate.Recovered
+        // as plan changes rather than fresh grants — see OwnedPurchases.Recovered
         // KDoc and the README "Purchase recovery" section. v0.2.0 will ship a
-        // typed PurchasesUpdate.SubscriptionReplacement variant that classifies
+        // typed OwnedPurchases.SubscriptionReplacement variant that classifies
         // these at the source so the wrong handling can't compile.
         try {
             val (inApp, subs) = coroutineScope {
@@ -290,7 +294,7 @@ internal class BillingClientStorage(
                 logger.d("Recovery sweep result: ${filtered.size} unacknowledged purchase(s)")
                 // Suspending emit (not tryEmit) so a transient buffer-full
                 // doesn't silently drop a recovery event.
-                _recoveredUpdates.emit(PurchasesUpdate.Recovered(filtered))
+                _recoveredUpdates.emit(OwnedPurchases.Recovered(filtered))
             } else {
                 // Empty result (whether intrinsically empty or filtered to
                 // empty) is suppressed entirely. The previous Recovered
