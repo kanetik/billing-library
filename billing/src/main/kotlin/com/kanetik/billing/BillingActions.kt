@@ -158,10 +158,15 @@ public interface BillingActions {
      *  2. For [consume] = false, the call short-circuits when
      *     [Purchase.isAcknowledged] is already `true` — no Play Billing
      *     call is made and the result is
-     *     [HandlePurchaseResult.AlreadyAcknowledged]. This closes the
-     *     recovery hole where calling acknowledge on an already-acked
-     *     purchase surfaced `Failure(DeveloperErrorException)` and made
-     *     "already acked" indistinguishable from a real ack failure.
+     *     [HandlePurchaseResult.AlreadyAcknowledged]. For *fresh*
+     *     [Purchase] objects this closes the recovery hole where
+     *     calling acknowledge on an already-acked purchase surfaced
+     *     `Failure(DeveloperErrorException)` and made "already acked"
+     *     indistinguishable from a real ack failure. Stale snapshots
+     *     (locally `isAcknowledged = false` but Play-side `true` —
+     *     e.g., a `Recovered` replay after a successful ack) still
+     *     surface as `Failure(DeveloperErrorException)` until the next
+     *     sweep yields a fresh object; see [HandlePurchaseResult.Failure].
      *  3. For [consume] = true, the underlying consume call is the one that also
      *     satisfies Play's acknowledgement requirement (Play treats consume as
      *     implicit acknowledgement for consumables). The `consume = true`

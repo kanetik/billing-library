@@ -108,10 +108,15 @@ public sealed class HandlePurchaseResult {
      * retry budget was exhausted. **Do not grant entitlement.**
      *
      * As of the [AlreadyAcknowledged] variant being added, [Failure] no
-     * longer overlaps with the already-acked case — consumers can safely
-     * untrack-on-Failure for retry on the next recovery sweep without
-     * worrying that an already-acked purchase will be re-tried forever
-     * via a [BillingException.DeveloperErrorException].
+     * longer overlaps with the already-acked case **for fresh [Purchase]
+     * objects** — consumers can safely untrack-on-Failure for retry on
+     * the next recovery sweep without worrying that an already-acked
+     * purchase will be re-tried forever via a
+     * [BillingException.DeveloperErrorException]. The stale-snapshot
+     * caveat above still applies: a locally-cached `Purchase` whose
+     * Play-side `isAcknowledged` has flipped will still surface as
+     * `Failure(DeveloperErrorException)` until the next sweep replaces
+     * the snapshot.
      *
      * Recovery path depends on whether `recoverPurchasesOnConnect` is left
      * at its default (`true`):
