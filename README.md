@@ -387,7 +387,15 @@ class PremiumViewModel(
             transientFailureMs   = TimeUnit.HOURS.toMillis(6),
         ),
         productPredicate = { it.products.contains("premium_lifetime") },
-    ).also { it.start(viewModelScope) }
+    )
+
+    init {
+        // start() is suspend so hydration completes before it returns —
+        // the first read of cache.state.value reflects the persisted
+        // snapshot, not the default Revoked. Launch it from viewModelScope
+        // so init isn't blocked.
+        viewModelScope.launch { cache.start(viewModelScope) }
+    }
 
     val isPremium: StateFlow<Boolean> = cache.state
         .map { it !is EntitlementState.Revoked }

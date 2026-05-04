@@ -12,10 +12,16 @@ package com.kanetik.billing.entitlement
  *    transient network blips, so [GracePolicy] exposes them as a separate
  *    knob — apps may want a longer grace window before yanking premium for
  *    "Play Store isn't working" vs. "user just lost wifi".
- *  - [TransientFailure] — anything else with a non-`NONE`
- *    [com.kanetik.billing.RetryType] (network errors, service disconnections,
- *    generic billing errors). Short outages; the library has already retried
- *    with backoff before surfacing.
+ *  - [TransientFailure] — anything else: classification uses the
+ *    [com.kanetik.billing.exception.BillingErrorCategory] from
+ *    [com.kanetik.billing.exception.BillingException.userFacingCategory],
+ *    not the raw `RetryType`. Anything not categorised as `BillingUnavailable`
+ *    falls into this bucket — including network errors, service
+ *    disconnections, generic billing errors, AND terminal failures like
+ *    `DeveloperError` or `FatalError`. The cache treats all of those as
+ *    "give the user a short grace window before yanking premium"; consumers
+ *    that want fatal errors to revoke immediately should pass
+ *    [GracePolicy.None] (or set `transientFailureMs = 0`).
  */
 public enum class GraceReason {
 
@@ -28,8 +34,13 @@ public enum class GraceReason {
     BillingUnavailable,
 
     /**
-     * Underlying [com.kanetik.billing.exception.BillingException] indicates a
-     * transient outage (network error, service disconnect, generic error).
+     * Underlying [com.kanetik.billing.exception.BillingException] is in any
+     * [com.kanetik.billing.exception.BillingErrorCategory] except
+     * `BillingUnavailable`. Includes transient outages (network error,
+     * service disconnect) AND terminal failures (developer error, fatal
+     * error) — the cache uniformly applies a grace window before revoking,
+     * because reading "no entitlement" is the wrong default for an actively
+     * paying user even when the cause is a developer-side bug.
      * Uses [GracePolicy.transientFailureMs] for the grace window.
      */
     TransientFailure,

@@ -17,9 +17,13 @@ package com.kanetik.billing.entitlement
  *  - [Revoked] — the cache has either never seen entitlement, or grace has
  *    expired without a successful re-check. Hide premium UI.
  *
- * Branch on the sealed type to render UI; never compare instances by equality
- * across emissions (the [InGrace.expiresAtMs] timestamp will differ for each
- * tick).
+ * Branch on the sealed type to render UI rather than comparing instances by
+ * equality. The [InGrace.expiresAtMs] timestamp is set once when the
+ * transition into grace happens (anchored to the last confirmed observation
+ * + the policy window) and stays stable until grace expires; the cache
+ * doesn't emit a new `InGrace(expiresAtMs = ...)` on every tick. So
+ * `state.distinctUntilChanged()` works as expected; a fresh `Failure` with
+ * the same reason produces the same expiresAt and gets de-duped.
  */
 public sealed interface EntitlementState {
 

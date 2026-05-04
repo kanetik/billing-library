@@ -282,8 +282,9 @@ class EntitlementCacheTest {
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = "coins_pack_50"))))
         runCurrent()
 
-        // Live of a non-premium IAP does not negate entitlement; only
-        // Recovered (which is authoritative for owned-state) can do that.
+        // Live of a non-premium IAP does not negate entitlement; the cache
+        // treats Live and Recovered as grant-only signals and routes
+        // revocation through PurchaseRevoked + grace expiry instead.
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
         job.cancelAndJoin()
     }

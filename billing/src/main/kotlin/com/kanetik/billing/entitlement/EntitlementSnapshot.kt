@@ -4,8 +4,8 @@ package com.kanetik.billing.entitlement
  * Persistable snapshot of the cache's most recent confirmed observation.
  *
  * Written by [EntitlementCache] on every entitlement-affecting event — both
- * Granted (after a successful confirm) and Revoked (after a Recovered event
- * with no matching purchase, or after grace expires). Read on construction so
+ * Granted (after a successful confirm) and Revoked (after a matching
+ * `PurchaseRevoked` event, or after grace expires). Read on construction so
  * the cache can hydrate from disk before the first network round-trip
  * completes.
  *
@@ -28,11 +28,15 @@ package com.kanetik.billing.entitlement
  *   was confirmed. Used by the cache to evaluate whether a persisted grace
  *   window has already expired.
  * @property purchaseToken The Play Billing purchase token of the matching
- *   purchase, if [isEntitled] is `true`. Null if not entitled, or if the
- *   matching purchase didn't carry a token (shouldn't happen in practice
- *   — Play guarantees a token on PURCHASED state — but the field is
- *   nullable for safety). Useful for downstream signature verification or
- *   server-side reconciliation.
+ *   purchase. Set when [isEntitled] is `true`, and ALSO carried forward on
+ *   transitions to [isEntitled] = `false` so a persisted Revoked snapshot
+ *   still ties back to the purchase whose grace expired or that was revoked
+ *   via `PurchaseRevoked`. Null only when the cache has never observed a
+ *   matching purchase (initial state with no prior session) or when the
+ *   matching purchase didn't carry a token (shouldn't happen in practice —
+ *   Play guarantees a token on PURCHASED state — but the field is nullable
+ *   for safety). Useful for downstream signature verification or server-side
+ *   reconciliation.
  */
 public data class EntitlementSnapshot(
     public val isEntitled: Boolean,
