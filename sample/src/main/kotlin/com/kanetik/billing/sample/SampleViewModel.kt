@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingConnectionResult
 import com.kanetik.billing.BillingRepository
@@ -92,7 +93,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
      *   (no PBL call needed because the purchase was already acknowledged
      *   server-side; entitlement-equivalent for the consumer).
      */
-    private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase): Boolean {
+    private suspend fun handlePurchaseAndLog(purchase: Purchase): Boolean {
         return when (val outcome = billing.handlePurchase(purchase, consume = true)) {
             HandlePurchaseResult.Success -> {
                 appendLog("handlePurchase OK for ${purchase.products}")
