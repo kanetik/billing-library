@@ -53,6 +53,33 @@ import kotlinx.coroutines.sync.withLock
  *    so the next process can hydrate. Grace is not persisted (re-derived
  *    from the most recent confirmed `confirmedAtMs`).
  *
+ * ## Hydration staleness
+ *
+ * On [start], the cache hydrates from [storage] and trusts the persisted
+ * Granted snapshot indefinitely — there is no max-age check at hydration
+ * time. A Granted snapshot persisted six months ago in a previous session
+ * still hydrates as Granted today. This is intentional: the cache treats
+ * Play as the authoritative source of revocation signals, not the local
+ * clock. Three things can invalidate a stale-but-hydrated Granted state:
+ *
+ *  1. A [PurchaseRevoked] event matching the cached `purchaseToken` —
+ *     consumers wire this through `emitExternalRevocation` from their
+ *     RTDN/FCM pipeline; this is the primary revocation channel.
+ *  2. A [FlowOutcome.Failure] event whose grace window
+ *     (`confirmedAtMs + window`) is already in the past — `handleFailure`
+ *     compares the anchor against `clock()` and revokes immediately if
+ *     elapsed, so a long-stale Granted state revokes the moment Play
+ *     reports an error after the app re-opens.
+ *  3. Consumer-side max-age before passing the snapshot to the cache —
+ *     apps that need a hard ceiling (e.g., "any snapshot older than 90
+ *     days is suspicious") can implement that in their [EntitlementStorage]
+ *     `read()` by returning null when the snapshot's `confirmedAtMs` is
+ *     too old. The cache treats null as "no prior snapshot" and starts
+ *     in default Revoked.
+ *
+ * The deliberate omission of a built-in max-age policy avoids picking an
+ * arbitrary number that wouldn't fit every app's threat model.
+ *
  * ## What it does *not* do
  *
  *  - It does not pick a persistence library. You implement
