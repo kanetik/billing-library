@@ -10,6 +10,7 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import androidx.annotation.AnyThread
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -220,6 +221,26 @@ public class EntitlementCache(
     // (re-attempts hydration + launch).
     private var collectionJob: Job? = null
 
+    // CONFLATED channel that decouples persistence from state mutation.
+    // Producers (reduce + tickGraceWindow) call writeChannel.trySend(snapshot)
+    // while holding [mutex] so trySend order matches state-mutation order
+    // across coroutines. A single writer coroutine (launched inside [start])
+    // consumes the channel and calls [storage.write] serially.
+    //
+    // Why CONFLATED: only the most-recent in-memory state needs to land on
+    // disk — older queued snapshots are stale by definition. If reduce
+    // mutates A → B → C in rapid succession while a slow consumer storage
+    // is mid-write, the channel keeps just C; the writer drains the buffer
+    // in send order (A, then C — A from the in-flight write that started
+    // before conflation, C from the conflated tail) and disk ends at C.
+    //
+    // This solves two concerns simultaneously: a slow consumer storage
+    // can't stall reduce/tick (writes happen on the dedicated writer
+    // coroutine, not inline), AND writes land in state-mutation order
+    // (channel preserves send order; senders hold the state mutex so
+    // their send order matches their mutation order).
+    private val writeChannel = Channel<EntitlementSnapshot>(Channel.CONFLATED)
+
     /**
      * Hydrates from [storage] and begins collecting from [purchasesUpdates] +
      * ticking the grace clock inside [scope]. Suspends until hydration
@@ -276,22 +297,26 @@ public class EntitlementCache(
         }
 
         // Periodic tick detects grace expiry without a fresh upstream event.
-        // Wrapped in supervisorScope so a tick failure (defensive — tick is
+        // Single-writer coroutine consumes [writeChannel] in send order so
+        // persistence is serialised AND a slow consumer storage can't stall
+        // reduce/tick (those just trySend to the channel). Wrapped in
+        // supervisorScope so a tick failure (defensive — tick is
         // straightforward but errors in user-supplied storage on a tick-driven
         // grace transition could surface here) doesn't cancel the upstream
-        // collector. Tick lifecycle is bound to the upstream collect: if
-        // purchasesUpdates ever completes normally, we cancel the tick so
-        // this start() Job can finish too — without this, an infinite tick
-        // keeps the parent alive forever even after the upstream is done.
+        // collector. Tick + writer lifecycles are bound to the upstream
+        // collect: if purchasesUpdates ever completes normally, we cancel
+        // both children so this start() Job can finish too.
         val job = scope.launch {
             supervisorScope {
                 val tickJob = launch { tickGraceWindow() }
+                val writerJob = launch { runStorageWriter() }
                 try {
                     purchasesUpdates.collect { event ->
                         reduce(event)
                     }
                 } finally {
                     tickJob.cancel()
+                    writerJob.cancel()
                 }
             }
         }
@@ -299,36 +324,63 @@ public class EntitlementCache(
         job
     }
 
+    /**
+     * Writer coroutine: drains [writeChannel] in FIFO order and serially
+     * calls [storage.write] on each snapshot. Failures are logged + absorbed
+     * (per the "unwritable storage shouldn't crash the cache" policy);
+     * CancellationException propagates so structured concurrency works.
+     */
+    private suspend fun runStorageWriter() {
+        for (snapshot in writeChannel) {
+            try {
+                storage.write(snapshot)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Throwable) {
+                if (snapshot.isEntitled) {
+                    logger.e("EntitlementCache: failed to write Granted snapshot to storage", e)
+                } else {
+                    // Failure to persist Revoked is more serious than failure
+                    // to persist Granted — the next process start could hydrate
+                    // as Granted from the stale snapshot.
+                    logger.e("EntitlementCache: failed to write Revoked snapshot to storage; next process start may hydrate as Granted from stale snapshot", e)
+                }
+            }
+        }
+    }
+
     private suspend fun tickGraceWindow() {
         while (true) {
             delay(graceTickIntervalMs)
-            val toPersist = mutex.withLock {
+            mutex.withLock {
                 val current = _state.value
                 if (current is EntitlementState.InGrace && clock() >= current.expiresAtMs) {
-                    transitionToRevoked()
-                } else {
-                    null
+                    val snapshot = transitionToRevoked()
+                    // trySend inside the mutex so the channel's FIFO order
+                    // matches state-mutation order across reduce + tick.
+                    // CONFLATED + UNLIMITED-buffer semantic: trySend never
+                    // suspends and never fails.
+                    writeChannel.trySend(snapshot)
                 }
             }
-            // Persist outside the mutex (same rationale as reduce()).
-            toPersist?.let { writeStorageBestEffort(it) }
         }
     }
 
     // Visible for tests + the start() collector. Synchronised on `mutex` so
     // concurrent emissions (upstream collector + tick) serialise on state
-    // updates. Storage writes happen OUTSIDE the mutex so a slow consumer
-    // EntitlementStorage (DataStore, encrypted prefs, etc.) doesn't stall
-    // the upstream collector or the grace tick.
+    // updates. Storage writes are queued via [writeChannel] (CONFLATED) and
+    // drained by [runStorageWriter]; a slow consumer EntitlementStorage
+    // (DataStore, encrypted prefs, etc.) can't stall the upstream collector
+    // or the grace tick because trySend never suspends. Sending inside the
+    // mutex preserves write order across reduce + tick.
     internal suspend fun reduce(event: PurchaseEvent) {
-        val toPersist: List<EntitlementSnapshot> = mutex.withLock {
-            val pending = mutableListOf<EntitlementSnapshot>()
+        mutex.withLock {
             // Re-evaluate grace expiry on every emission so an outage longer
             // than the policy correctly transitions InGrace → Revoked even
             // before we've classified the new event.
             val current = _state.value
             if (current is EntitlementState.InGrace && clock() >= current.expiresAtMs) {
-                pending += transitionToRevoked()
+                writeChannel.trySend(transitionToRevoked())
             }
             val eventSnapshot: EntitlementSnapshot? = when (event) {
                 is OwnedPurchases.Live -> handleObservation(event.purchases)
@@ -348,19 +400,21 @@ public class EntitlementCache(
                     null
                 }
             }
-            eventSnapshot?.let { pending += it }
-            pending
+            eventSnapshot?.let { writeChannel.trySend(it) }
         }
-        // Storage writes outside the mutex — slow I/O can't block reduce or
-        // the grace tick. A subsequent reduce() may overwrite this snapshot
-        // before its write lands; that's fine, both writes happen in order
-        // (suspending I/O is FIFO from this single collector coroutine).
-        toPersist.forEach { writeStorageBestEffort(it) }
     }
 
     /** Returns the snapshot to persist, or null if no transition produced one. */
     private fun handleObservation(purchases: List<Purchase>): EntitlementSnapshot? {
-        val match = purchases.firstOrNull(productPredicate) ?: return null
+        // Filter to PURCHASED state before applying productPredicate. PBL's OK
+        // callback (which the listener routes to OwnedPurchases.Live) can
+        // include rare UNSPECIFIED_STATE entries; granting entitlement on those
+        // would be premature — entitlement belongs to actually-purchased state.
+        // Pending purchases are a separate event (FlowOutcome.Pending) and
+        // never reach this code path.
+        val match = purchases
+            .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED && productPredicate(it) }
+            ?: return null
         // No-match cases (both Live and Recovered) intentionally do NOT
         // revoke. Live can carry empty/UNSPECIFIED_STATE callbacks or
         // products unrelated to this cache's productPredicate, and Recovered
@@ -486,29 +540,6 @@ public class EntitlementCache(
         // storage. Persistence happens outside the mutex via the caller.
         _state.value = EntitlementState.Revoked
         return toPersist
-    }
-
-    /**
-     * Persists a snapshot best-effort, outside the mutex. Storage write
-     * failures are logged but absorbed (an unwritable storage layer
-     * shouldn't crash the cache); CancellationException is re-thrown to
-     * preserve structured concurrency.
-     */
-    private suspend fun writeStorageBestEffort(snapshot: EntitlementSnapshot) {
-        try {
-            storage.write(snapshot)
-        } catch (ce: CancellationException) {
-            throw ce
-        } catch (e: Throwable) {
-            if (snapshot.isEntitled) {
-                logger.e("EntitlementCache: failed to write Granted snapshot to storage", e)
-            } else {
-                // Failure to persist Revoked is more serious than failure to
-                // persist Granted — the next process start could hydrate as
-                // Granted from the stale snapshot.
-                logger.e("EntitlementCache: failed to write Revoked snapshot to storage; next process start may hydrate as Granted from stale snapshot", e)
-            }
-        }
     }
 
     public companion object {

@@ -261,6 +261,44 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `Live with matching product but UNSPECIFIED_STATE does NOT grant entitlement`() = runTest {
+        val (cache, updates, _, _, job) = newCache()
+        // PBL's OK callback can include UNSPECIFIED_STATE entries; the listener
+        // routes them to OwnedPurchases.Live alongside genuinely PURCHASED ones.
+        // The cache must not grant entitlement on those — only on PURCHASED.
+        updates.emit(
+            OwnedPurchases.Live(
+                listOf(
+                    fakePurchase(
+                        productId = premiumProductId,
+                        purchaseToken = "unspecified-tok",
+                        purchaseState = Purchase.PurchaseState.UNSPECIFIED_STATE,
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+
+        // Sanity: a PURCHASED entry for the same product DOES grant.
+        updates.emit(
+            OwnedPurchases.Live(
+                listOf(
+                    fakePurchase(
+                        productId = premiumProductId,
+                        purchaseToken = "purchased-tok",
+                        purchaseState = Purchase.PurchaseState.PURCHASED,
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
     fun `start called twice returns the same active Job`() = runTest {
         val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
