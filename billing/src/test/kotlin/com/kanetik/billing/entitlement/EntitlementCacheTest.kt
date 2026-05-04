@@ -298,7 +298,7 @@ class EntitlementCacheTest {
         val job: Job,
     )
 
-    private fun TestScope.newCache(
+    private suspend fun TestScope.newCache(
         storage: FakeEntitlementStorage = FakeEntitlementStorage(),
         clock: () -> Long = { INITIAL_CLOCK },
         graceTickIntervalMs: Long = 60_000L,

@@ -57,7 +57,14 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
             transientFailureMs = TimeUnit.HOURS.toMillis(6),
         ),
         productPredicate = { it.products.contains(TEST_PRODUCT_ID) },
-    ).also { it.start(viewModelScope) }
+        logger = BillingLogger.Android,
+    ).also {
+        // start() suspends until hydration completes — launch it from the
+        // ViewModel scope so init doesn't block, but the cache will be ready
+        // (state.value reflects the persisted snapshot) within a coroutine
+        // resume of viewModelScope's first dispatch.
+        viewModelScope.launch { it.start(viewModelScope) }
+    }
 
     private val _state = MutableStateFlow(SampleUiState())
     val state: StateFlow<SampleUiState> = _state.asStateFlow()

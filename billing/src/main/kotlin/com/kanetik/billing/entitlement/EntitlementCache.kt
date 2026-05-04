@@ -7,6 +7,8 @@ import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.PurchaseRevoked
 import com.kanetik.billing.exception.BillingErrorCategory
 import com.kanetik.billing.exception.BillingException
+import com.kanetik.billing.logging.BillingLogger
+import androidx.annotation.AnyThread
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -142,6 +144,7 @@ public class EntitlementCache(
     private val productPredicate: (Purchase) -> Boolean,
     private val clock: () -> Long = System::currentTimeMillis,
     private val graceTickIntervalMs: Long = DEFAULT_GRACE_TICK_INTERVAL_MS,
+    private val logger: BillingLogger = BillingLogger.Noop,
 ) {
     init {
         require(graceTickIntervalMs > 0) {
@@ -176,32 +179,44 @@ public class EntitlementCache(
     private val started = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
-     * Begins collecting from [purchasesUpdates] and ticking the grace clock
-     * inside [scope]. Hydrates from [storage] before the first emission so
-     * `state` reflects the persisted snapshot as soon as the suspending
-     * `read()` returns.
+     * Hydrates from [storage] and begins collecting from [purchasesUpdates] +
+     * ticking the grace clock inside [scope]. Suspends until hydration
+     * completes, so by the time [start] returns, `state.value` already
+     * reflects the persisted snapshot — callers that read `state` immediately
+     * after `start()` returns will see the hydrated value, not the default
+     * `Revoked`. A failed read is treated as "no prior snapshot" and logged
+     * via [logger]; the cache proceeds with the default `Revoked` state.
      *
-     * Returns the parent [Job] orchestrating both the upstream collector and
-     * the grace tick. Cancel the returned job (or the [scope] itself) to
-     * stop the cache.
+     * Returns the parent [Job] orchestrating the upstream collector and the
+     * grace tick. Cancel the returned job (or the [scope] itself) to stop
+     * the cache.
      *
      * Calling [start] more than once on the same instance is a no-op for
-     * the second+ call: the latch returns the same start-was-called signal
-     * and the second [Job] completes immediately without launching a new
+     * the second+ call: the latch returns the start-was-called signal and
+     * the second [Job] completes immediately without launching a new
      * collector. Most apps create one cache per scope and start it once.
      */
-    public fun start(scope: CoroutineScope): Job = scope.launch {
+    @AnyThread
+    public suspend fun start(scope: CoroutineScope): Job {
         if (!started.compareAndSet(false, true)) {
             // Already started; second-call protection so a misbehaving caller
             // doesn't end up with N collectors all racing on the same upstream
-            // flow + N tick coroutines all writing to storage.
-            return@launch
+            // flow + N tick coroutines all writing to storage. Return a
+            // completed Job so callers that hold the return value see the
+            // expected "already done" semantic.
+            return Job().apply { complete() }
         }
+
         // Hydrate from storage first so state is consistent before we begin
-        // emitting transitions. A failed read shouldn't crash the cache —
-        // treat as "no prior snapshot" and proceed with the default Revoked
-        // state.
-        val initial = runCatching { storage.read() }.getOrNull()
+        // emitting transitions. Done here (in the suspend body) rather than
+        // inside the launched coroutine so callers reading `state.value`
+        // immediately after `start()` returns see the hydrated value, not
+        // the default Revoked — preventing the brief UI flicker that would
+        // otherwise happen on app start.
+        val initial = runCatching { storage.read() }.getOrElse { e ->
+            logger.e("EntitlementCache: failed to read snapshot from storage; proceeding with default Revoked state", e)
+            null
+        }
         if (initial != null) {
             mutex.withLock {
                 lastConfirmedSnapshot = initial
@@ -222,13 +237,15 @@ public class EntitlementCache(
         // ever completes normally, we cancel the tick so this start() Job can
         // finish too — without this, an infinite tick keeps the parent alive
         // forever even after the upstream is done.
-        val tickJob = launch { tickGraceWindow() }
-        try {
-            purchasesUpdates.collect { event ->
-                reduce(event)
+        return scope.launch {
+            val tickJob = launch { tickGraceWindow() }
+            try {
+                purchasesUpdates.collect { event ->
+                    reduce(event)
+                }
+            } finally {
+                tickJob.cancel()
             }
-        } finally {
-            tickJob.cancel()
         }
     }
 
@@ -378,12 +395,12 @@ public class EntitlementCache(
     private suspend fun transitionToGranted(snapshot: EntitlementSnapshot) {
         lastConfirmedSnapshot = snapshot
         _state.value = EntitlementState.Granted
-        runCatching { storage.write(snapshot) }
-        // We swallow storage write failures rather than crash the cache —
-        // an unreadable / unwritable storage layer shouldn't take down the
-        // user's premium UI. Consumers wanting durability guarantees should
-        // surface failures from inside their EntitlementStorage impl
-        // (logging, reporting to Crashlytics, etc.).
+        runCatching { storage.write(snapshot) }.onFailure { e ->
+            // We swallow rather than crash the cache — an unwritable storage
+            // layer shouldn't take down the user's premium UI — but log so
+            // integrators notice their EntitlementStorage impl is misbehaving.
+            logger.e("EntitlementCache: failed to write Granted snapshot to storage", e)
+        }
     }
 
     private suspend fun transitionToRevoked(snapshot: EntitlementSnapshot? = null) {
@@ -400,12 +417,15 @@ public class EntitlementCache(
             purchaseToken = lastConfirmedSnapshot?.purchaseToken,
         )
         lastConfirmedSnapshot = toPersist
-        runCatching { storage.write(toPersist) }
-        // We swallow storage write failures rather than crash the cache —
-        // an unreadable / unwritable storage layer shouldn't take down the
-        // user's premium UI. Consumers wanting durability guarantees should
-        // surface failures from inside their EntitlementStorage impl
-        // (logging, reporting to Crashlytics, etc.).
+        runCatching { storage.write(toPersist) }.onFailure { e ->
+            // Failure to persist Revoked is more serious than failure to
+            // persist Granted — the next process start could hydrate as
+            // Granted from the stale snapshot and the user would briefly see
+            // entitlement they no longer have. Log loudly; consumers wanting
+            // durability guarantees should surface this from inside their
+            // EntitlementStorage impl too.
+            logger.e("EntitlementCache: failed to write Revoked snapshot to storage; next process start may hydrate as Granted from stale snapshot", e)
+        }
         _state.value = EntitlementState.Revoked
     }
 
