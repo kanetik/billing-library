@@ -193,9 +193,10 @@ class BillingClientStorageRecoveredDedupeTest {
         val firstSeen = collectFirstRecovered(storage)
         assertThat(firstSeen.purchases).containsExactly(purchase)
 
-        // Consumer "handles" it. acknowledgedTokens.value updates, which
-        // causes the combine in purchasesUpdateFlow to re-filter the
-        // recovery cache for any subscriber.
+        // Consumer "handles" it. acknowledgedTokens.value updates to record
+        // the token as acked; no re-emission fires for existing subscribers
+        // (the filter only runs when _recoveredUpdates emits, not on every
+        // acknowledgedTokens change).
         storage.markAcknowledged("token-only")
 
         // Late subscriber attaches. The replay-1 cache on _recoveredUpdates
