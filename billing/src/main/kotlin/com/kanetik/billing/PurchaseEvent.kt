@@ -78,8 +78,12 @@ import com.android.billingclient.api.Purchase
  * [OwnedPurchases.Recovered] events **do replay** to a late subscriber via a
  * separate recovery channel with `replay = 1`. The auto-sweep can fire on
  * connect before the consumer's collector attaches; the replay ensures the
- * recovered purchase isn't lost. Re-emission for the *same* sweep happens
- * only across re-subscriptions, not after a fresh sweep replaces it.
+ * recovered purchase isn't lost. `observePurchaseUpdates()`'s `map` reads
+ * the library's internal acked-token set on each delivery and filters the
+ * cached snapshot against it, so a re-attached subscriber that has already
+ * handled the recovered purchase receives the cache re-filtered against the
+ * current acked set — not the stale pre-ack snapshot. See the
+ * [OwnedPurchases.Recovered] KDoc.
  */
 public sealed interface PurchaseEvent
 
@@ -178,31 +182,36 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * products never carry a `linkedPurchaseToken`, so IAP-only apps are
      * unaffected.
      *
-     * **`purchases` may be empty.** The sweep emits a `Recovered` event on
-     * *every* successful connection, including ones that find nothing — this
-     * keeps the replay cache fresh so a subscriber that attaches after a
-     * configuration change doesn't replay a stale recovery from a prior
-     * session. Treat empty as a no-op (`forEach { handle(it) }` over an
-     * empty list does nothing).
+     * **The library tracks acknowledged tokens internally and filters them
+     * out of `Recovered` at delivery time.** `BillingClientStorage` maintains
+     * a `MutableStateFlow<Set<String>>` of tokens passed through
+     * [com.kanetik.billing.BillingActions.acknowledgePurchase] /
+     * [com.kanetik.billing.BillingActions.consumePurchase] (including via
+     * [com.kanetik.billing.BillingActions.handlePurchase]). The recovery
+     * channel still holds the raw sweep result (including any acked tokens
+     * Play hasn't propagated yet) in its `replay = 1` cache, but
+     * `observePurchaseUpdates()`'s `map` reads the acked-token set on every
+     * delivery — so both fresh sweep emissions AND the replay slot delivered
+     * to a late subscriber are filtered against the current set. If every
+     * purchase in the cache is already acknowledged, the filter produces an
+     * empty `Recovered` which is dropped before delivery, so the subscriber
+     * sees nothing (rather than a stale `Recovered` for already-handled
+     * purchases). Consumers no longer need to maintain their own `Set<String>`
+     * dedupe. The set's lifetime is tied to the [BillingClientStorage]
+     * instance — typically the singleton repository's lifetime, often the
+     * process. Growth is bounded by purchase activity and is not cleared on
+     * connection-share teardown; in practice this is a handful of entries
+     * per session, but the docs are honest about the unbounded-in-theory
+     * shape so a long-lived process on a power user can't surprise a future
+     * maintainer.
      *
-     * **Dedupe by `purchaseToken` if you re-subscribe between sweeps.** Because
-     * the recovery channel uses `replay = 1`, a subscriber that re-attaches
-     * after successfully handling a recovered purchase will receive the same
-     * `Purchase` snapshot again — the snapshot is from before your handle
-     * call landed, so its `isAcknowledged` flag is still `false` and the
-     * library's [com.kanetik.billing.BillingActions.acknowledgePurchase]`(Purchase)`
-     * `isAcknowledged` short-circuit doesn't fire. Re-handling the snapshot
-     * surfaces a [HandlePurchaseResult.Failure]:
-     * `BillingException.DeveloperErrorException` for already-acknowledged
-     * non-consumables, `ItemNotOwnedException` for already-consumed consumables.
-     * Track handled tokens in a `Set<String>` to skip them deterministically;
-     * persist via `SavedStateHandle` (or similar) if the dedupe needs to
-     * survive process death.
+     * Idempotent handling is still a good idea if you trigger one-shot UX off
+     * `Recovered` (badge animations, analytics events, etc.) — but the
+     * dedupe `Set<String>` consumers used to need is no longer required.
      *
-     * **Only mark tokens as handled on [HandlePurchaseResult.Success]**, not
-     * on [HandlePurchaseResult.Failure]. A failure means the acknowledge /
-     * consume didn't land — the next sweep needs to see the purchase again
-     * to retry; suppressing the next replay would orphan it.
+     * **Only acknowledge / consume succeeds count as "handled".** A
+     * [HandlePurchaseResult.Failure] does not mark the token as acknowledged —
+     * the next sweep still surfaces the purchase so the consumer can retry.
      *
      * [Live] events do not need this dedupe — they go through a
      * separate `replay = 0` channel.

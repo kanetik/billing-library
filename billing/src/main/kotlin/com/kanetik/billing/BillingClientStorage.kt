@@ -16,14 +16,16 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
 internal class BillingClientStorage(
@@ -39,10 +41,10 @@ internal class BillingClientStorage(
      * Live PBL events and recovery-sweep events have different replay
      * requirements:
      *
-     *  - Live events (purchase flow Success/Canceled/etc., listener-driven)
+     *  - Live events (purchase flow Live/Canceled/etc., listener-driven)
      *    must NOT replay on re-subscription. A `repeatOnLifecycle` collector
      *    that re-attaches after a configuration change should not see the
-     *    last `Success` event again — re-running entitlement grants and
+     *    last `Live` event again — re-running entitlement grants and
      *    one-shot UX (confetti, toasts, analytics) on every rotation is the
      *    classic SharedFlow-replay footgun.
      *
@@ -66,12 +68,57 @@ internal class BillingClientStorage(
     private val _liveUpdates = MutableSharedFlow<PurchaseEvent>(replay = 0, extraBufferCapacity = 32)
 
     /**
+     * Tokens already acknowledged / consumed via [BillingActions.handlePurchase]
+     * (or the lower-level [BillingActions.acknowledgePurchase] /
+     * [BillingActions.consumePurchase]) during the lifetime of this
+     * [BillingClientStorage] instance. The Recovered branch of
+     * [purchasesUpdateFlow] reads this set synchronously inside its `map`
+     * transform (one snapshot per delivery), so the dedupe applies both to a
+     * fresh sweep result that races a concurrent ack landing AND to the
+     * replay-1 cache delivered to a late subscriber after the consumer has
+     * already handled the snapshot. Note: updates to this set do *not*
+     * trigger re-emission to existing subscribers — they were the ones who
+     * acked the purchase, so they already know — and the next sweep emission
+     * (or a late subscriber's first read) is when the new state takes effect
+     * downstream.
+     *
+     * Lifetime: tied to this [BillingClientStorage] instance — typically the
+     * lifetime of whatever holds the singleton [BillingRepository] (process
+     * lifetime for app-level DI, ViewModel lifetime for ViewModel-scoped
+     * setups). [SharingStarted.WhileSubscribed] only restarts the upstream
+     * connection flow when subscribers come and go; it does NOT recreate this
+     * `BillingClientStorage` instance, so the set survives connection
+     * teardowns. Growth is bounded by purchase activity (~50 bytes per token);
+     * a typical user accumulates a handful of entries per session, but a
+     * very long-lived process (months without a kill) on a power user with
+     * many distinct purchases could accumulate hundreds — small in absolute
+     * terms but technically unbounded. If real-world usage ever surfaces
+     * pressure, the right fix is a public clear/reset API or a periodic
+     * eviction tied to disconnect.
+     */
+    private val acknowledgedTokens = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Records [token] as acknowledged / consumed. Updates [acknowledgedTokens]
+     * synchronously; the next time [purchasesUpdateFlow] delivers from the
+     * recovery cache to any subscriber (a fresh sweep emission, or a late
+     * subscriber attaching), the in-flight `map` reads the new set value and
+     * filters the token out. Existing subscribers won't be re-notified about
+     * the now-acked snapshot — they were the ones who handled it, so they
+     * already know.
+     */
+    internal fun markAcknowledged(token: String) {
+        acknowledgedTokens.update { it + token }
+    }
+
+    /**
      * Recovery-sweep events. Typed narrower as [OwnedPurchases.Recovered] —
-     * the only thing emitted on this channel is the sweep result, so the
-     * narrower type both documents intent and lets the downstream
-     * [distinctUntilChanged] predicate read `purchases` directly without
-     * narrowing. Replay = 1 so a late subscriber catches the most recent
-     * sweep.
+     * the only thing emitted on this channel is the sweep result. Replay = 1
+     * so a late subscriber gets a fresh sweep snapshot to filter against
+     * [acknowledgedTokens] in the downstream `map`. The sweep always emits its
+     * raw result here (no upstream dedupe); filtering happens downstream in
+     * [purchasesUpdateFlow]
+     * so the cache always reflects current Play state.
      */
     private val _recoveredUpdates = MutableSharedFlow<OwnedPurchases.Recovered>(replay = 1, extraBufferCapacity = 4)
 
@@ -83,28 +130,43 @@ internal class BillingClientStorage(
      * exactly what the channel split provides, and exposing a SharedFlow at the
      * top would re-introduce the single-replay-slot problem the split solves.
      *
-     * The surgical [distinctUntilChanged] predicate collapses *only* consecutive
-     * empty [OwnedPurchases.Recovered] emissions. The recovery sweep emits
-     * `Recovered(emptyList())` on every successful connection (to keep the
-     * replay cache fresh against stale snapshots); on an unstable connection
-     * that flips repeatedly, those empties would otherwise stream through to
-     * active collectors as redundant no-ops. Everything else passes through
-     * unchanged: non-empty [OwnedPurchases.Recovered] emissions (consecutive
-     * identical ones represent legitimate retry signals — the previous handle
-     * attempt failed and the next sweep needs to surface the purchase again),
-     * and all live events including consecutive identical [FlowOutcome.Canceled]
-     * / [FlowOutcome.ItemAlreadyOwned] / etc. (each represents a distinct user
-     * purchase attempt that consumers may log, count, or reset UI state on
-     * independently). Replay-on-new-subscribe is unaffected — the dedupe is
-     * downstream of the SharedFlows.
+     * The Recovered branch is `map`ped through a synchronous read of
+     * [acknowledgedTokens], so the dedupe applies *at delivery time* rather
+     * than at sweep-emission time. That's the difference that closes the
+     * late-subscriber footgun: even if the consumer acks a purchase between
+     * the sweep emission and a late subscriber attaching, the late subscriber
+     * receives the cached sweep result re-filtered against the current
+     * acked-token set — not the stale pre-ack snapshot. Empty Recovered
+     * (intrinsic or filtered-to-empty) is dropped via `filterNot`.
+     *
+     * Why `map { acknowledgedTokens.value }` and not `combine(acknowledgedTokens)`:
+     * `combine` would re-emit on every [acknowledgedTokens] update, requiring
+     * `distinctUntilChanged` to suppress redundant emissions — and that
+     * `distinctUntilChanged` would also suppress sweep N+1 with the same
+     * content as sweep N, killing the retry signal that consumers rely on
+     * when their handler fails on a recovered purchase. The `map`-with-value
+     * approach only re-emits when [_recoveredUpdates] itself emits (a fresh
+     * sweep), so consecutive identical sweep results pass through (retry
+     * signal preserved) while late subscribers still get the dynamic filter
+     * (their first delivery applies the current acked set).
+     *
+     * Live events bypass the filter (they aren't replayed and don't carry
+     * the same stale-snapshot risk).
      */
-    val purchasesUpdateFlow: Flow<PurchaseEvent> =
-        merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged { old, new ->
-            old is OwnedPurchases.Recovered &&
-                new is OwnedPurchases.Recovered &&
-                old.purchases.isEmpty() &&
-                new.purchases.isEmpty()
-        }
+    val purchasesUpdateFlow: Flow<PurchaseEvent> = merge(
+        _liveUpdates,
+        _recoveredUpdates
+            .map { recovered ->
+                // Snapshot acknowledgedTokens.value once per delivery so the
+                // filter can't see a partial update if markAcknowledged runs
+                // concurrently mid-iteration. (StateFlow.value reads are
+                // atomic, so the snapshot is itself safe to read; the local
+                // just bounds the filter to a single consistent set.)
+                val acked = acknowledgedTokens.value
+                OwnedPurchases.Recovered(recovered.purchases.filterNot { it.purchaseToken in acked })
+            }
+            .filterNot { it.purchases.isEmpty() }
+    )
 
     /*
      * Billing connection sharing strategy
@@ -189,10 +251,12 @@ internal class BillingClientStorage(
      * — `runCatching` / `catch (Throwable)` would swallow it.
      *
      * Idempotency: once the consumer's collector acknowledges / consumes a
-     * purchase, Play marks `isAcknowledged = true` (or removes the consumed
-     * purchase) and subsequent sweeps skip it. A narrow window between emit
-     * and ack landing exists, but `acknowledgePurchase(Purchase)`'s
-     * `isAcknowledged` short-circuit absorbs the duplicate in the common case.
+     * purchase, the token is recorded via [markAcknowledged] and filtered
+     * out of subsequent emissions for the lifetime of this storage instance.
+     * Play also eventually marks `isAcknowledged = true` (or removes the
+     * consumed purchase) so re-queries naturally stop returning it; the
+     * internal tracker covers the propagation gap and the replay-1
+     * re-emission case.
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         // v0.1.x limitation: SUBS purchases are emitted through the same
@@ -244,9 +308,9 @@ internal class BillingClientStorage(
             //
             // (a) is final. The only option where the library never emits
             // misleading state — replay always reflects a fully-successful
-            // prior sweep, and the consumer-side dedupe pattern is needed
-            // only for cross-sweep stale handling (re-subscribe after
-            // handling), not for transient-failure correctness. (b) loses
+            // prior sweep. The internal acknowledged-token tracker now
+            // handles cross-sweep stale-snapshot dedupe, so consumers don't
+            // need a `Set<String>` for that case either. (b) loses
             // data; (c) emits stale-as-fresh. (a) just delays — bounded by
             // retry, with the previous Recovered preserved as a defensive
             // floor.
@@ -267,13 +331,21 @@ internal class BillingClientStorage(
             }
 
             val unacknowledged = inApp.getOrThrow() + subs.getOrThrow()
-            if (unacknowledged.isNotEmpty()) {
-                logger.d("Recovery sweep result: ${unacknowledged.size} unacknowledged purchase(s)")
-            }
-            // Always emit on a complete sweep (even when empty) so the replay
-            // cache stays fresh against stale prior emissions.
-            // Suspending emit (not tryEmit) so a transient buffer-full doesn't
-            // silently drop a recovery event.
+            // Always emit the raw sweep result so the replay-1 cache reflects
+            // current Play state. Filtering against acknowledgedTokens happens
+            // downstream inside purchasesUpdateFlow's `map` (snapshotting the
+            // acked set per delivery), so a late subscriber sees the cached
+            // sweep result re-filtered against the current acked set — not
+            // whatever was visible at sweep time. Doing the filter at
+            // delivery time (rather than emission time) is what closes the
+            // late-subscriber footgun: even if the consumer acks a purchase
+            // between this emit and a late subscriber attaching, the late
+            // subscriber's first read goes through the map and gets the
+            // up-to-date filtered Recovered.
+            //
+            // Suspending emit (not tryEmit) so a transient buffer-full
+            // doesn't silently drop a recovery event.
+            logger.d("Recovery sweep result: ${unacknowledged.size} purchase(s) (raw, pre-filter)")
             _recoveredUpdates.emit(OwnedPurchases.Recovered(unacknowledged))
         } catch (ce: CancellationException) {
             throw ce

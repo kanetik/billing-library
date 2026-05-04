@@ -256,6 +256,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sample** updated to handle both `OwnedPurchases.Live` and
   `OwnedPurchases.Recovered`, plus a single `is FlowOutcome` arm covering
   the attempt-outcome variants.
+- **Recovered events now suppress already-acknowledged purchase tokens
+  internally; consumer-side dedupe of Recovered is no longer necessary.**
+  `BillingClientStorage` tracks tokens passed through
+  `acknowledgePurchase` / `consumePurchase` / `handlePurchase` for its
+  own instance lifetime (typically the singleton repository, often the
+  process). The recovery channel keeps its `replay = 1` cache (reflecting
+  the latest sweep's raw result), but `observePurchaseUpdates()` filters
+  the cached snapshot against the acked-token set at delivery time (a
+  synchronous `map` reads the current set per emission) — so a late
+  subscriber that attaches *after* the consumer has already handled the
+  recovered purchase receives the cached sweep result re-filtered against
+  the current acked set, not the stale pre-ack snapshot. Empty `Recovered`
+  (intrinsic or filtered-to-empty) is dropped before delivery. Late
+  subscribers no longer need to maintain a `Set<String>` of handled
+  tokens to dedupe replay.
 
 ### Migration notes
 

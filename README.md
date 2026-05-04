@@ -147,28 +147,22 @@ The library handles this for you. On every fresh Play Billing connection (app st
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
-A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). The library's `acknowledgePurchase(Purchase)` `isAcknowledged` short-circuit doesn't fire on the stale snapshot, so re-running `handlePurchase` issues a duplicate acknowledge/consume call to Play — already-acknowledged non-consumables surface `DeveloperErrorException`, already-consumed consumables surface `ItemNotOwnedException`. Both arrive as `HandlePurchaseResult.Failure`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
+The library handles `Recovered` dedupe for you. `BillingActions.handlePurchase` (and the lower-level `acknowledgePurchase` / `consumePurchase`) records the purchase token after the underlying acknowledge or consume call lands successfully against Play. The recovery channel still has `replay = 1` so the cache reflects current Play state, but `observePurchaseUpdates()` filters the cached snapshot against the acked-token set *at delivery time* (via a synchronous `map` that reads the current set per emission) — so even a late subscriber that attaches after you've already handled the purchase receives the cached sweep result re-filtered against the current acked set, not the stale pre-ack snapshot. Empty `Recovered` (intrinsic or filtered-to-empty) is dropped before delivery. There's nothing to dedupe in your collector:
 
 ```kotlin
-private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
-
 is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
-    if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success -> {
-            grantEntitlement(purchase)  // recovery is the whole point — actually grant
-            handledRecoveredTokens.update { it + purchase.purchaseToken }
-        }
+        HandlePurchaseResult.Success -> grantEntitlement(purchase)
         is HandlePurchaseResult.Failure -> {
-            // Don't mark as handled — leave it for the next sweep to retry.
             // Surface the error if you want, but DO NOT grant entitlement.
+            // Token is not marked as handled — the next sweep retries.
         }
         HandlePurchaseResult.NotPurchased -> {}
     }
 }
 ```
 
-(Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
+You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — but the `Set<String>` dedupe consumers used to need against `replay = 1` re-emission is no longer required. Tracking lives for the singleton repository's lifetime (typically the process), bounded by purchase activity; a fresh sweep on reconnect re-queries Play and surfaces only genuinely-unacked tokens. (Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
 
 ```kotlin
 billing.observePurchaseUpdates().collect { event ->
@@ -179,11 +173,9 @@ billing.observePurchaseUpdates().collect { event ->
         }
         is OwnedPurchases.Recovered -> {
             // Same handle() call as Live — but no confetti. Background recovery,
-            // not a fresh purchase. NOTE: `Recovered` replays its most recent
-            // snapshot to re-subscribed collectors (config change, etc.) with
-            // `isAcknowledged = false` even after you handle them. Dedupe by
-            // `purchase.purchaseToken` in real apps — see "Purchase recovery"
-            // below for the full pattern.
+            // not a fresh purchase. The library tracks acknowledged tokens internally
+            // and suppresses replay of `Recovered` for already-handled purchases —
+            // you don't need a consumer-side `Set<String>` dedupe.
             event.purchases.forEach { handle(it) }
         }
         is FlowOutcome -> { /* sub-when on Pending / Canceled / etc. */ }
@@ -240,9 +232,9 @@ private suspend fun handle(purchase: Purchase) {
 `observePurchaseUpdates()` is internally a merge of two channels:
 
 - **Live events** (`OwnedPurchases.Live` and every `FlowOutcome` variant — `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
-- **Recovery events** (`OwnedPurchases.Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
+- **Recovery events** (`OwnedPurchases.Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up. The library tracks tokens passed through `acknowledgePurchase` / `consumePurchase` / `handlePurchase` and filters them out of subsequent `Recovered` emissions; `Recovered` events that filter to empty (or are intrinsically empty) are suppressed entirely. A re-subscribed collector that already handled the recovered purchase does not see the stale snapshot again.
 
-You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `OwnedPurchases.Live` branch and you'll see it exactly once per purchase, even across rotations. The `OwnedPurchases.Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
+You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `OwnedPurchases.Live` branch and you'll see it exactly once per purchase, even across rotations. You also don't need to dedupe the `OwnedPurchases.Recovered` branch for `replay = 1` re-emission of already-handled purchases (the library does that). Still treat `Recovered` idempotently if you trigger one-shot UX off it for other state-machine reasons (badge animations, analytics events, etc.).
 
 ## API overview
 
