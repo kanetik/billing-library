@@ -113,11 +113,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `replay = 1` re-emissions on re-subscribe). See the README "Purchase
   recovery" section for the full pattern.
 
+- **`HandlePurchaseResult` sealed class gained a new `AlreadyAcknowledged`
+  subtype.** Same story as the other sealed-type additions in this release:
+  exhaustive `when (r: HandlePurchaseResult) { ... }` without an `else`
+  branch becomes a Kotlin source break. Migration: add a branch for
+  `HandlePurchaseResult.AlreadyAcknowledged` — typically map it to the
+  same grant call as `Success` (it's entitlement-equivalent), and
+  optionally log it distinctly so telemetry can separate "we just acked"
+  from "it was already done". See the README
+  "Handling `handlePurchase` failures correctly" section.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
-  `Success`, `NotPurchased`, `Failure(exception)`. See the breaking-change
-  note above.
+  `Success`, `AlreadyAcknowledged(purchase)`, `NotPurchased`,
+  `Failure(exception)`. See the breaking-change note above.
+- **`HandlePurchaseResult.AlreadyAcknowledged(purchase)` variant** —
+  returned by `handlePurchase(purchase, consume = false)` when
+  `purchase.isAcknowledged` is already `true`. The library short-circuits
+  before reaching out to PBL (no acknowledge call is made), closing the
+  recovery hole where calling acknowledge on an already-acked purchase
+  surfaced `Failure(DeveloperErrorException)` and made "already acked"
+  indistinguishable from a real ack failure. Treat as entitlement-
+  equivalent to `Success`; log distinctly if telemetry needs to
+  separate the two. The `consume = true` path does not produce this
+  variant — consumables are consumed, not acknowledged, and Play
+  doesn't expose an `isConsumed` field on `Purchase` for a parallel
+  check.
 - **`BillingException.WrappedException(cause)` sealed subtype** — synthesized
   by `handlePurchase` when a custom `BillingActions` implementation throws
   something other than `BillingException` (an `IllegalStateException` from
@@ -157,6 +179,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`handlePurchase(purchase, consume = false)` no longer returns
+  `Failure(DeveloperErrorException)` for already-acknowledged purchases.**
+  The library now short-circuits at the top of `handlePurchase` when
+  `!consume && purchase.isAcknowledged` is true and returns the new
+  `HandlePurchaseResult.AlreadyAcknowledged(purchase)` variant — no PBL
+  call is made. Consumers can now safely untrack-on-Failure for retry
+  on the next recovery sweep without risking a permanent retry loop on
+  an already-acked purchase. `Failure` unambiguously means a transient
+  or terminal ack failure worth retrying. The `consume = true` path is
+  unchanged (consume always runs regardless of `isAcknowledged`, since
+  Play doesn't expose an `isConsumed` analog on `Purchase`).
 - **`handlePurchase` KDoc** now leads with the failure-handling consequence:
   *"do NOT grant entitlement unless this returns normally — Play will
   auto-refund within 3 days and the user's premium will silently evaporate."*

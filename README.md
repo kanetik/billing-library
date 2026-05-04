@@ -96,6 +96,7 @@ class CheckoutActivity : ComponentActivity() {
         // See "Handling handlePurchase failures correctly" below for the full pattern.
         return when (val r = billing.handlePurchase(purchase, consume = false)) {
             HandlePurchaseResult.Success -> { grantPremium(); true }
+            is HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
@@ -116,7 +117,7 @@ The library handles this for you. On every fresh Play Billing connection (app st
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
-A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). The library's `acknowledgePurchase(Purchase)` `isAcknowledged` short-circuit doesn't fire on the stale snapshot, so re-running `handlePurchase` issues a duplicate acknowledge/consume call to Play — already-acknowledged non-consumables surface `DeveloperErrorException`, already-consumed consumables surface `ItemNotOwnedException`. Both arrive as `HandlePurchaseResult.Failure`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
+A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribed collector receives the most recent `Recovered` snapshot again, and that snapshot's `Purchase` objects still have `isAcknowledged = false` (the snapshot is taken before your `handlePurchase` call lands). For the `consume = false` (non-consumable) path, `handlePurchase` short-circuits to `HandlePurchaseResult.AlreadyAcknowledged` if a *fresh* `Purchase` has `isAcknowledged = true` already — but the **stale** `Recovered` snapshot still carries `isAcknowledged = false`, so the short-circuit doesn't fire on the second emission. Re-running `handlePurchase` against the stale snapshot would issue a duplicate acknowledge/consume call to Play — already-acknowledged non-consumables surface `DeveloperErrorException`, already-consumed consumables surface `ItemNotOwnedException`. Both arrive as `HandlePurchaseResult.Failure`. Tracking handled tokens in a `Set<String>` (persisted via `SavedStateHandle` if you want to survive process death) is enough:
 
 ```kotlin
 private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
@@ -128,8 +129,19 @@ is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
             grantEntitlement(purchase)  // recovery is the whole point — actually grant
             handledRecoveredTokens.update { it + purchase.purchaseToken }
         }
+        is HandlePurchaseResult.AlreadyAcknowledged -> {
+            // The Purchase's isAcknowledged was already true — typical when
+            // a different surface (e.g. a server-driven reconcile) acked it
+            // between the sweep and our handle call. Treat as a grant and
+            // mark handled so we don't re-process it.
+            grantEntitlement(purchase)
+            handledRecoveredTokens.update { it + purchase.purchaseToken }
+        }
         is HandlePurchaseResult.Failure -> {
             // Don't mark as handled — leave it for the next sweep to retry.
+            // Now safe to untrack-on-Failure: Failure no longer overlaps
+            // with already-acked, so retrying won't loop forever on a
+            // DeveloperErrorException for a successfully-acked purchase.
             // Surface the error if you want, but DO NOT grant entitlement.
         }
         HandlePurchaseResult.NotPurchased -> {}
@@ -195,6 +207,7 @@ private suspend fun handle(purchase: Purchase) {
                 coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
             }
         }
+        is HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
         // never grant on Failure — recovery sweep retries on the next connection
@@ -306,16 +319,19 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 
 ### Handling `handlePurchase` failures correctly
 
-`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Don't grant entitlement outside the `Success` branch** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates.
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `AlreadyAcknowledged`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
 
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
     HandlePurchaseResult.Success -> grantPremium()
+    is HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
     // do NOT grant on Failure — the recovery sweep retries on next connect
 }
 ```
+
+The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase` already has `isAcknowledged = true` — the library short-circuits before reaching out to Play. Treat it as entitlement-equivalent to `Success`; it exists as a separate variant so consumers can distinguish "we just acked" from "it was already done" for logging / metrics, and so `Failure` no longer overlaps with `Failure(DeveloperErrorException)` from a redundant acknowledge call. **Consumers can now safely untrack-on-Failure for retry on the next recovery sweep** — `Failure` unambiguously means a transient or terminal ack failure worth retrying, never an "already-acked, this will fail forever" loop. The `consume = true` path does not produce `AlreadyAcknowledged` — consumables aren't acked, they're consumed, and Play doesn't expose an `isConsumed` field on `Purchase` for a parallel check.
 
 The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
@@ -403,6 +419,7 @@ billing.observePurchaseUpdates()
             // — this snippet shows just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
+                is HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
                 is HandlePurchaseResult.Failure -> {
                     // Don't grant — recovery sweep retries on the next clean connect.
