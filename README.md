@@ -553,6 +553,11 @@ class FcmRevocationReceiver : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val token = message.data["purchaseToken"] ?: return
+        // Message-type strings here are app-defined — what your backend chose
+        // to put in the FCM payload. They don't have to match RTDN's
+        // SUBSCRIPTION_REVOKED / SUBSCRIPTION_EXPIRED constants; the backend
+        // already decoded those before sending the FCM. Pick whatever's
+        // convenient for your backend ↔ client contract.
         val reason = when (message.data["type"]) {
             "REFUND" -> RevocationReason.Refunded
             "CHARGEBACK" -> RevocationReason.Chargeback

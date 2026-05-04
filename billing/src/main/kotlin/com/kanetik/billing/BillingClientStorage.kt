@@ -68,9 +68,11 @@ internal class BillingClientStorage(
      * not flow attempt outcome).
      *
      * Public exposure: [purchasesUpdateFlow] merges all three channels into
-     * one [Flow]. Late subscribers see the most recent recovery and the most
-     * recent revocation (if any) plus all future emissions from all three
-     * channels. Live events flow through with no replay.
+     * one [Flow]. Late subscribers see the most recent recovery sweep plus up
+     * to the last 16 cached revocations (the revocation channel is sized for
+     * the realistic FCM-burst case — see [_revocationUpdates]) plus all
+     * future emissions from all three channels. Live events flow through with
+     * no replay.
      */
 
     /** Live PBL events from the purchases-updated listener. No replay. */
