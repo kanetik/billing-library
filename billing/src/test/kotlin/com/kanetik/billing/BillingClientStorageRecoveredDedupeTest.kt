@@ -194,46 +194,31 @@ class BillingClientStorageRecoveredDedupeTest {
         val firstSeen = collectFirstRecovered(storage)
         assertThat(firstSeen.purchases).containsExactly(purchase)
 
-        // Consumer "handles" it.
+        // Consumer "handles" it. acknowledgedTokens.value updates, which
+        // causes the combine in purchasesUpdateFlow to re-filter the
+        // recovery cache for any subscriber.
         storage.markAcknowledged("token-only")
 
-        // Late subscriber attaches. The replay-1 cache still holds the
-        // pre-ack snapshot (we cannot retroactively scrub it — that's the
-        // intrinsic SharedFlow.replay behavior). The library's contract is
-        // that *new sweeps* filter the acked token; replay reflects whatever
-        // the most recent emission was.
-        //
-        // For the late-subscriber-doesn't-see-stale guarantee that matters
-        // most in practice: when a *new* sweep runs and finds the same
-        // unacked-from-Play's-perspective token, the dedupe filter suppresses
-        // the emission, so the replay-1 cache remains the previous (or empty)
-        // state and no fresh stale event reaches the late subscriber.
-        //
-        // Verify that by triggering a second sweep with the same purchase
-        // still reported by Play. The dedupe should suppress it; since it
-        // would be filtered to empty, no new emission overwrites the cache —
-        // so we explicitly test that a fresh sweep does NOT add a second
-        // emission to a continuing collector.
+        // Late subscriber attaches. The replay-1 cache on _recoveredUpdates
+        // still holds the pre-ack snapshot, but purchasesUpdateFlow combines
+        // it with acknowledgedTokens at delivery time — the combine produces
+        // Recovered(emptyList()), which filterNot drops, so the late
+        // subscriber sees nothing.
         val collectedAfterAck = mutableListOf<PurchaseEvent>()
         val job = launch {
             storage.purchasesUpdateFlow.collect { collectedAfterAck += it }
         }
-        // Drain the single replay slot first.
-        advanceUntilIdle()
-        // The replay-1 cache still has the prior emission, so collectedAfterAck
-        // sees it once. We then trigger another sweep by re-emitting Connected.
-        val initialReplay = collectedAfterAck.toList()
-        assertThat(initialReplay).hasSize(1)
-
-        // Re-emit Connected to drive a fresh sweep.
-        factory.emit(InternalConnectionState.Connected(client))
+        // Also drive the connection so the sweep / share-scope stays alive.
+        val connJob = launch { storage.connectionFlow.collect {} }
         repeat(3) { yield(); advanceUntilIdle() }
 
-        // No additional emission — the second sweep filtered to empty and
-        // was suppressed.
-        assertThat(collectedAfterAck).hasSize(1)
+        // Pre-ack stale snapshot is filtered out at delivery time — late
+        // subscriber sees zero emissions, not a re-replay of the now-acked
+        // purchase that would surface DeveloperErrorException on re-handle.
+        assertThat(collectedAfterAck).isEmpty()
 
         job.cancel()
+        connJob.cancel()
     }
 
     /**

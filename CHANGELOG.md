@@ -260,11 +260,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   internally; consumer-side dedupe of Recovered is no longer necessary.**
   `BillingClientStorage` tracks tokens passed through
   `acknowledgePurchase` / `consumePurchase` / `handlePurchase` for the
-  lifetime of the connection-share scope and filters them out of
-  `OwnedPurchases.Recovered` emissions. `Recovered` events that filter
-  to empty (or are intrinsically empty) are suppressed entirely — late
-  subscribers no longer need to maintain a `Set<String>` of handled
-  tokens to dedupe replay.
+  lifetime of the connection-share scope. The recovery channel keeps its
+  `replay = 1` cache (reflecting the latest sweep's raw result), but
+  `observePurchaseUpdates()` `combine`s the cache with the acked-token
+  set at delivery time — so a late subscriber that attaches *after* the
+  consumer has already handled the recovered purchase receives the cached
+  sweep result re-filtered against the current acked set, not the stale
+  pre-ack snapshot. Empty `Recovered` (intrinsic or filtered-to-empty)
+  is dropped before delivery. Late subscribers no longer need to
+  maintain a `Set<String>` of handled tokens to dedupe replay.
 
 ### Migration notes
 
