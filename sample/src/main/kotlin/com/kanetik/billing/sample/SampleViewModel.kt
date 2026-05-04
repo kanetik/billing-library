@@ -98,7 +98,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 appendLog("handlePurchase OK for ${purchase.products}")
                 true
             }
-            is HandlePurchaseResult.AlreadyAcknowledged -> {
+            HandlePurchaseResult.AlreadyAcknowledged -> {
                 // Branch is unreachable in the sample (consume=true never
                 // short-circuits on isAcknowledged), but the sealed type's
                 // exhaustiveness still requires the arm. For non-consumable
@@ -106,7 +106,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 // grant signal — entitlement-equivalent to Success — and
                 // log distinctly so telemetry can separate "we just acked"
                 // from "it was already done by a prior session / sweep".
-                appendLog("handlePurchase already-acked for ${outcome.purchase.products} (no PBL call made)")
+                appendLog("handlePurchase already-acked for ${purchase.products} (no PBL call made)")
                 true
             }
             HandlePurchaseResult.NotPurchased -> {

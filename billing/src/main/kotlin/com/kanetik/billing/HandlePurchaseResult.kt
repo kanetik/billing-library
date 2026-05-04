@@ -15,7 +15,7 @@ import com.kanetik.billing.exception.BillingException
  * ```
  * when (val r = billing.handlePurchase(purchase, consume = false)) {
  *     HandlePurchaseResult.Success -> grantPremium()              // safe: ack landed
- *     is HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // safe: ack already in place
+ *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium()    // safe: ack already in place
  *     HandlePurchaseResult.NotPurchased -> {}                     // pending — wait for terminal state
  *     is HandlePurchaseResult.Failure -> {
  *         // do NOT grant — auto-recovery sweep retries on next connect
@@ -87,7 +87,7 @@ public sealed class HandlePurchaseResult {
      * are consumed, and Play does not expose an `isConsumed` field on
      * [Purchase] for a parallel check.
      */
-    public data class AlreadyAcknowledged(val purchase: Purchase) : HandlePurchaseResult()
+    public data object AlreadyAcknowledged : HandlePurchaseResult()
 
     /**
      * The purchase wasn't in [Purchase.PurchaseState.PURCHASED] state. Two

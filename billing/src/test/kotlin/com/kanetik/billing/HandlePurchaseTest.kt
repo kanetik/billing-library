@@ -50,8 +50,7 @@ class HandlePurchaseTest {
 
         val result = actions.handlePurchase(purchase, consume = false)
 
-        assertThat(result).isInstanceOf(HandlePurchaseResult.AlreadyAcknowledged::class.java)
-        assertThat((result as HandlePurchaseResult.AlreadyAcknowledged).purchase).isSameInstanceAs(purchase)
+        assertThat(result).isEqualTo(HandlePurchaseResult.AlreadyAcknowledged)
         // Most important assertion: the library did NOT reach out to PBL.
         assertThat(actions.acknowledged).isEmpty()
         assertThat(actions.consumed).isEmpty()

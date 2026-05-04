@@ -129,7 +129,7 @@ public interface BillingActions {
      * ```
      * when (val r = billing.handlePurchase(purchase, consume = false)) {
      *     HandlePurchaseResult.Success -> grantPremium()
-     *     is HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made
+     *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made
      *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
      *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
      * }
@@ -218,7 +218,7 @@ public interface BillingActions {
             // consumers). consume=true does NOT get this short-circuit —
             // consumables aren't acked, they're consumed, and Play doesn't
             // expose isConsumed on Purchase for a parallel check.
-            return HandlePurchaseResult.AlreadyAcknowledged(purchase)
+            return HandlePurchaseResult.AlreadyAcknowledged
         }
         return try {
             if (consume) {

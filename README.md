@@ -97,7 +97,7 @@ class CheckoutActivity : ComponentActivity() {
         // See "Handling handlePurchase failures correctly" below for the full pattern.
         return when (val r = billing.handlePurchase(purchase, consume = false)) {
             HandlePurchaseResult.Success -> { grantPremium(); true }
-            is HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
+            HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
@@ -160,7 +160,7 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
             grantEntitlement(purchase)  // recovery is the whole point — actually grant
             handledRecoveredTokens.update { it + purchase.purchaseToken }
         }
-        is HandlePurchaseResult.AlreadyAcknowledged -> {
+        HandlePurchaseResult.AlreadyAcknowledged -> {
             // Not reachable from a Recovered snapshot in practice — the sweep
             // pre-filters PURCHASED && !isAcknowledged, so the local
             // isAcknowledged flag is false and handlePurchase doesn't
@@ -246,7 +246,7 @@ private suspend fun handle(purchase: Purchase) {
                 coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
             }
         }
-        is HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
+        HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
         // never grant on Failure — recovery sweep retries on the next connection
@@ -363,7 +363,7 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
     HandlePurchaseResult.Success -> grantPremium()
-    is HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
+    HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
     // do NOT grant on Failure — the recovery sweep retries on next connect
@@ -460,7 +460,7 @@ billing.observePurchaseUpdates()
             // — this snippet shows just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
-                is HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
+                HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
                 is HandlePurchaseResult.Failure -> {
                     // Don't grant — recovery sweep retries on the next clean connect.

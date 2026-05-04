@@ -202,9 +202,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
-  `Success`, `AlreadyAcknowledged(purchase)`, `NotPurchased`,
-  `Failure(exception)`. See the breaking-change note above.
-- **`HandlePurchaseResult.AlreadyAcknowledged(purchase)` variant** —
+  `Success`, `AlreadyAcknowledged`, `NotPurchased`, `Failure(exception)`.
+  See the breaking-change note above.
+- **`HandlePurchaseResult.AlreadyAcknowledged` variant** (`data object`) —
   returned by `handlePurchase(purchase, consume = false)` when
   `purchase.isAcknowledged` is already `true`. The library short-circuits
   before reaching out to PBL (no acknowledge call is made), closing the
@@ -259,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Failure(DeveloperErrorException)` for already-acknowledged purchases.**
   The library now short-circuits at the top of `handlePurchase` when
   `!consume && purchase.isAcknowledged` is true and returns the new
-  `HandlePurchaseResult.AlreadyAcknowledged(purchase)` variant — no PBL
+  `HandlePurchaseResult.AlreadyAcknowledged` variant — no PBL
   call is made. Consumers can now safely untrack-on-Failure for retry
   on the next recovery sweep without risking a permanent retry loop on
   an already-acked purchase. `Failure` unambiguously means a transient
