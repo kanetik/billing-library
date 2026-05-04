@@ -199,6 +199,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from "it was already done". See the README
   "Handling `handlePurchase` failures correctly" section.
 
+- **`PurchaseEvent` gained a third top-level variant: `PurchaseRevoked`.**
+  Same exhaustiveness story as the two-tier split above — `when (event)`
+  sites need a `is PurchaseRevoked -> ...` arm. `PurchaseRevoked` is **not**
+  nested under `OwnedPurchases` or `FlowOutcome`: it's neither owned-state
+  nor a flow-attempt outcome but a third category (external signal), and it
+  carries no `Purchase` objects (the source is a server-side notification
+  carrying a `purchaseToken`, not a re-issued PBL callback). Branch on
+  `event.purchaseToken` and `event.reason` (a `RevocationReason` enum) and
+  revoke the matching entitlement. The library does not emit `PurchaseRevoked`
+  itself; it surfaces events the consumer pushes via the new
+  `BillingRepository.emitExternalRevocation` API (see Added below). See the
+  README "Server-driven revocation" section for the full pattern.
+
+- **`BillingRepository` interface gained a `suspend emitExternalRevocation(purchaseToken, reason)`
+  method.** Source break for any consumer implementing `BillingRepository`
+  directly (rare — most consumers use `BillingRepositoryCreator.create(...)`,
+  which returns the library-provided implementation). Custom implementations
+  must add the new method; the simplest pass-through is to delegate to a
+  `MutableSharedFlow<PurchaseRevoked>` that feeds into the `PurchaseEvent`
+  stream backing `observePurchaseUpdates()`.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
@@ -252,6 +273,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user-initiated purchases (fire confetti) from background recovery (silent).
   Handle code is identical to `Live` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
+- **`PurchaseRevoked(purchaseToken, reason)` top-level `PurchaseEvent`
+  variant + `RevocationReason` enum** (`Refunded`, `Chargeback`,
+  `SubscriptionExpired`, `Other`) — synthetic revocation event for
+  server-driven entitlement reversals (refunds, chargebacks, etc.). Sits
+  alongside `OwnedPurchases` and `FlowOutcome` as a third `PurchaseEvent`
+  category rather than nested under either, because it's neither owned
+  state nor a flow-attempt outcome. Carries no `Purchase` object
+  (revocations originate from a server-side notification, not a re-issued
+  PBL callback); branch on `purchaseToken` directly. The library does not
+  emit `PurchaseRevoked` itself.
+- **`BillingRepository.emitExternalRevocation(purchaseToken, reason)`** —
+  transport-agnostic emit API. The library does not subscribe to FCM, RTDN,
+  Pub/Sub, or any server-side channel; consumers wiring up RTDN→FCM
+  ingestion (or polling, or deeplinks) decode the payload and call this
+  method. Routed through a dedicated `replay = 16` channel (separate from
+  the `OwnedPurchases.Recovered` channel, since the recovery channel is
+  typed narrower than `PurchaseEvent`) so up to 16 revocations arriving
+  before a subscriber attaches survive — sized for the realistic FCM-burst
+  case (multi-product chargebacks, several revocations decoded at process
+  start). See the README "Server-driven revocation" section.
 
 ### Changed
 
@@ -308,9 +349,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Migration notes
 
 `PurchasesUpdate` is gone — replaced by the `PurchaseEvent` marker
-interface and its two sealed roots (`OwnedPurchases`, `FlowOutcome`).
-Existing `when (update: PurchasesUpdate) { ... }` sites need to switch
-to the new types:
+interface, its two sealed roots (`OwnedPurchases`, `FlowOutcome`), and the
+top-level `PurchaseRevoked` variant. Existing
+`when (update: PurchasesUpdate) { ... }` sites need to switch to the new
+types and add the third arm:
 
 ```kotlin
 when (event) {
@@ -321,13 +363,19 @@ when (event) {
     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
     is FlowOutcome.ItemUnavailable -> showSoldOut()
     is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+    is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
 }
 ```
 
 The handle/grant code is the same for `Live` and `Recovered`. **Do not
 write `event.purchases` to your entitlement cache from any `FlowOutcome`
 branch** — those events describe attempt outcomes, not owned state. See
-the README "Two-tier `PurchaseEvent`" callout under Quick start.
+the README "Two-tier `PurchaseEvent`" callout under Quick start. The
+`PurchaseRevoked` arm is new — wire it to whatever revocation flow (clear
+the premium flag, kick to a paywall, log for audit, etc.) makes sense for
+your app. The library does not emit `PurchaseRevoked` on its own; events
+arrive only when the consumer pushes them via
+`BillingRepository.emitExternalRevocation`.
 
 ## [0.1.0] - 2026-04-30
 
