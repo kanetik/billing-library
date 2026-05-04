@@ -173,8 +173,8 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
         is HandlePurchaseResult.Failure -> {
             // Don't mark as handled — leave it for the next sweep to retry.
             // For *fresh* Purchase objects, Failure no longer overlaps with
-            // already-acked (the short-circuit short-circuits before PBL is
-            // called), so retrying on transient failures is safe. The one
+            // already-acked (the library short-circuits before calling Play),
+            // so retrying on transient failures is safe. The one
             // remaining DeveloperErrorException case is a stale snapshot:
             // a Recovered replay whose Purchase still has isAcknowledged=false
             // locally but is acknowledged on Play's side. That stale snapshot
