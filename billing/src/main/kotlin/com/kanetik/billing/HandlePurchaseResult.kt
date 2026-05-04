@@ -82,7 +82,7 @@ public sealed class HandlePurchaseResult {
      *  - **`PENDING`** (the common case): asynchronous payment in flight —
      *    cash at convenience store, deferred billing, slow-network bank
      *    transfer. **Do not grant entitlement.** Play will fire a separate
-     *    [com.kanetik.billing.PurchasesUpdate.Success] update for the
+     *    [com.kanetik.billing.OwnedPurchases.Live] update for the
      *    *same* purchase token when the payment confirms (or the purchase
      *    drops out entirely if it cancels). Wait for that.
      *
@@ -110,7 +110,7 @@ public sealed class HandlePurchaseResult {
      * at its default (`true`):
      *  - **Default (`true`)**: the unacknowledged purchase is picked up by
      *    the auto-recovery sweep on the next successful Play Billing
-     *    connection (see [com.kanetik.billing.PurchasesUpdate.Recovered])
+     *    connection (see [com.kanetik.billing.OwnedPurchases.Recovered])
      *    and re-emitted to your collector. Re-call `handlePurchase` from
      *    your `Recovered` branch to retry.
      *  - **Opt-out (`recoverPurchasesOnConnect = false` on
