@@ -7,6 +7,8 @@ import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
+import com.kanetik.billing.PurchaseRevoked
+import com.kanetik.billing.RevocationReason
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.fakePurchase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -64,8 +66,13 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Recovered with no matching purchase after Granted baseline transitions to Revoked`() = runTest {
-        // Pre-seed storage so the cache hydrates as Granted, establishing baseline.
+    fun `Recovered with no matching purchase does NOT revoke a Granted snapshot`() = runTest {
+        // Recovered emits only PURCHASED && !isAcknowledged, filtered against
+        // the library's acknowledgedTokens set (PR #10). An already-acked
+        // entitling purchase will never appear in Recovered; treating an
+        // empty Recovered as "Play revoked the entitlement" would falsely
+        // revoke entitled-but-acked users. The cache treats Recovered as
+        // grant-only — see EntitlementCache class KDoc.
         val storage = FakeEntitlementStorage(
             initial = EntitlementSnapshot(
                 isEntitled = true,
@@ -78,13 +85,51 @@ class EntitlementCacheTest {
         // Sanity: we hydrated from the snapshot.
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
-        // Recovered with no match means Play says we don't own it any more.
+        // An empty Recovered (e.g. all owned purchases are already acked,
+        // so they're filtered out) must NOT revoke. Same for a Recovered
+        // carrying unrelated unacked purchases.
         updates.emit(OwnedPurchases.Recovered(emptyList()))
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = "different-product"))))
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `PurchaseRevoked matching the cached purchaseToken transitions to Revoked`() = runTest {
+        val (cache, updates, _, _, job) = newCache()
+        // Establish Granted baseline.
+        val purchase = fakePurchase(productId = premiumProductId, purchaseToken = "premium-tok")
+        updates.emit(OwnedPurchases.Live(listOf(purchase)))
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        // Consumer's RTDN→FCM pipeline pushes a revocation for our cached purchase.
+        updates.emit(PurchaseRevoked(purchaseToken = "premium-tok", reason = RevocationReason.Refunded))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
-        assertThat(storage.lastWritten?.isEntitled).isEqualTo(false)
-        assertThat(storage.lastWritten?.purchaseToken).isNull()
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `PurchaseRevoked for a different token does not affect cached state`() = runTest {
+        val (cache, updates, _, _, job) = newCache()
+        val purchase = fakePurchase(productId = premiumProductId, purchaseToken = "premium-tok")
+        updates.emit(OwnedPurchases.Live(listOf(purchase)))
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        // Revocation arrives for an unrelated purchase the consumer is also tracking.
+        updates.emit(PurchaseRevoked(purchaseToken = "some-other-tok", reason = RevocationReason.Chargeback))
+        runCurrent()
+
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
         job.cancelAndJoin()
     }

@@ -409,7 +409,12 @@ Use `EntitlementCache` when you want a simple `is the user entitled right now?` 
 
 Skip it if you have your own state machine you're already happy with, or if you need behavior the cache deliberately doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
 
-The cache reacts to `OwnedPurchases.Live`, `OwnedPurchases.Recovered`, and `FlowOutcome.Failure`. The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are intentionally no-ops — they don't change owned-purchase state, and `Pending` explicitly must not grant entitlement (per Play's rules). Refund / revocation handling lands once the sibling `PurchaseRevoked` variant ships.
+The cache reacts to four event paths:
+- `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke — `Live` can carry empty/UNSPECIFIED_STATE callbacks or unrelated products, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
+- `FlowOutcome.Failure` triggers `InGrace` (or transitions straight to `Revoked` if the policy window is zero or has already elapsed since the last confirmation).
+- `PurchaseRevoked` matched against `lastConfirmedSnapshot.purchaseToken` transitions to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline (or whatever transport carries refund/chargeback signals); see "Server-driven revocation".
+
+The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are intentionally no-ops — they don't change owned-purchase state, and `Pending` explicitly must not grant entitlement (per Play's rules).
 
 ### Storage is your responsibility
 
@@ -424,11 +429,11 @@ interface EntitlementStorage {
 
 `EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `read()` once on `start()` to hydrate, then `write()` on every entitlement-affecting transition. `InGrace` is **not** persisted — grace re-derives from the most recent confirmed `confirmedAtMs` on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.
 
-If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), implement `read` / `write` against a signed-prefs layer keyed off a server-issued secret. The cache trusts what storage returns. For most apps the on-device storage is fine — Play already enforces the authoritative entitlement state on the next successful connect via `OwnedPurchases.Recovered`, so a tampered snapshot gets overwritten the next time the user has connectivity.
+If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), implement `read` / `write` against a signed-prefs layer keyed off a server-issued secret. The cache trusts what storage returns. For most apps the on-device storage is fine — a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement.
 
 ### Wiring the connection
 
-`EntitlementCache` consumes `observePurchaseUpdates()`, which on its own does not hold the underlying Play Billing connection open. Pair the cache with `BillingConnectionLifecycleManager` (or your own `connectToBilling()` collector) so the connection stays warm and the recovery sweep on connect can fire — that sweep is what produces the `PurchasesUpdate.Recovered` events the cache uses to confirm or revoke entitlement.
+`EntitlementCache` consumes `observePurchaseUpdates()`, which on its own does not hold the underlying Play Billing connection open. Pair the cache with `BillingConnectionLifecycleManager` (or your own `connectToBilling()` collector) so the connection stays warm and the recovery sweep on connect can fire — that sweep is what produces the `OwnedPurchases.Recovered` events the cache uses to confirm entitlement after process restarts.
 
 ## Lifecycle integration
 

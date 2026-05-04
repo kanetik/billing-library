@@ -89,18 +89,30 @@ import kotlinx.coroutines.sync.withLock
  *
  * ## Sealed-when handling
  *
- * The cache reacts to [OwnedPurchases.Live], [OwnedPurchases.Recovered], and
- * [FlowOutcome.Failure]. The remaining [FlowOutcome] variants ([FlowOutcome.Pending],
+ * The cache reacts to four event paths:
+ *  - [OwnedPurchases.Live] / [OwnedPurchases.Recovered]: **grant-only**.
+ *    A match against [productPredicate] transitions to [EntitlementState.Granted]
+ *    and persists the snapshot. A non-match on either does **not** revoke —
+ *    `Live` can carry empty/UNSPECIFIED_STATE callbacks or unrelated
+ *    products, and `Recovered` only emits the `PURCHASED && !isAcknowledged`
+ *    subset filtered against the library's acknowledgedTokens set, so an
+ *    already-acked entitling purchase will never appear there. Treating
+ *    either as authoritative for revocation would falsely revoke users
+ *    whose entitling purchase has already been acknowledged.
+ *  - [FlowOutcome.Failure]: triggers [EntitlementState.InGrace] (or revokes
+ *    immediately if the policy window is zero or has already elapsed since
+ *    the last confirmation).
+ *  - [com.kanetik.billing.PurchaseRevoked]: when `event.purchaseToken`
+ *    matches the cached snapshot's `purchaseToken`, transitions to
+ *    [EntitlementState.Revoked] immediately (no grace; Play has explicitly
+ *    revoked). Consumers wire `emitExternalRevocation` against their
+ *    RTDN→FCM pipeline — see the README "Server-driven revocation" section.
+ *
+ * The remaining [FlowOutcome] variants ([FlowOutcome.Pending],
  * [FlowOutcome.Canceled], [FlowOutcome.ItemAlreadyOwned],
  * [FlowOutcome.ItemUnavailable], [FlowOutcome.UnknownResponse]) are
  * intentionally no-ops here — they don't change owned-purchase state, and a
  * Pending purchase explicitly must not grant entitlement (per Play's rules).
- *
- * Refund / revocation handling: PR #12 shipped the `PurchaseRevoked`
- * variant and `emitExternalRevocation` API; the cache currently consumes
- * the event with a no-op placeholder. Wiring it through to a `Revoked`
- * state transition (no grace — Play has explicitly revoked) is the next
- * follow-up — see the TODO inside [reduce].
  *
  * @param purchasesUpdates The hot purchase-update stream — typically
  *   [com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates].
@@ -205,10 +217,18 @@ public class EntitlementCache(
         // A consumer offline for 24h with the app foregrounded should still
         // see InGrace → Revoked the moment grace lapses, not the next time
         // Play sends an update.
-        launch { tickGraceWindow() }
-
-        purchasesUpdates.collect { event ->
-            reduce(event)
+        //
+        // Tick lifecycle is bound to the upstream collect: if purchasesUpdates
+        // ever completes normally, we cancel the tick so this start() Job can
+        // finish too — without this, an infinite tick keeps the parent alive
+        // forever even after the upstream is done.
+        val tickJob = launch { tickGraceWindow() }
+        try {
+            purchasesUpdates.collect { event ->
+                reduce(event)
+            }
+        } finally {
+            tickJob.cancel()
         }
     }
 
@@ -240,14 +260,7 @@ public class EntitlementCache(
                 is OwnedPurchases.Live -> handleObservation(event.purchases, fromRecoverySweep = false)
                 is OwnedPurchases.Recovered -> handleObservation(event.purchases, fromRecoverySweep = true)
                 is FlowOutcome.Failure -> handleFailure(event.exception)
-                is PurchaseRevoked -> {
-                    // TODO: pattern-match on event.purchaseToken against the
-                    //  cached snapshot's purchaseToken; on match, transition
-                    //  to EntitlementState.Revoked unconditionally (no grace —
-                    //  Play has explicitly revoked the entitlement, e.g.
-                    //  chargeback / refund). PR #12 shipped the variant + emit
-                    //  API; cache consumption is the remaining follow-up.
-                }
+                is PurchaseRevoked -> handleRevoked(event)
                 is FlowOutcome.Pending,
                 is FlowOutcome.Canceled,
                 is FlowOutcome.ItemAlreadyOwned,
@@ -275,34 +288,43 @@ public class EntitlementCache(
                 purchaseToken = match.purchaseToken,
             )
             transitionToGranted(snapshot)
-        } else if (fromRecoverySweep) {
-            // Recovery sweeps are authoritative for currently-owned purchases:
-            // a Recovered event with no matching purchase means Play says the
-            // user does not own this entitlement, so we trust it and revoke.
-            // The replay=1 channel guarantees Recovered fires on every
-            // successful connect, so an empty Recovered isn't a stale signal.
-            //
-            // Caveat for future maintainers: Recovered emits only the
-            // PURCHASED && !isAcknowledged subset of Play's owned-purchases
-            // query, filtered against the library's acknowledgedTokens set
-            // (PR #10). That means an already-acknowledged owned purchase
-            // won't show up in Recovered, which could cause this branch to
-            // revoke an entitlement that's actually still valid Play-side.
-            // The proper fix is to back the cache with `queryPurchases()`
-            // (returns acked + unacked) instead of relying on Recovered for
-            // the revoke direction; tracked as a follow-up.
-            val snapshot = EntitlementSnapshot(
+        }
+        // No-match cases (both Live and Recovered) intentionally do NOT
+        // revoke. Live can carry empty/UNSPECIFIED_STATE callbacks or
+        // products unrelated to this cache's productPredicate, and Recovered
+        // only emits the PURCHASED && !isAcknowledged subset of owned
+        // purchases (filtered against the library's acknowledgedTokens set
+        // per the dedupe in BillingClientStorage). Treating either as
+        // authoritative for revocation would falsely revoke users whose
+        // entitling purchase has already been acknowledged: it never
+        // appears in Recovered, so the predicate never matches, and an
+        // empty Recovered would clobber a valid Granted state.
+        //
+        // Revocation in this cache flows through two narrow paths instead:
+        //  - [PurchaseRevoked] — the consumer pushes an explicit
+        //    revocation signal via emitExternalRevocation (typically
+        //    decoded from RTDN→FCM payloads).
+        //  - Grace-window expiry on persistent [FlowOutcome.Failure].
+        // Recovered is grant-only here: it surfaces unacked purchases for
+        // entitlement confirmation and does NOT speak to the revoke side.
+    }
+
+    private suspend fun handleRevoked(event: PurchaseRevoked) {
+        // Match the revocation against the cached snapshot's purchaseToken.
+        // If it matches, the purchase that established our entitlement has
+        // been revoked Play-side — transition to Revoked unconditionally
+        // (no grace; Play has explicitly revoked). If it doesn't match,
+        // the revocation is for a different purchase the consumer is
+        // tracking and this cache's state is unaffected.
+        val confirmed = lastConfirmedSnapshot
+        if (confirmed != null && confirmed.purchaseToken == event.purchaseToken) {
+            val revokedSnapshot = EntitlementSnapshot(
                 isEntitled = false,
                 confirmedAtMs = clock(),
-                purchaseToken = null,
+                purchaseToken = event.purchaseToken,
             )
-            transitionToRevoked(snapshot)
+            transitionToRevoked(revokedSnapshot)
         }
-        // Live with no match: an OwnedPurchases.Live carrying products we don't
-        // care about (e.g. a non-premium IAP also flowing through the same
-        // listener) doesn't revoke an existing Granted state. Only
-        // OwnedPurchases.Recovered's authoritative owned-state snapshot can
-        // negate entitlement.
     }
 
     private suspend fun handleFailure(exception: BillingException) {

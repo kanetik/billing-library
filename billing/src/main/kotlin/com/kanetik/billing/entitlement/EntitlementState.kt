@@ -56,15 +56,22 @@ public sealed interface EntitlementState {
      * No entitlement. Hide premium UI.
      *
      * Reached on:
-     *  - A [com.kanetik.billing.OwnedPurchases.Recovered] event whose
-     *    purchase list does *not* contain a match. The cache trusts every
-     *    Recovered as authoritative — Play's connect-time sweep guarantees
-     *    a Recovered emission on every successful connection, so an empty
-     *    Recovered isn't a stale signal.
+     *  - A [com.kanetik.billing.PurchaseRevoked] event whose `purchaseToken`
+     *    matches the cached snapshot's last confirmed purchase. The consumer
+     *    pushes these via `emitExternalRevocation` from their RTDN→FCM (or
+     *    polling, or deeplink) pipeline.
      *  - An [InGrace] state whose [InGrace.expiresAtMs] has elapsed without
-     *    recovery.
+     *    a fresh `Granted` confirmation.
      *  - The default state when no prior snapshot exists and nothing has
      *    arrived yet.
+     *
+     * Notably **not** reached on a non-matching `OwnedPurchases.Recovered`
+     * (or `Live`) event. Recovered only emits the unacknowledged subset of
+     * Play-side owned purchases, so an empty Recovered for an entitled user
+     * with an already-acknowledged purchase doesn't mean Play revoked
+     * anything — it just means there's nothing left to acknowledge. The
+     * cache treats Recovered/Live as grant-only signals to avoid that
+     * false-revocation footgun.
      */
     public data object Revoked : EntitlementState
 }

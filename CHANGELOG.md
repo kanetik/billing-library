@@ -287,15 +287,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EntitlementCache`, `EntitlementState` (`Granted` / `InGrace` / `Revoked`),
   `GracePolicy`, `GraceReason` (`BillingUnavailable` / `TransientFailure`),
   `EntitlementSnapshot`, `EntitlementStorage`. Exposes a
-  `StateFlow<EntitlementState>` with debounce-on-failure grace logic,
-  consumer-implemented persistence (the library does not pick a persistence
-  layer), and grace-expiry re-evaluation on every emission so an extended
-  outage correctly transitions `InGrace → Revoked` without external
-  triggers. See the README "EntitlementCache (opt-in)" section. Direct
-  `PurchaseRevoked` consumption lands as a follow-up — for now the cache
-  only acts on `OwnedPurchases.Live` / `OwnedPurchases.Recovered` /
-  `FlowOutcome.Failure`. (PR #12 already shipped the variant + emit API;
-  the cache doesn't yet pattern-match it.)
+  `StateFlow<EntitlementState>` with grace-window logic anchored to the
+  last confirmed observation timestamp (so repeated `FlowOutcome.Failure`
+  emissions don't extend grace indefinitely), consumer-implemented
+  persistence (the library does not pick a persistence layer), and
+  grace-expiry re-evaluation on every emission so an extended outage
+  correctly transitions `InGrace → Revoked` without external triggers.
+  Revocation flows through `PurchaseRevoked` (matched against the cached
+  snapshot's `purchaseToken`) — `OwnedPurchases.Live` / `Recovered` are
+  treated as grant-only signals, since `Recovered` only emits the unacked
+  subset and an empty Recovered for an entitled-but-acked user would
+  falsely revoke under a "Recovered is authoritative" interpretation. See
+  the README "EntitlementCache (opt-in)" section.
 - **`PurchaseRevoked(purchaseToken, reason)` top-level `PurchaseEvent`
   variant + `RevocationReason` enum** (`Refunded`, `Chargeback`,
   `SubscriptionExpired`, `Other`) — synthetic revocation event for
