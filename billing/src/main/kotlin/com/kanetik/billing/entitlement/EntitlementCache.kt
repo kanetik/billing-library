@@ -131,6 +131,12 @@ public class EntitlementCache(
     private val clock: () -> Long = System::currentTimeMillis,
     private val graceTickIntervalMs: Long = DEFAULT_GRACE_TICK_INTERVAL_MS,
 ) {
+    init {
+        require(graceTickIntervalMs > 0) {
+            "graceTickIntervalMs must be > 0 (got $graceTickIntervalMs); zero or negative would " +
+                "make the tick loop a hot loop, draining CPU/battery."
+        }
+    }
 
     private val _state = MutableStateFlow<EntitlementState>(EntitlementState.Revoked)
 
@@ -140,22 +146,22 @@ public class EntitlementCache(
      */
     public val state: StateFlow<EntitlementState> = _state.asStateFlow()
 
-    // Tracks whether we've seen at least one OwnedPurchases.Recovered. Used
-    // to gate the "Recovered with no matching purchase → Revoked" transition:
-    // the connect-time sweep can race the cache's first subscription, so a
-    // single empty Recovered at boot shouldn't blow away a snapshot from a
-    // previous session. See the README "Purchase recovery" section for why
-    // the sweep behaves this way.
-    private var hasObservedRecovered: Boolean = false
-
     // Most-recent confirmed snapshot. Tracked separately from `_state` so
     // grace transitions can preserve the underlying confirmed observation
-    // (purchaseToken, confirmedAtMs) without re-querying storage.
+    // (purchaseToken, confirmedAtMs) without re-querying storage, and so the
+    // grace window can be anchored to confirmedAtMs instead of clock() (which
+    // would let repeated Failures keep extending grace indefinitely).
     private var lastConfirmedSnapshot: EntitlementSnapshot? = null
 
     // Guards reduce() so concurrent emissions (the upstream flow + the
     // grace tick) can't race on _state / lastConfirmedSnapshot updates.
     private val mutex = Mutex()
+
+    // Latched once start() launches, prevents redundant collectors if a caller
+    // accidentally calls start() twice on the same instance. AtomicBoolean
+    // (not just a Boolean) so the check is safe even if start() is called
+    // from different threads.
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
      * Begins collecting from [purchasesUpdates] and ticking the grace clock
@@ -167,11 +173,18 @@ public class EntitlementCache(
      * the grace tick. Cancel the returned job (or the [scope] itself) to
      * stop the cache.
      *
-     * Calling [start] more than once on the same instance launches an
-     * additional collector — the [Job] discipline is on the caller. Most
-     * apps create one cache per scope and start it once.
+     * Calling [start] more than once on the same instance is a no-op for
+     * the second+ call: the latch returns the same start-was-called signal
+     * and the second [Job] completes immediately without launching a new
+     * collector. Most apps create one cache per scope and start it once.
      */
     public fun start(scope: CoroutineScope): Job = scope.launch {
+        if (!started.compareAndSet(false, true)) {
+            // Already started; second-call protection so a misbehaving caller
+            // doesn't end up with N collectors all racing on the same upstream
+            // flow + N tick coroutines all writing to storage.
+            return@launch
+        }
         // Hydrate from storage first so state is consistent before we begin
         // emitting transitions. A failed read shouldn't crash the cache —
         // treat as "no prior snapshot" and proceed with the default Revoked
@@ -225,10 +238,7 @@ public class EntitlementCache(
 
             when (event) {
                 is OwnedPurchases.Live -> handleObservation(event.purchases, fromRecoverySweep = false)
-                is OwnedPurchases.Recovered -> {
-                    hasObservedRecovered = true
-                    handleObservation(event.purchases, fromRecoverySweep = true)
-                }
+                is OwnedPurchases.Recovered -> handleObservation(event.purchases, fromRecoverySweep = true)
                 is FlowOutcome.Failure -> handleFailure(event.exception)
                 is PurchaseRevoked -> {
                     // TODO: pattern-match on event.purchaseToken against the
@@ -266,28 +276,21 @@ public class EntitlementCache(
             )
             transitionToGranted(snapshot)
         } else if (fromRecoverySweep) {
-            // Recovery sweeps are authoritative for currently-owned purchases —
+            // Recovery sweeps are authoritative for currently-owned purchases:
             // a Recovered event with no matching purchase means Play says the
-            // user does not own this entitlement. But: the connect-time sweep
-            // can fire before the cache subscribed, so the very first
-            // Recovered we see (and any Recovered that arrives before we've
-            // had a chance to confirm one) shouldn't blow away a persisted
-            // snapshot from a previous session — wait until we have a
-            // baseline (defined as "we've observed at least one Recovered or
-            // Success previously establishing state").
+            // user does not own this entitlement, so we trust it and revoke.
+            // The replay=1 channel guarantees Recovered fires on every
+            // successful connect, so an empty Recovered isn't a stale signal.
             //
-            // We've already flipped `hasObservedRecovered` above; the gate
-            // here is whether the cache has ever transitioned to Granted
-            // before. If the snapshot was Granted (from storage hydrate) and
-            // a Recovered with no match arrives, we trust the Recovered —
-            // Play is the source of truth for owned purchases.
-            //
-            // This intentionally doesn't gate on hasObservedRecovered being
-            // false-on-first-call: if the cache was hydrated with a Granted
-            // snapshot, the very first Recovered we see is the trustworthy
-            // signal that the entitlement is gone. The replay = 1 channel
-            // means we can rely on Recovered firing on every successful
-            // connect.
+            // Caveat for future maintainers: Recovered emits only the
+            // PURCHASED && !isAcknowledged subset of Play's owned-purchases
+            // query, filtered against the library's acknowledgedTokens set
+            // (PR #10). That means an already-acknowledged owned purchase
+            // won't show up in Recovered, which could cause this branch to
+            // revoke an entitlement that's actually still valid Play-side.
+            // The proper fix is to back the cache with `queryPurchases()`
+            // (returns acked + unacked) instead of relying on Recovered for
+            // the revoke direction; tracked as a follow-up.
             val snapshot = EntitlementSnapshot(
                 isEntitled = false,
                 confirmedAtMs = clock(),
@@ -319,14 +322,35 @@ public class EntitlementCache(
             return
         }
 
-        val expiresAt = clock() + window
+        // Anchor grace expiry to the last confirmed observation, not clock().
+        // Using clock() would let repeated Failures keep extending the grace
+        // window indefinitely — every new failure would push expiresAt
+        // forward by `window`, defeating the bounded-grace guarantee. With
+        // confirmedAtMs anchoring, multiple Failures arriving over time all
+        // produce the same expiresAt (assuming reason is stable), and a
+        // Failure long after the last confirmation correctly produces an
+        // already-expired window that immediately transitions to Revoked.
+        //
+        // lastConfirmedSnapshot is non-null at this point: the early return
+        // above only allows entry from Granted or InGrace, both of which
+        // imply we've previously transitioned to Granted (which sets the
+        // snapshot).
+        val confirmedAt = lastConfirmedSnapshot?.confirmedAtMs ?: clock()
+        val expiresAt = confirmedAt + window
+        if (clock() >= expiresAt) {
+            // Window has already elapsed since the last confirmation — skip
+            // InGrace entirely and revoke now. Persisted via transitionToRevoked.
+            transitionToRevoked()
+            return
+        }
         _state.value = EntitlementState.InGrace(
             expiresAtMs = expiresAt,
             reason = reason,
         )
-        // Intentionally do NOT persist InGrace. Grace re-derives from
-        // lastConfirmedSnapshot.confirmedAtMs on the next read; persisting
-        // grace would let storage tampering extend the window indefinitely.
+        // Intentionally do NOT persist InGrace. The expiry derives from the
+        // already-persisted confirmedAtMs + the policy window; persisting the
+        // grace state itself would risk storage tampering reseting the
+        // window.
     }
 
     private suspend fun transitionToGranted(snapshot: EntitlementSnapshot) {
@@ -341,10 +365,25 @@ public class EntitlementCache(
     }
 
     private suspend fun transitionToRevoked(snapshot: EntitlementSnapshot? = null) {
-        if (snapshot != null) {
-            lastConfirmedSnapshot = snapshot
-            runCatching { storage.write(snapshot) }
-        }
+        // Always persist a Revoked snapshot — without this, grace-expiry paths
+        // (tick + on-emission re-evaluation) would leave storage holding the
+        // last Granted state, and the next process start would hydrate as
+        // Granted incorrectly. If no fresh snapshot is supplied (typical for
+        // grace-expiry transitions), build one from lastConfirmedSnapshot's
+        // purchaseToken so the persisted record still ties back to the
+        // purchase that just expired its grace.
+        val toPersist = snapshot ?: EntitlementSnapshot(
+            isEntitled = false,
+            confirmedAtMs = clock(),
+            purchaseToken = lastConfirmedSnapshot?.purchaseToken,
+        )
+        lastConfirmedSnapshot = toPersist
+        runCatching { storage.write(toPersist) }
+        // We swallow storage write failures rather than crash the cache —
+        // an unreadable / unwritable storage layer shouldn't take down the
+        // user's premium UI. Consumers wanting durability guarantees should
+        // surface failures from inside their EntitlementStorage impl
+        // (logging, reporting to Crashlytics, etc.).
         _state.value = EntitlementState.Revoked
     }
 

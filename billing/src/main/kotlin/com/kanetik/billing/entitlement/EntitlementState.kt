@@ -57,11 +57,10 @@ public sealed interface EntitlementState {
      *
      * Reached on:
      *  - A [com.kanetik.billing.OwnedPurchases.Recovered] event whose
-     *    purchase list does *not* contain a match (after the cache has seen
-     *    at least one prior emission to establish a baseline — a single
-     *    Recovered with no matches at boot doesn't revoke a snapshot from a
-     *    previous session; the connect-time sweep can race the cache's first
-     *    subscription).
+     *    purchase list does *not* contain a match. The cache trusts every
+     *    Recovered as authoritative — Play's connect-time sweep guarantees
+     *    a Recovered emission on every successful connection, so an empty
+     *    Recovered isn't a stale signal.
      *  - An [InGrace] state whose [InGrace.expiresAtMs] has elapsed without
      *    recovery.
      *  - The default state when no prior snapshot exists and nothing has
