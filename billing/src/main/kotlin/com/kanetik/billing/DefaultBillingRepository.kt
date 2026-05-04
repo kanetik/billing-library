@@ -51,7 +51,7 @@ internal class DefaultBillingRepository(
         return billingClientStorage.connectionResultFlow
     }
 
-    override fun observePurchaseUpdates(): Flow<PurchasesUpdate> {
+    override fun observePurchaseUpdates(): Flow<PurchaseEvent> {
         // Hot at the listener level — PBL fires the PurchasesUpdatedListener
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions

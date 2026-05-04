@@ -48,18 +48,18 @@ import java.util.concurrent.atomic.AtomicBoolean
  *     }
  * }
  *
- * // When you receive a terminal PurchasesUpdate (Success / Canceled / etc.),
+ * // When you receive a terminal PurchaseEvent (OwnedPurchases.Live / FlowOutcome.* etc.),
  * // tell the coordinator the flow is done so the next launch can proceed:
- * billing.observePurchaseUpdates().collect { update ->
+ * billing.observePurchaseUpdates().collect { event ->
  *     coordinator.markComplete()
- *     // ... handle update
+ *     // ... handle event
  * }
  * ```
  *
  * ## What it does NOT do
  *
  * - Doesn't acknowledge or consume purchases — that's the caller's job once a
- *   [com.kanetik.billing.PurchasesUpdate.Success] arrives.
+ *   [com.kanetik.billing.OwnedPurchases.Live] arrives.
  * - Doesn't decide premium-grant rules — that's app business logic.
  * - Doesn't track analytics events — wrap [launch] with your own analytics layer
  *   if needed.
@@ -170,8 +170,8 @@ public class PurchaseFlowCoordinator(
 
     /**
      * Clears the in-flight guard. Call this when you receive a terminal
-     * [com.kanetik.billing.PurchasesUpdate] (Success, Canceled, ItemAlreadyOwned,
-     * ItemUnavailable, UnknownResponse) so the next [launch] call isn't blocked.
+     * [com.kanetik.billing.PurchaseEvent] (OwnedPurchases.Live, or any
+     * FlowOutcome variant) so the next [launch] call isn't blocked.
      *
      * Safe to call when no flow is in progress — it's a no-op in that case.
      */
