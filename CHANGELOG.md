@@ -177,6 +177,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   multi-quantity grant rule at the class level.
 - **Sample** updated to handle both `Success` and `Recovered` through one
   shared dispatch.
+- **Recovered events now suppress already-acknowledged purchase tokens
+  internally; consumer-side dedupe of Recovered is no longer necessary.**
+  `BillingClientStorage` tracks tokens passed through
+  `acknowledgePurchase` / `consumePurchase` / `handlePurchase` for the
+  lifetime of the connection-share scope and filters them out of
+  `PurchasesUpdate.Recovered` emissions. `Recovered` events that filter
+  to empty (or are intrinsically empty) are suppressed entirely — late
+  subscribers no longer need to maintain a `Set<String>` of handled
+  tokens to dedupe replay.
 
 ### Migration notes
 

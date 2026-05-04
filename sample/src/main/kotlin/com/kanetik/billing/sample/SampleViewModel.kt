@@ -49,53 +49,29 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 appendLog("purchase update: ${update::class.simpleName}")
                 when (update) {
                     is PurchasesUpdate.Success -> update.purchases.forEach { handlePurchaseAndLog(it) }
-                    is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
-                        // Recovered re-replays its most recent snapshot to re-subscribed
-                        // collectors after a config change / ViewModel recreation, so dedupe
-                        // by purchaseToken — a stale snapshot still has isAcknowledged=false
-                        // and would surface ItemNotOwnedException on a re-handle. See
-                        // PurchasesUpdate.Recovered KDoc and the README "Purchase recovery"
-                        // section. Persist `handledRecoveredTokens` if dedupe needs to
-                        // survive process death (this sample doesn't bother).
-                        if (purchase.purchaseToken in handledRecoveredTokens) return@forEach
-                        if (handlePurchaseAndLog(purchase)) {
-                            handledRecoveredTokens += purchase.purchaseToken
-                        }
-                    }
+                    is PurchasesUpdate.Recovered -> update.purchases.forEach { handlePurchaseAndLog(it) }
                     else -> {} // Pending / Canceled / etc. — sample just logs the variant name above
                 }
             }
         }
     }
 
-    // Tokens already handled from the Recovered branch — gate against re-replay
-    // overflowing already-acked purchases through handlePurchase a second time.
-    private val handledRecoveredTokens: MutableSet<String> = mutableSetOf()
-
     /**
      * For `android.test.purchased`, consume = true so a fresh run can re-purchase.
      * For non-consumable IAP in real apps, pass consume = false to acknowledge-only.
      * Real apps would also grant entitlement on HandlePurchaseResult.Success — this
      * sample just logs the outcome.
-     *
-     * @return true iff acknowledge/consume landed (safe to mark token as handled).
      */
-    private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase): Boolean {
-        return when (val outcome = billing.handlePurchase(purchase, consume = true)) {
-            HandlePurchaseResult.Success -> {
+    private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase) {
+        when (val outcome = billing.handlePurchase(purchase, consume = true)) {
+            HandlePurchaseResult.Success ->
                 appendLog("handlePurchase OK for ${purchase.products}")
-                true
-            }
-            HandlePurchaseResult.NotPurchased -> {
+            HandlePurchaseResult.NotPurchased ->
                 appendLog("handlePurchase skipped (not in PURCHASED state)")
-                false
-            }
-            is HandlePurchaseResult.Failure -> {
+            is HandlePurchaseResult.Failure ->
                 appendLog(
                     "handlePurchase FAILED: ${outcome.exception::class.simpleName} (${outcome.exception.userFacingCategory})"
                 )
-                false
-            }
         }
     }
 

@@ -49,8 +49,10 @@ import com.android.billingclient.api.Purchase
  * [Recovered] events **do replay** to a late subscriber via a separate
  * recovery channel with `replay = 1`. The auto-sweep can fire on connect
  * before the consumer's collector attaches; the replay ensures the
- * recovered purchase isn't lost. Re-emission for the *same* sweep happens
- * only across re-subscriptions, not after a fresh sweep replaces it.
+ * recovered purchase isn't lost. The library tracks acknowledged tokens
+ * internally and filters them out of the replay, so a re-attached
+ * subscriber that has already handled the recovered purchase does not
+ * see a stale snapshot for it again — see the [Recovered] KDoc.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
@@ -113,34 +115,27 @@ public sealed class PurchasesUpdate {
      * products never carry a `linkedPurchaseToken`, so IAP-only apps are
      * unaffected.
      *
-     * **`purchases` may be empty.** The sweep emits a `Recovered` event on
-     * *every* successful connection, including ones that find nothing — this
-     * keeps the replay cache fresh so a subscriber that attaches after a
-     * configuration change doesn't replay a stale recovery from a prior
-     * session. Treat empty as a no-op (`forEach { handle(it) }` over an
-     * empty list does nothing).
+     * **The library tracks acknowledged tokens internally and suppresses
+     * replay of `Recovered` for already-handled purchases.** Both the live
+     * sweep result and the `replay = 1` re-emission to a late subscriber are
+     * filtered against tokens passed through
+     * [com.kanetik.billing.BillingActions.acknowledgePurchase] /
+     * [com.kanetik.billing.BillingActions.consumePurchase] (including via
+     * [com.kanetik.billing.BillingActions.handlePurchase]) earlier in this
+     * billing-connection lifetime. If every purchase in a sweep is already
+     * acknowledged, no event is emitted at all (rather than `Recovered(emptyList())`),
+     * so consumers no longer need to maintain their own `Set<String>` dedupe
+     * to suppress stale replays. Tokens are intentionally not persisted
+     * across a full connection-share teardown (60s of zero subscribers) —
+     * a fresh sweep on reconnect re-queries Play and surfaces only genuinely
+     * unacked purchases.
      *
-     * **Dedupe by `purchaseToken` if you re-subscribe between sweeps.** Because
-     * the recovery channel uses `replay = 1`, a subscriber that re-attaches
-     * after successfully handling a recovered purchase will receive the same
-     * `Purchase` snapshot again — the snapshot is from before your handle
-     * call landed, so its `isAcknowledged` flag is still `false` and the
-     * library's [com.kanetik.billing.BillingActions.acknowledgePurchase]`(Purchase)`
-     * `isAcknowledged` short-circuit doesn't fire. Re-handling the snapshot
-     * surfaces a [HandlePurchaseResult.Failure]:
-     * `BillingException.DeveloperErrorException` for already-acknowledged
-     * non-consumables, `ItemNotOwnedException` for already-consumed consumables.
-     * Track handled tokens in a `Set<String>` to skip them deterministically;
-     * persist via `SavedStateHandle` (or similar) if the dedupe needs to
-     * survive process death.
+     * Idempotent handling is still a good idea if you trigger one-shot UX off
+     * `Recovered` (badge animations, analytics events, etc.) — but the
+     * dedupe `Set<String>` consumers used to need is no longer required.
      *
-     * **Only mark tokens as handled on [HandlePurchaseResult.Success]**, not
-     * on [HandlePurchaseResult.Failure]. A failure means the acknowledge /
-     * consume didn't land — the next sweep needs to see the purchase again
-     * to retry; suppressing the next replay would orphan it.
-     *
-     * Live `Success` events do not need this dedupe — they go through a
-     * separate `replay = 0` channel.
+     * Live `Success` events go through a separate `replay = 0` channel and
+     * don't replay at all.
      *
      * **Why recovery matters:** Play auto-refunds purchases that aren't
      * acknowledged within 3 days. App crashes, network failures, or force-quits
