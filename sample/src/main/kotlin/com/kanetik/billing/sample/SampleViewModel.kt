@@ -52,35 +52,20 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 appendLog("purchase event: ${event::class.simpleName}")
                 when (event) {
                     is OwnedPurchases.Live -> event.purchases.forEach { handlePurchaseAndLog(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
-                        // Recovered re-replays its most recent snapshot to re-subscribed
-                        // collectors after a config change / ViewModel recreation, so dedupe
-                        // by purchaseToken — a stale snapshot still has isAcknowledged=false
-                        // and would surface ItemNotOwnedException on a re-handle. See
-                        // OwnedPurchases.Recovered KDoc and the README "Purchase recovery"
-                        // section. Persist `handledRecoveredTokens` if dedupe needs to
-                        // survive process death (this sample doesn't bother).
-                        if (purchase.purchaseToken in handledRecoveredTokens) return@forEach
-                        if (handlePurchaseAndLog(purchase)) {
-                            handledRecoveredTokens += purchase.purchaseToken
-                        }
-                    }
+                    is OwnedPurchases.Recovered -> event.purchases.forEach { handlePurchaseAndLog(it) }
                     is FlowOutcome -> {
                         // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
                         // UnknownResponse — sample just logs the variant name above.
-                        // Real apps should branch per sub-variant: e.g. show a "payment
-                        // pending" notice on Pending, restore entitlement on
-                        // ItemAlreadyOwned, etc. Critically: do NOT write event.purchases
-                        // to an entitlement cache from this branch — see PurchaseEvent KDoc.
+                        // Real apps should branch per sub-variant. Critically: do NOT
+                        // write event.purchases to an entitlement cache from this branch
+                        // — see PurchaseEvent KDoc. The library tracks acknowledged
+                        // tokens internally now (#6), so consumer-side dedupe of
+                        // Recovered is no longer required.
                     }
                 }
             }
         }
     }
-
-    // Tokens already handled from the Recovered branch — gate against re-replay
-    // overflowing already-acked purchases through handlePurchase a second time.
-    private val handledRecoveredTokens: MutableSet<String> = mutableSetOf()
 
     /**
      * For `android.test.purchased`, consume = true so a fresh run can re-purchase.

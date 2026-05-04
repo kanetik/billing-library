@@ -5,7 +5,7 @@
 # match the project's Kotlin. AGP 9.2.0 bundles Kotlin 2.2.10 — keep this
 # pin in sync if AGP is bumped.
 androidGradlePlugin = "9.2.0"
-kotlin = "2.2.10"
+kotlin = "2.3.21"
 playBillingKtx = "8.3.0"
 kotlinxCoroutines = "1.10.2"
 lifecycle = "2.10.0"
@@ -22,6 +22,11 @@ truth = "1.4.5"
 # 0.30.0 had a Windows-specific bug constructing the local staging directory
 # URL — `file://C:\...` (mixed slashes) failed URI parsing. Fixed in 0.32+.
 vanniktechMavenPublish = "0.36.0"
+# Dokka generates the -javadoc JAR for Maven Central. We pin explicitly
+# (rather than relying on vanniktech's deprecated boolean publishJavadocJar
+# convenience) so the Dokka task name is under our control. vanniktech 0.36+
+# requires Dokka v2 mode, so 1.x is not an option.
+dokka = "2.1.0"
 
 [libraries]
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBillingKtx" }
@@ -52,3 +57,4 @@ android-application = { id = "com.android.application", version.ref = "androidGr
 # Compose Compiler plugin (Kotlin 2.0+) — version must match the project's Kotlin.
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }

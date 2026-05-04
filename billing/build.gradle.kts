@@ -1,8 +1,11 @@
 import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.SourcesJar
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.maven.publish)
+    alias(libs.plugins.dokka)
 }
 
 // Coordinates published to Maven Central as `com.kanetik.billing:billing:<version>`.
@@ -10,7 +13,7 @@ plugins {
 // .github/workflows/publish.yml). Local builds get the SNAPSHOT default so
 // nothing accidentally publishes as a release version off main.
 group = "com.kanetik.billing"
-version = (findProperty("VERSION_NAME") as String?) ?: "0.1.0-SNAPSHOT"
+version = (findProperty("VERSION_NAME") as String?) ?: "0.1.1-SNAPSHOT"
 
 kotlin {
     // JVM 11 keeps the AAR consumable by any Android consumer on JDK 11+.
@@ -59,6 +62,18 @@ android {
     }
 }
 
+// Dokka 2.x's AndroidExtensionWrapper cannot read AGP 9's LibraryExtension
+// (it still probes the removed BaseExtension API), and AGP's implicit
+// kotlin-android application happens too late for Dokka's Kotlin source-set
+// adapter, so no source sets are auto-registered and the generated docs come
+// out blank. Register the main source set by hand. Drop this block once Dokka
+// ships an AGP 9 adapter.
+dokka {
+    dokkaSourceSets.register("main") {
+        sourceRoots.from(file("src/main/kotlin"))
+    }
+}
+
 // Maven Central publishing config. The vanniktech plugin handles AGP's
 // singleVariant publishing wiring, sources/javadoc JAR generation, POM
 // metadata, and GPG signing — see gradle.properties for SONATYPE_HOST and
@@ -102,12 +117,15 @@ mavenPublishing {
     }
 
     // Publish the release Android variant with sources + Javadoc JARs.
-    // Maven Central rejects uploads missing either, so both flags must stay true.
+    // Maven Central rejects uploads missing either, so both must stay populated.
+    // The javadoc JAR is built from Dokka's HTML output (Dokka 2.x task name);
+    // earlier versions of vanniktech offered a Boolean `publishJavadocJar = true`
+    // shortcut that auto-applied Dokka, but that overload was deprecated in 0.36.
     configure(
         AndroidSingleVariantLibrary(
             variant = "release",
-            sourcesJar = true,
-            publishJavadocJar = true,
+            sourcesJar = SourcesJar.Sources(),
+            javadocJar = JavadocJar.Dokka("dokkaGeneratePublicationHtml"),
         )
     )
 
