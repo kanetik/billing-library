@@ -61,6 +61,7 @@ internal class DefaultBillingRepository(
         return billingClientStorage.purchasesUpdateFlow
     }
 
+    @AnyThread
     override suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
         // Routed through the dedicated revocation channel (replay = 1) — see
         // BillingClientStorage.emitExternalRevocation and the BillingRepository
