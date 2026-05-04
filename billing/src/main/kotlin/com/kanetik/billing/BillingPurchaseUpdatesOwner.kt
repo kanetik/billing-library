@@ -26,11 +26,13 @@ import kotlinx.coroutines.flow.Flow
  *
  * Internally hot and shared via three underlying SharedFlows (live PBL events with
  * `replay = 0`, recovery-sweep events with `replay = 1`, revocation events with
- * `replay = 1`). Each subscription to this flow subscribes to all three channels:
- * late subscribers see the most recent recovery sweep and the most recent
- * revocation (if any) plus all future emissions; live events do **not** replay
- * to re-attached subscribers (configuration changes, `repeatOnLifecycle`, etc.),
- * which avoids the "confetti fires twice on rotation" bug.
+ * `replay = 16` — sized for the realistic FCM-burst case where multiple
+ * revocations may pile up before any subscriber attaches). Each subscription to
+ * this flow subscribes to all three channels: late subscribers see the most
+ * recent recovery sweep plus up to 16 cached revocations plus all future
+ * emissions; live events do **not** replay to re-attached subscribers
+ * (configuration changes, `repeatOnLifecycle`, etc.), which avoids the
+ * "confetti fires twice on rotation" bug.
  *
  * Returned as [Flow] (not [kotlinx.coroutines.flow.SharedFlow]) because the type
  * can't express "replay-on-subscribe for some emissions but not others" — the

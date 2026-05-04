@@ -264,11 +264,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transport-agnostic emit API. The library does not subscribe to FCM, RTDN,
   Pub/Sub, or any server-side channel; consumers wiring up RTDN→FCM
   ingestion (or polling, or deeplinks) decode the payload and call this
-  method. Routed through a dedicated `replay = 1` channel (separate from
+  method. Routed through a dedicated `replay = 16` channel (separate from
   the `OwnedPurchases.Recovered` channel, since the recovery channel is
-  typed narrower than `PurchaseEvent`) so a revocation arriving before a
-  subscriber attaches isn't lost. See the README "Server-driven revocation"
-  section.
+  typed narrower than `PurchaseEvent`) so up to 16 revocations arriving
+  before a subscriber attaches survive — sized for the realistic FCM-burst
+  case (multi-product chargebacks, several revocations decoded at process
+  start). See the README "Server-driven revocation" section.
 
 ### Changed
 

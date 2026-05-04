@@ -20,7 +20,7 @@ import org.junit.Test
 /**
  * Tests for [BillingRepository.emitExternalRevocation] and the underlying
  * [BillingClientStorage.emitExternalRevocation] routing through the dedicated
- * revocation channel (replay = 1).
+ * revocation channel (replay = 16).
  *
  * The factory is stubbed with an empty connection flow — these tests do not
  * exercise the Play Billing connection or recovery sweep; they exercise the
@@ -74,9 +74,9 @@ class EmitExternalRevocationTest {
         val repo = newRepository(this)
 
         try {
-            // Emit BEFORE any subscriber attaches — exercises the replay = 1 channel
-            // semantic that is the whole point of routing PurchaseRevoked through a
-            // dedicated replay channel rather than the live channel.
+            // Emit BEFORE any subscriber attaches — exercises the replay = 16
+            // channel semantic that is the whole point of routing PurchaseRevoked
+            // through a dedicated replay channel rather than the live channel.
             repo.emitExternalRevocation(
                 purchaseToken = "late-token",
                 reason = RevocationReason.Chargeback,

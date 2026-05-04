@@ -201,9 +201,10 @@ internal class BillingClientStorage(
 
     /**
      * Pushes a [PurchaseRevoked] event through the dedicated revocation
-     * channel (`replay = 1`) so a late subscriber catches the most recent
-     * revocation. Used by [DefaultBillingRepository.emitExternalRevocation]
-     * to route consumer-supplied revocation signals through the public
+     * channel (`replay = 16`) so late subscribers catch up to the last
+     * 16 cached revocations. Used by
+     * [DefaultBillingRepository.emitExternalRevocation] to route
+     * consumer-supplied revocation signals through the public
      * [purchasesUpdateFlow]. Suspending `emit` rather than `tryEmit` so a
      * transient buffer-full doesn't silently drop the event.
      */

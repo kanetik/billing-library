@@ -92,12 +92,14 @@ import com.android.billingclient.api.Purchase
  * recovered purchase isn't lost. Re-emission for the *same* sweep happens
  * only across re-subscriptions, not after a fresh sweep replaces it.
  *
- * [PurchaseRevoked] events flow through their own dedicated `replay = 1`
- * channel for the same reason: a revocation arriving before a subscriber
- * attaches (the FCM listener decoded the RTDN payload and called
+ * [PurchaseRevoked] events flow through their own dedicated `replay = 16`
+ * channel: revocations arriving before a subscriber attaches (the FCM
+ * listener decoded the RTDN payload and called
  * [com.kanetik.billing.BillingRepository.emitExternalRevocation] before the
- * UI was ready to observe) must not be lost. The same dedupe rule applies —
- * a re-attached collector receives the most recent event in the channel
+ * UI was ready to observe) must not be lost — and a small burst of
+ * revocations (multi-product chargebacks, several payloads at process
+ * start) shouldn't collapse to one. The same dedupe rule applies —
+ * a re-attached collector replays its share of the cache
  * again; gate by `purchaseToken` if your handler isn't idempotent.
  */
 public sealed interface PurchaseEvent
@@ -317,8 +319,8 @@ public sealed class FlowOutcome : PurchaseEvent {
  * revocations alongside normal purchase outcomes, instead of maintaining
  * a parallel pipeline.
  *
- * Routed through a dedicated `replay = 1` channel so a revocation arriving
- * before a subscriber attaches isn't lost — see the [PurchaseEvent]-level
+ * Routed through a dedicated `replay = 16` channel so revocations arriving
+ * before a subscriber attaches survive — see the [PurchaseEvent]-level
  * "Replay semantics" notes for the full picture.
  */
 public data class PurchaseRevoked(

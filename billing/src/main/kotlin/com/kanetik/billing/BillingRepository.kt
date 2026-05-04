@@ -18,11 +18,14 @@ public interface BillingRepository : BillingActions, BillingPurchaseUpdatesOwner
      * decoding RTDN / FCM / polling / deeplink signals into a
      * `(purchaseToken, reason)` pair and calling this method.
      *
-     * Routed through a dedicated replay-cache channel (`replay = 1`) so a
-     * revocation arriving before a subscriber attaches isn't lost — the
-     * typical consumer pattern (FCM listener decodes the RTDN payload at
-     * process start, the UI collector attaches a moment later) needs this
-     * guarantee to be useful.
+     * Routed through a dedicated replay-cache channel (`replay = 16`) so up
+     * to 16 revocations arriving before a subscriber attaches survive the
+     * gap — the typical consumer pattern (FCM listener decodes the RTDN
+     * payload at process start, the UI collector attaches a moment later)
+     * needs this. The buffer absorbs realistic FCM bursts (multi-product
+     * chargebacks resolving simultaneously, etc.); for guaranteed delivery
+     * of every event past the bound, persist on the consumer side before
+     * calling this method.
      *
      * Suspending: `emit` semantics, not `tryEmit` — the call suspends if the
      * underlying buffer is full rather than silently dropping the event.
