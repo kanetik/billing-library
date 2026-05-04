@@ -5,7 +5,6 @@ import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesResponseListener
 import com.android.billingclient.api.PurchasesUpdatedListener
-import com.android.billingclient.api.QueryPurchasesParams
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
@@ -260,25 +259,27 @@ class BillingClientStorageRecoveredDedupeTest {
         // callback variant queryPurchasesAsync(params, listener). Mock the
         // callback variant; mockk can capture the listener and invoke it
         // synchronously.
-        val paramsSlot = slot<QueryPurchasesParams>()
+        //
+        // Routing INAPP vs SUBS by call order rather than inspecting params:
+        // QueryPurchasesParams doesn't expose its productType publicly in a
+        // stable way (relying on toString() was brittle and would break on
+        // any PBL string-format change). The sweep code queries INAPP first
+        // and SUBS second; the async parallel-await pattern doesn't change
+        // the order the mock is called in. If subsSupported = false, the
+        // sweep skips the SUBS call entirely, so the second invocation never
+        // happens.
         val listenerSlot = slot<PurchasesResponseListener>()
+        var callIndex = 0
         every {
-            client.queryPurchasesAsync(capture(paramsSlot), capture(listenerSlot))
+            client.queryPurchasesAsync(any(), capture(listenerSlot))
         } answers {
-            val params = paramsSlot.captured
             val listener = listenerSlot.captured
-            // QueryPurchasesParams doesn't expose its productType publicly in
-            // a stable way; we route by checking which type was requested via
-            // a simple toString match — but the tests mostly only use INAPP.
-            // For robustness, route based on which call this is.
-            val purchasesForType = when {
-                params.toString().contains("subs", ignoreCase = true) -> subsPurchases
-                else -> inAppPurchases
-            }
+            val purchasesForCall = if (callIndex == 0) inAppPurchases else subsPurchases
+            callIndex++
             val ok = BillingResult.newBuilder()
                 .setResponseCode(BillingClient.BillingResponseCode.OK)
                 .build()
-            listener.onQueryPurchasesResponse(ok, purchasesForType)
+            listener.onQueryPurchasesResponse(ok, purchasesForCall)
         }
     }
 

@@ -147,7 +147,7 @@ The library handles this for you. On every fresh Play Billing connection (app st
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
-The library handles `Recovered` dedupe for you. `BillingActions.handlePurchase` (and the lower-level `acknowledgePurchase` / `consumePurchase`) records the purchase token on success. The recovery channel still has `replay = 1` so the cache reflects current Play state, but `observePurchaseUpdates()` `combine`s the cache with the acked-token set *at delivery time* — so even a late subscriber that attaches after you've already handled the purchase receives the cached sweep result re-filtered against the current acked set, not the stale pre-ack snapshot. Empty `Recovered` (intrinsic or filtered-to-empty) is dropped before delivery. There's nothing to dedupe in your collector:
+The library handles `Recovered` dedupe for you. `BillingActions.handlePurchase` (and the lower-level `acknowledgePurchase` / `consumePurchase`) records the purchase token on success. The recovery channel still has `replay = 1` so the cache reflects current Play state, but `observePurchaseUpdates()` filters the cached snapshot against the acked-token set *at delivery time* (via a synchronous `map` that reads the current set per emission) — so even a late subscriber that attaches after you've already handled the purchase receives the cached sweep result re-filtered against the current acked set, not the stale pre-ack snapshot. Empty `Recovered` (intrinsic or filtered-to-empty) is dropped before delivery. There's nothing to dedupe in your collector:
 
 ```kotlin
 is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
@@ -162,7 +162,7 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
 }
 ```
 
-You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — but the `Set<String>` dedupe consumers used to need against `replay = 1` re-emission is no longer required. Tracking is per connection-share lifetime (lost when the connection scope tears down after 60s of zero subscribers); a fresh sweep on reconnect re-queries Play and only surfaces genuinely-unacked tokens. (Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
+You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — but the `Set<String>` dedupe consumers used to need against `replay = 1` re-emission is no longer required. Tracking lives for the singleton repository's lifetime (typically the process), bounded by purchase activity; a fresh sweep on reconnect re-queries Play and surfaces only genuinely-unacked tokens. (Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
 
 ```kotlin
 billing.observePurchaseUpdates().collect { event ->
