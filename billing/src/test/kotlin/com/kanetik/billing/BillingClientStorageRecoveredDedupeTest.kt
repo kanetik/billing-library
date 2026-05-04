@@ -199,10 +199,13 @@ class BillingClientStorageRecoveredDedupeTest {
         storage.markAcknowledged("token-only")
 
         // Late subscriber attaches. The replay-1 cache on _recoveredUpdates
-        // still holds the pre-ack snapshot, but purchasesUpdateFlow combines
-        // it with acknowledgedTokens at delivery time — the combine produces
-        // Recovered(emptyList()), which filterNot drops, so the late
-        // subscriber sees nothing.
+        // still holds the pre-ack snapshot, but purchasesUpdateFlow's `map`
+        // reads acknowledgedTokens.value as the cached emission flows to the
+        // new subscriber — the map produces Recovered(emptyList()), which
+        // filterNot drops, so the late subscriber sees nothing. Note that
+        // markAcknowledged itself does NOT trigger a re-emission to existing
+        // subscribers (the filter only runs when _recoveredUpdates emits);
+        // this test exercises the late-subscriber replay path specifically.
         val collectedAfterAck = mutableListOf<PurchaseEvent>()
         val job = launch {
             storage.purchasesUpdateFlow.collect { collectedAfterAck += it }
