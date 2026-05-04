@@ -63,13 +63,20 @@ internal class BillingClientStorage(
      */
 
     /** Live PBL events from the purchases-updated listener. No replay. */
-    private val _liveUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 0, extraBufferCapacity = 32)
-
-    /** Recovery-sweep events. Replay = 1 so a late subscriber catches the most recent sweep. */
-    private val _recoveredUpdates = MutableSharedFlow<PurchasesUpdate>(replay = 1, extraBufferCapacity = 4)
+    private val _liveUpdates = MutableSharedFlow<PurchaseEvent>(replay = 0, extraBufferCapacity = 32)
 
     /**
-     * Public-facing merged stream of [PurchasesUpdate]s. Hot, shared via the
+     * Recovery-sweep events. Typed narrower as [OwnedPurchases.Recovered] —
+     * the only thing emitted on this channel is the sweep result, so the
+     * narrower type both documents intent and lets the downstream
+     * [distinctUntilChanged] predicate read `purchases` directly without
+     * narrowing. Replay = 1 so a late subscriber catches the most recent
+     * sweep.
+     */
+    private val _recoveredUpdates = MutableSharedFlow<OwnedPurchases.Recovered>(replay = 1, extraBufferCapacity = 4)
+
+    /**
+     * Public-facing merged stream of [PurchaseEvent]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
      * both channels. Returns [Flow] (not [SharedFlow]) because the type can't
      * express "replay-on-subscribe for some emissions but not others" — that's
@@ -77,23 +84,24 @@ internal class BillingClientStorage(
      * top would re-introduce the single-replay-slot problem the split solves.
      *
      * The surgical [distinctUntilChanged] predicate collapses *only* consecutive
-     * empty [PurchasesUpdate.Recovered] emissions. The recovery sweep emits
+     * empty [OwnedPurchases.Recovered] emissions. The recovery sweep emits
      * `Recovered(emptyList())` on every successful connection (to keep the
      * replay cache fresh against stale snapshots); on an unstable connection
      * that flips repeatedly, those empties would otherwise stream through to
      * active collectors as redundant no-ops. Everything else passes through
-     * unchanged: non-empty [Recovered] emissions (consecutive identical ones
-     * represent legitimate retry signals — the previous handle attempt failed
-     * and the next sweep needs to surface the purchase again), and all live
-     * events including consecutive identical [Canceled]/[ItemAlreadyOwned]/etc.
-     * (each represents a distinct user purchase attempt that consumers may log,
-     * count, or reset UI state on independently). Replay-on-new-subscribe is
-     * unaffected — the dedupe is downstream of the SharedFlows.
+     * unchanged: non-empty [OwnedPurchases.Recovered] emissions (consecutive
+     * identical ones represent legitimate retry signals — the previous handle
+     * attempt failed and the next sweep needs to surface the purchase again),
+     * and all live events including consecutive identical [FlowOutcome.Canceled]
+     * / [FlowOutcome.ItemAlreadyOwned] / etc. (each represents a distinct user
+     * purchase attempt that consumers may log, count, or reset UI state on
+     * independently). Replay-on-new-subscribe is unaffected — the dedupe is
+     * downstream of the SharedFlows.
      */
-    val purchasesUpdateFlow: Flow<PurchasesUpdate> =
+    val purchasesUpdateFlow: Flow<PurchaseEvent> =
         merge(_liveUpdates, _recoveredUpdates).distinctUntilChanged { old, new ->
-            old is PurchasesUpdate.Recovered &&
-                new is PurchasesUpdate.Recovered &&
+            old is OwnedPurchases.Recovered &&
+                new is OwnedPurchases.Recovered &&
                 old.purchases.isEmpty() &&
                 new.purchases.isEmpty()
         }
@@ -167,7 +175,7 @@ internal class BillingClientStorage(
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
      * purchases in parallel, filters for `PURCHASED && !isAcknowledged`, and
      * emits any matches through [_recoveredUpdates] as a
-     * [PurchasesUpdate.Recovered] event.
+     * [OwnedPurchases.Recovered] event.
      *
      * `SUBS` is gated on [BillingClient.isFeatureSupported] so apps running on
      * Play installs / regions / devices without subscription support don't log
@@ -188,13 +196,13 @@ internal class BillingClientStorage(
      */
     private suspend fun sweepUnacknowledgedPurchases(client: BillingClient) {
         // v0.1.x limitation: SUBS purchases are emitted through the same
-        // PurchasesUpdate.Recovered variant as one-time products, even when
+        // OwnedPurchases.Recovered variant as one-time products, even when
         // they're subscription replacements (carry a non-empty
         // linkedPurchaseToken in originalJson). Consumers handling subs must
         // parse linkedPurchaseToken themselves and treat replacement purchases
-        // as plan changes rather than fresh grants — see PurchasesUpdate.Recovered
+        // as plan changes rather than fresh grants — see OwnedPurchases.Recovered
         // KDoc and the README "Purchase recovery" section. v0.2.0 will ship a
-        // typed PurchasesUpdate.SubscriptionReplacement variant that classifies
+        // typed OwnedPurchases.SubscriptionReplacement variant that classifies
         // these at the source so the wrong handling can't compile.
         try {
             val (inApp, subs) = coroutineScope {
@@ -266,7 +274,7 @@ internal class BillingClientStorage(
             // cache stays fresh against stale prior emissions.
             // Suspending emit (not tryEmit) so a transient buffer-full doesn't
             // silently drop a recovery event.
-            _recoveredUpdates.emit(PurchasesUpdate.Recovered(unacknowledged))
+            _recoveredUpdates.emit(OwnedPurchases.Recovered(unacknowledged))
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {
