@@ -269,6 +269,15 @@ public class EntitlementCache(
         // purchasesUpdates + N tick coroutines fighting over storage.
         collectionJob?.let { if (it.isActive) return@withLock it }
 
+        // Drain any snapshot left buffered from a prior cancelled start().
+        // CONFLATED holds at most one element, so this loop runs at most
+        // once. Without this, a snapshot queued just before the previous
+        // start()'s scope was cancelled would be picked up by the NEW
+        // writer coroutine and persisted *after* hydration, overwriting
+        // storage with a stale state and creating a state/storage
+        // mismatch for the rest of the process.
+        while (writeChannel.tryReceive().isSuccess) { /* discard */ }
+
         // Hydrate from storage. Done inside the mutex so a second caller
         // can't observe state.value before the first caller's hydration
         // lands — the second caller blocks here until the first has

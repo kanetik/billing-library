@@ -319,6 +319,60 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `restart drains stale buffered snapshot from cancelled session`() = runTest {
+        // Verifies that a snapshot queued just before the previous start()'s
+        // scope is cancelled doesn't leak into the next session and overwrite
+        // hydrated storage. The CONFLATED writeChannel persists across
+        // restarts; start() must drain it.
+        val storage = FakeEntitlementStorage()
+        val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
+        val cache = EntitlementCache(
+            purchasesUpdates = updates,
+            storage = storage,
+            gracePolicy = defaultPolicy(),
+            productPredicate = premiumPredicate,
+            clock = { INITIAL_CLOCK },
+            graceTickIntervalMs = 60_000L,
+        )
+        val first = cache.start(this)
+        runCurrent()
+        // Push a snapshot through reduce, but cancel before the writer drains.
+        // The writer is on the same scope, so cancelling first will stop it
+        // before it can write the buffered snapshot.
+        cache.reduce(
+            OwnedPurchases.Live(
+                listOf(
+                    fakePurchase(
+                        productId = premiumProductId,
+                        purchaseToken = "doomed-tok",
+                        purchaseState = Purchase.PurchaseState.PURCHASED,
+                    ),
+                ),
+            ),
+        )
+        first.cancelAndJoin()
+
+        // Pre-seed storage with a different snapshot, then re-start. If the
+        // stale "doomed-tok" snapshot leaked through the channel, it would
+        // overwrite storage's "fresh-tok" after restart's hydration.
+        storage.lastWritten = EntitlementSnapshot(
+            isEntitled = true,
+            confirmedAtMs = INITIAL_CLOCK + 5_000L,
+            purchaseToken = "fresh-tok",
+        )
+        val second = cache.start(this)
+        runCurrent()
+        // Give any leaked write a chance to land. (None should.)
+        repeat(3) { runCurrent() }
+
+        // Storage should still hold "fresh-tok"; the stale "doomed-tok" was
+        // drained by start() and never written.
+        assertThat(storage.lastWritten?.purchaseToken).isEqualTo("fresh-tok")
+
+        second.cancelAndJoin()
+    }
+
+    @Test
     fun `start is restartable after the previous Job is cancelled`() = runTest {
         // Verifies the cache doesn't enter a permanently-dead state when a
         // start()'s Job (or scope) is cancelled — a second start() retries
