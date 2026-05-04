@@ -202,12 +202,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BillingRepository.emitExternalRevocation` API (see Added below). See the
   README "Server-driven revocation" section for the full pattern.
 
-- **`BillingRepository` interface gained a `suspend emitExternalRevocation(token, reason)`
+- **`BillingRepository` interface gained a `suspend emitExternalRevocation(purchaseToken, reason)`
   method.** Source break for any consumer implementing `BillingRepository`
   directly (rare — most consumers use `BillingRepositoryCreator.create(...)`,
   which returns the library-provided implementation). Custom implementations
   must add the new method; the simplest pass-through is to delegate to a
-  `MutableSharedFlow<PurchaseEvent>` that backs `observePurchaseUpdates()`.
+  `MutableSharedFlow<PurchaseRevoked>` that feeds into the `PurchaseEvent`
+  stream backing `observePurchaseUpdates()`.
 
 ### Added
 
