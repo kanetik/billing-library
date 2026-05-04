@@ -5,7 +5,7 @@ import com.android.billingclient.api.Purchase
 /**
  * A single purchase event emitted by [BillingPurchaseUpdatesOwner.observePurchaseUpdates].
  *
- * # ⚠️ DO NOT WRITE `update.purchases` TO YOUR CACHE EXCEPT FOR [OwnedPurchases]
+ * # ⚠️ NEVER TREAT `event.purchases` FROM A [FlowOutcome] AS OWNED STATE
  *
  * `PurchaseEvent` is intentionally a marker interface with **no `purchases`
  * property**. Reading purchases requires narrowing to one of the two sealed
@@ -14,9 +14,13 @@ import com.android.billingclient.api.Purchase
  * uniformly is the most common silent footgun in entitlement code:
  *
  *  - **[OwnedPurchases]** — owned-state updates. Variants ([OwnedPurchases.Live],
- *    [OwnedPurchases.Recovered]) report what the user *owns*: purchases that
- *    completed at Play and need acknowledgement / consume / entitlement grant.
- *    Writing `update.purchases` to your entitlement cache is correct here.
+ *    [OwnedPurchases.Recovered]) report purchases the user owns that need
+ *    acknowledgement / consume / entitlement grant. Hand each to
+ *    [com.kanetik.billing.BillingActions.handlePurchase] and merge into your
+ *    own entitlement state — these events are **incremental updates, not
+ *    authoritative owned-state snapshots** (see each variant's KDoc for the
+ *    specific shape). For managed entitlement state, use
+ *    `EntitlementCache` (when issue #3 lands).
  *  - **[FlowOutcome]** — purchase-flow attempt outcomes. Variants
  *    ([FlowOutcome.Pending], [FlowOutcome.Canceled],
  *    [FlowOutcome.ItemAlreadyOwned], [FlowOutcome.ItemUnavailable],
@@ -26,8 +30,8 @@ import com.android.billingclient.api.Purchase
  *    entitlement cache — doing so silently corrupts state.
  *
  * The marker-interface design forces every consumer to narrow to a root before
- * reading purchases, which makes the cache-write rule a compile-time concern
- * rather than a runtime convention.
+ * reading purchases, which makes the FlowOutcome-isn't-owned-state rule a
+ * compile-time concern rather than a runtime convention.
  *
  * ## Branch shape
  *
@@ -80,10 +84,25 @@ import com.android.billingclient.api.Purchase
 public sealed interface PurchaseEvent
 
 /**
- * Owned-state events: purchases the user actually owns and that need
- * acknowledgement / consume / entitlement grant. **This is the only
- * [PurchaseEvent] root whose `purchases` list is safe to write to an
- * entitlement cache.**
+ * Owned-state events: purchases the user owns that need acknowledgement /
+ * consume / entitlement grant.
+ *
+ * **These are incremental updates, not authoritative owned-state snapshots.**
+ * Specifically:
+ *  - [Live] forwards whatever PBL delivers on its `OK` callback — that
+ *    includes empty callbacks and `UNSPECIFIED_STATE` entries (see
+ *    [Live]'s KDoc); it is not "everything the user owns right now."
+ *  - [Recovered] carries only the `PURCHASED && !isAcknowledged` subset
+ *    discovered by the auto-sweep — it is not the full owned set either.
+ *
+ * **Cache pattern: merge, do not replace.** Hand each event's purchases to
+ * [com.kanetik.billing.BillingActions.handlePurchase] and merge granted
+ * entitlement into your own state on `Success` (or `AlreadyAcknowledged`,
+ * once issue #7 lands). Replacing your cache with `event.purchases` will
+ * drop entitlement on every empty `Live` callback or every `Recovered`
+ * sweep that doesn't see the full owned set. For managed entitlement
+ * state, use `EntitlementCache` (when issue #3 lands), which handles the
+ * merge logic and grace policy internally.
  *
  * Two variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"
@@ -185,7 +204,7 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * consume didn't land — the next sweep needs to see the purchase again
      * to retry; suppressing the next replay would orphan it.
      *
-     * Live [Live] events do not need this dedupe — they go through a
+     * [Live] events do not need this dedupe — they go through a
      * separate `replay = 0` channel.
      *
      * **Why recovery matters:** Play auto-refunds purchases that aren't

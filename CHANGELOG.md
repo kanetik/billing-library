@@ -115,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `update.purchases` into their entitlement cache from any branch — silently
   corrupting state when the event was actually a `Canceled` (empty list) or
   `Pending` (purchases that haven't completed yet). The new shape eliminates
-  the footgun at compile time:
+  that specific footgun at compile time (the marker interface has no
+  `purchases` property; reading it requires narrowing to a root):
 
   ```kotlin
   sealed interface PurchaseEvent  // no purchases property — must narrow
@@ -137,10 +138,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   Because `PurchaseEvent` itself has no `purchases` property, reading
-  purchases requires narrowing to `OwnedPurchases` or `FlowOutcome` first —
-  putting the cache-write rule at the type system instead of in a doc
-  comment. `Success` is renamed to `Live`: `Success` was misleading
-  because both `Live` and `Recovered` convey owned state.
+  purchases requires narrowing to `OwnedPurchases` or `FlowOutcome` first.
+  `Success` is renamed to `Live`: `Success` was misleading because both
+  `Live` and `Recovered` convey owned state.
+
+  **Note on cache writes:** `OwnedPurchases` events are incremental updates,
+  not authoritative owned-state snapshots. `Live` forwards whatever PBL
+  delivers on `OK` (including empty callbacks and `UNSPECIFIED_STATE`
+  entries); `Recovered` carries only the `PURCHASED && !isAcknowledged`
+  subset from the auto-sweep. Merge into your entitlement state on
+  `handlePurchase` Success rather than replacing your cache from
+  `event.purchases`. For managed entitlement state with grace policy, use
+  `EntitlementCache` (issue #3).
 
   Migration:
 

@@ -8,14 +8,17 @@ import kotlinx.coroutines.flow.Flow
  *
  * Collect this flow in your premium / entitlement layer to react to every purchase
  * event. Branch on the [PurchaseEvent] sealed-interface roots:
- *  - [OwnedPurchases] (`Live`, `Recovered`) — the only events whose `purchases`
- *    list is safe to write to an entitlement cache.
+ *  - [OwnedPurchases] (`Live`, `Recovered`) — owned-state events. Hand each
+ *    purchase to [com.kanetik.billing.BillingActions.handlePurchase] and
+ *    merge granted entitlement into your state. These are **incremental
+ *    updates, not authoritative owned-state snapshots** (see [PurchaseEvent]
+ *    KDoc and each variant's KDoc for the specific shape).
  *  - [FlowOutcome] (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`,
  *    `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
  *    their `purchases` list as owned-state.
  *
  * Both one-time and subscription updates flow through the same stream — see
- * [PurchaseEvent] for the full state-machine guidance and the cache-write rule.
+ * [PurchaseEvent] for the full state-machine guidance.
  *
  * Internally hot and shared via two underlying SharedFlows (live PBL events with
  * `replay = 0`, recovery-sweep events with `replay = 1`). Each subscription to

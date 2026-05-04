@@ -115,9 +115,15 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 > two sealed roots:
 >
 > - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The
->   user actually owns these purchases; acknowledge / consume / grant
->   entitlement, and (if you cache entitlement) write the `purchases` list
->   here.
+>   user owns these purchases; acknowledge / consume / grant entitlement.
+>   These are **incremental updates, not authoritative owned-state
+>   snapshots** — `Live` forwards whatever PBL delivers (including empty
+>   callbacks and `UNSPECIFIED_STATE` entries), and `Recovered` carries
+>   only the unacknowledged subset from the auto-sweep. Merge into your
+>   own entitlement state on `handlePurchase` Success rather than
+>   replacing your cache from `event.purchases`. For managed entitlement
+>   state with grace policy, use `EntitlementCache` (when issue
+>   [#3](https://github.com/kanetik/billing-library/issues/3) lands).
 > - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
 >   `ItemUnavailable`, `UnknownResponse`) — purchase-flow attempt outcomes.
 >   These describe what *happened* on a single launch attempt. The
@@ -127,10 +133,11 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 >
 > The marker interface deliberately omits the `purchases` property — you
 > can't read `event.purchases` without first narrowing to `OwnedPurchases`
-> or `FlowOutcome`, so the cache-write rule lands as a compile-time
-> branch rather than a runtime convention. Writing `update.purchases`
-> from a `Canceled` event into your entitlement cache is the original bug
-> this split exists to eliminate.
+> or `FlowOutcome`. The split's job is to eliminate the original bug:
+> writing `update.purchases` from a `Canceled` (or other `FlowOutcome`)
+> event into your entitlement cache. The split does **not** promise that
+> `OwnedPurchases.purchases` is an authoritative owned-state snapshot —
+> see each variant's KDoc for the actual shape.
 
 ## Purchase recovery
 
