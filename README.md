@@ -70,6 +70,7 @@ class CheckoutActivity : ComponentActivity() {
                     is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
                     is PurchasesUpdate.ItemUnavailable -> showSoldOut()
                     is PurchasesUpdate.UnknownResponse -> reportFailure(update.code)
+                    is PurchasesUpdate.Revoked -> revokeEntitlement(update.purchaseToken, update.reason)
                 }
             }
         }
@@ -209,7 +210,7 @@ private suspend fun handle(purchase: Purchase) {
 `observePurchaseUpdates()` is internally a merge of two channels:
 
 - **Live events** (`Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
-- **Recovery events** (`Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
+- **Recovery + revocation events** (`Recovered`, `Revoked`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired or the consumer's FCM listener pushed a `Revoked`) catches the most recent event. This is what makes both the recovery feature and consumer-driven revocation reliable in patterns where the collector races the connection coming up.
 
 You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `Success` branch and you'll see it exactly once per purchase, even across rotations. The `Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
 
@@ -218,7 +219,7 @@ You don't need to dedupe handle / grant / UX for live events — fire confetti d
 | Type | Role |
 |---|---|
 | `BillingRepositoryCreator.create(...)` | Public entry point. Returns `BillingRepository`. |
-| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. |
+| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. Adds `emitExternalRevocation(token, reason)` for transport-agnostic server-driven revocation — see "Server-driven revocation". |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
 | `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchasesUpdate>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
@@ -232,7 +233,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 | Subpackage | Contains |
 |---|---|
-| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `RevocationReason`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
 | `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
@@ -493,6 +494,44 @@ This is the recommended pattern. Library-side caching would tax consumers with t
 RTDN is server-side — Cloud Pub/Sub from Play to your backend. The library is client-side only. For RTDN integration, see Google's [Real-time developer notifications guide](https://developer.android.com/google/play/billing/getting-ready#configure-rtdn).
 
 If your backend posts notifications back to the client (e.g., "subscription state changed"), call `queryPurchases` to refresh and let the existing `observePurchaseUpdates` pipeline handle the result.
+
+## Server-driven revocation
+
+Refunds, chargebacks, and other server-driven entitlement reversals don't arrive through PBL's `PurchasesUpdatedListener` — they originate on Play's side and reach your app via RTDN→Cloud Pub/Sub→your backend→(FCM push, polling, deeplink, whatever transport you've wired). Without a first-class hook, consumers end up maintaining a parallel revocation pipeline alongside `observePurchaseUpdates()`.
+
+The library exposes a single transport-agnostic emit API on `BillingRepository`:
+
+```kotlin
+public suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason)
+```
+
+The library does **not** subscribe to FCM, RTDN, or anything server-side — that's your decision (transport, auth, decoding). Your FCM listener (or polling worker, etc.) decodes the payload into a `(purchaseToken, RevocationReason)` pair and calls `emitExternalRevocation`. The event surfaces as `PurchasesUpdate.Revoked` through the same flow you already collect:
+
+```kotlin
+class FcmRevocationReceiver : FirebaseMessagingService() {
+    @Inject lateinit var billing: BillingRepository
+    override fun onMessageReceived(message: RemoteMessage) {
+        val token = message.data["purchaseToken"] ?: return
+        val reason = when (message.data["type"]) {
+            "REFUND" -> RevocationReason.Refunded
+            "CHARGEBACK" -> RevocationReason.Chargeback
+            "SUBS_EXPIRED" -> RevocationReason.SubscriptionCanceled
+            else -> RevocationReason.Other
+        }
+        runBlocking { billing.emitExternalRevocation(token, reason) }
+    }
+}
+```
+
+`Revoked` events route through the same `replay = 1` recovery channel as `PurchasesUpdate.Recovered` (see "Replay semantics"). A revocation that arrives before the consumer's collector attaches — common when the FCM listener decodes the payload at process start, before the UI is up — is preserved and replayed to the first subscriber. The same dedupe rule applies: a re-attached collector receives the most recent event again, so gate on `purchaseToken` (and variant) if your handler isn't idempotent.
+
+`RevocationReason` buckets:
+- `Refunded` — Play refunded the purchase (consumer-initiated or merchant-initiated).
+- `Chargeback` — payment dispute resolved against the merchant; warrants a security-policy response on top of revocation.
+- `SubscriptionCanceled` — subscription canceled and grace period expired. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
+- `Other` — none of the above (manual revocation by support, fraud-detection action, etc.).
+
+The library is intentionally agnostic to the *contents* of the reason — it neither validates the mapping nor reads it for any internal decision. The enum exists so downstream collectors get a typed switch for differentiated UX (chargeback may flag the account; a plain refund probably just shows a neutral notice).
 
 ## Testing
 

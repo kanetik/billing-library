@@ -66,6 +66,9 @@ private fun SampleScreen(
         Button(onClick = viewModel::loadProducts) {
             Text("Query products")
         }
+        Button(onClick = viewModel::simulateRevocation) {
+            Text("Simulate revocation")
+        }
         if (state.loading) {
             CircularProgressIndicator()
         }

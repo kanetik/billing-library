@@ -61,6 +61,13 @@ internal class DefaultBillingRepository(
         return billingClientStorage.purchasesUpdateFlow
     }
 
+    override suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
+        // Routed through the recovery channel (replay = 1) — see
+        // BillingClientStorage.emitExternalRevocation and the BillingRepository
+        // interface KDoc for why.
+        billingClientStorage.emitExternalRevocation(purchaseToken, reason)
+    }
+
     @AnyThread
     override suspend fun isFeatureSupported(@FeatureType feature: String): Boolean {
         return connectToClientAndCall {

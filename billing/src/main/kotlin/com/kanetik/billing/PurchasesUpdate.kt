@@ -24,6 +24,11 @@ import com.android.billingclient.api.Purchase
  *  - [ItemAlreadyOwned] — non-consumable already owned; treat as already-granted.
  *  - [ItemUnavailable] — product not available (region, country, etc.).
  *  - [UnknownResponse] — anything else (raw response code in [UnknownResponse.code]).
+ *  - [Revoked] — synthetic revocation event pushed by the consumer through
+ *    [BillingRepository.emitExternalRevocation]. The library is transport-agnostic;
+ *    consumers wiring up RTDN→Pub/Sub→FCM (or polling, or deeplinks) decode
+ *    the signal and emit `(token, reason)` pairs through the new emit API.
+ *    See [RevocationReason] for the recognized buckets.
  *
  * When a single Play callback contains both pending and settled purchases (rare —
  * Play typically delivers one per callback), the listener emits both [Success] and
@@ -51,6 +56,15 @@ import com.android.billingclient.api.Purchase
  * before the consumer's collector attaches; the replay ensures the
  * recovered purchase isn't lost. Re-emission for the *same* sweep happens
  * only across re-subscriptions, not after a fresh sweep replaces it.
+ *
+ * [Revoked] events are routed through the same `replay = 1` channel as
+ * [Recovered] for the same reason: a revocation that arrives before the
+ * consumer's collector attaches (the FCM listener decoded the RTDN payload
+ * and called [BillingRepository.emitExternalRevocation] before the UI was
+ * ready to observe) must not be lost. The same dedupe rule applies — a
+ * re-attached collector receives the most recent event in the channel
+ * again; gate by `purchaseToken` + variant if your handler isn't
+ * idempotent.
  */
 public sealed class PurchasesUpdate {
     public abstract val purchases: List<Purchase>
@@ -171,4 +185,90 @@ public sealed class PurchasesUpdate {
         val code: Int,
         override val purchases: List<Purchase>
     ) : PurchasesUpdate()
+
+    /**
+     * A synthetic revocation event pushed into [observePurchaseUpdates]
+     * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] by a consumer via
+     * [BillingRepository.emitExternalRevocation]. Carries the affected
+     * `purchaseToken` and a [RevocationReason] bucket describing why the
+     * entitlement was revoked.
+     *
+     * The library is transport-agnostic: it does **not** subscribe to FCM,
+     * Real-Time Developer Notifications (RTDN), Pub/Sub, or any server-side
+     * channel. Consumers driving server-side revocation are responsible for
+     * decoding the transport (RTDN→Pub/Sub→FCM, polling, deeplinks, etc.)
+     * into a `(purchaseToken, reason)` pair and pushing it through the emit
+     * API. The single sealed-flow consumer in your app then handles
+     * revocations alongside normal purchase outcomes, instead of maintaining
+     * a parallel pipeline.
+     *
+     * Routed through the same `replay = 1` channel as [Recovered] so a
+     * revocation arriving before a subscriber attaches isn't lost — see the
+     * class-level "Replay semantics" notes for the full picture.
+     *
+     * **`purchases` is always empty.** Revocation arrives without a Play
+     * [Purchase] object — the source is a server-side notification carrying
+     * a token, not a re-issued PBL purchase callback. The empty list
+     * satisfies the [PurchasesUpdate.purchases] contract; consumers should
+     * branch on `purchaseToken` (and `reason`) directly.
+     */
+    public data class Revoked(
+        val purchaseToken: String,
+        val reason: RevocationReason,
+    ) : PurchasesUpdate() {
+        override val purchases: List<Purchase> = emptyList()
+    }
+}
+
+/**
+ * Why a purchase was revoked, as decoded by the consumer from the originating
+ * transport (RTDN payload, server reconciliation result, support-tool action,
+ * etc.). The library does not validate the mapping — the enum exists to give
+ * downstream collectors a typed switch for differentiated UX (e.g. a
+ * chargeback might warrant a security-flag entry while a refund warrants a
+ * neutral "we've reversed your purchase" notice).
+ */
+public enum class RevocationReason {
+    /**
+     * Play refunded the purchase — either user-initiated (the user requested
+     * a refund through Play Store / Google Pay) or merchant-initiated (your
+     * support team issued a refund via the Play Console or Voided Purchases
+     * API). Maps to RTDN `OneTimeProductNotification.type = ONE_TIME_PRODUCT_PURCHASE_REFUNDED`
+     * and the equivalent `SubscriptionNotification.type = SUBSCRIPTION_REVOKED`
+     * when the revocation source is a refund. Revoke entitlement; consider a
+     * neutral confirmation toast.
+     */
+    Refunded,
+
+    /**
+     * A chargeback / payment dispute was resolved against the merchant — the
+     * cardholder's bank reversed the charge. Distinct from [Refunded]
+     * because chargebacks frequently warrant a security-policy response
+     * (flag the account, revoke promotional credit, block re-purchase from
+     * the same payment method) on top of plain entitlement revocation.
+     * Consumers wiring their backend's chargeback webhook map to this value.
+     */
+    Chargeback,
+
+    /**
+     * A subscription was canceled and the grace period expired (Play stopped
+     * billing renewals and the user no longer has active entitlement).
+     * Subscription consumers receive this from RTDN `SubscriptionNotification`
+     * `SUBSCRIPTION_EXPIRED` after `SUBSCRIPTION_CANCELED`. Included for
+     * forward compatibility — the v0.1.x library does **not** emit this
+     * itself (subscription helpers ship in v0.2.0); consumers running their
+     * own subscription reconciliation can use this bucket today and the
+     * v0.2.0 helpers will surface the same value automatically.
+     */
+    SubscriptionCanceled,
+
+    /**
+     * Other revocation source — consumer-supplied. Use when none of the
+     * specific reasons fit (e.g. a support agent revoked entitlement
+     * manually for a TOS violation, a fraud-detection system flagged the
+     * purchase, a server-side reconciliation discovered the purchase no
+     * longer exists in Play, etc.). The library does not interpret this
+     * value beyond passing it through.
+     */
+    Other,
 }

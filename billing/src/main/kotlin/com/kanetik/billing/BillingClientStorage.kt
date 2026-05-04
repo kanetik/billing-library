@@ -164,6 +164,18 @@ internal class BillingClientStorage(
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 
     /**
+     * Pushes a [PurchasesUpdate.Revoked] event through the recovery channel
+     * (`replay = 1`) so a late subscriber catches the most recent revocation.
+     * Used by [DefaultBillingRepository.emitExternalRevocation] to route
+     * consumer-supplied revocation signals through the same plumbing as
+     * recovered purchases. Suspending `emit` rather than `tryEmit` so a
+     * transient buffer-full doesn't silently drop the event.
+     */
+    suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
+        _recoveredUpdates.emit(PurchasesUpdate.Revoked(purchaseToken, reason))
+    }
+
+    /**
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
      * purchases in parallel, filters for `PURCHASED && !isAcknowledged`, and
      * emits any matches through [_recoveredUpdates] as a

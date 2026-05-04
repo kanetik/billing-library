@@ -113,6 +113,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `replay = 1` re-emissions on re-subscribe). See the README "Purchase
   recovery" section for the full pattern.
 
+- **`PurchasesUpdate` sealed class gained a new `Revoked` subtype.** Same
+  exhaustiveness story as `Recovered`. Migration: add a branch for
+  `PurchasesUpdate.Revoked` — branch on `update.purchaseToken` and
+  `update.reason` (a `RevocationReason` enum) and revoke the matching
+  entitlement. The library does not emit `Revoked` itself; it surfaces
+  events the consumer pushes via the new `BillingRepository.emitExternalRevocation`
+  API (see Added below). See the README "Server-driven revocation" section
+  for the full pattern.
+
+- **`BillingRepository` interface gained a `suspend emitExternalRevocation(token, reason)`
+  method.** Source break for any consumer implementing `BillingRepository`
+  directly (rare — most consumers use `BillingRepositoryCreator.create(...)`,
+  which returns the library-provided implementation). Custom implementations
+  must add the new method; the simplest pass-through is to delegate to a
+  `MutableSharedFlow<PurchasesUpdate>` that backs `observePurchaseUpdates()`.
+
 ### Added
 
 - **`HandlePurchaseResult` sealed type** (`com.kanetik.billing`) —
@@ -154,6 +170,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user-initiated purchases (fire confetti) from background recovery (silent).
   Handle code is identical to `Success` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
+- **`PurchasesUpdate.Revoked(purchaseToken, reason)` sealed variant +
+  `RevocationReason` enum** (`Refunded`, `Chargeback`, `SubscriptionCanceled`,
+  `Other`) — synthetic revocation event for server-driven entitlement
+  reversals (refunds, chargebacks, etc.). Carries no `Purchase` object
+  (revocations originate from a server-side notification, not a re-issued
+  PBL callback); branch on `purchaseToken` directly. The library does not
+  emit `Revoked` itself.
+- **`BillingRepository.emitExternalRevocation(purchaseToken, reason)`** —
+  transport-agnostic emit API. The library does not subscribe to FCM, RTDN,
+  Pub/Sub, or any server-side channel; consumers wiring up RTDN→FCM
+  ingestion (or polling, or deeplinks) decode the payload and call this
+  method. Routed through the same `replay = 1` channel as `Recovered` so a
+  revocation arriving before a subscriber attaches isn't lost. See the
+  README "Server-driven revocation" section.
 
 ### Changed
 
@@ -180,15 +210,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration notes
 
-`PurchasesUpdate` is a sealed class; adding `Recovered` produces a Kotlin
-exhaustiveness warning at any `when (update) { ... }` site that doesn't
-have an `else`. Add an arm:
+`PurchasesUpdate` is a sealed class; adding `Recovered` and `Revoked` produces
+Kotlin exhaustiveness warnings at any `when (update) { ... }` site that
+doesn't have an `else`. Add the arms:
 
 ```kotlin
 is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) }
+is PurchasesUpdate.Revoked -> revokeEntitlement(update.purchaseToken, update.reason)
 ```
 
-The handle/grant code is the same as your `Success` arm.
+The `Recovered` handle/grant code is the same as your `Success` arm. The
+`Revoked` arm is new — wire it to whatever revocation flow (clear the
+premium flag, kick to a paywall, log for audit, etc.) makes sense for your
+app. Library does not emit `Revoked` on its own; events arrive only when the
+consumer pushes them via `BillingRepository.emitExternalRevocation`.
 
 ## [0.1.0] - 2026-04-30
 
