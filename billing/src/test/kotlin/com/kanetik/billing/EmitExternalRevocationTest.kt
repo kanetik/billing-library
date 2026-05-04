@@ -102,7 +102,7 @@ class EmitExternalRevocationTest {
             // pass-through — the library does not interpret the reason — but the
             // test guards against accidental enum-erasure in the data class
             // definition or future serialization layer.
-            for (reason in RevocationReason.values()) {
+            for (reason in RevocationReason.entries) {
                 val repo = newRepository(this)
                 repo.emitExternalRevocation(purchaseToken = "tok-$reason", reason = reason)
                 val event = repo.observePurchaseUpdates().first()
