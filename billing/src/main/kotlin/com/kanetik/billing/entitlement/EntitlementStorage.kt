@@ -19,10 +19,20 @@ package com.kanetik.billing.entitlement
  *    persisted; grace re-derives from the most recent confirmed
  *    `confirmedAtMs` on read.
  *  - Both methods are `suspend` so backing implementations can do disk I/O
- *    without blocking. The cache invokes them on its scope's dispatcher;
- *    your implementation is responsible for any further dispatching it
- *    needs (e.g. `withContext(Dispatchers.IO)` if your storage isn't
- *    already coroutine-friendly).
+ *    without blocking. Note the dispatch contexts differ:
+ *      - [read] is invoked by `EntitlementCache.start()` in the **caller's**
+ *        coroutine context (typically the same scope the caller passes to
+ *        `start()`). If your `start()` is launched on `Dispatchers.Main`
+ *        (e.g., `viewModelScope.launch { cache.start(viewModelScope) }`),
+ *        `read()` runs on Main unless your implementation switches.
+ *      - [write] is invoked by an internal writer coroutine launched into
+ *        the scope supplied to `start()`, draining a CONFLATED channel
+ *        serially.
+ *    Your implementation is responsible for any further dispatching it
+ *    needs (e.g. wrap the body in `withContext(Dispatchers.IO)` if your
+ *    storage isn't already coroutine-friendly). DataStore handles this
+ *    transparently; SharedPreferences-backed implementations should
+ *    withContext(IO) explicitly.
  *  - [write] should be atomic with respect to [read] — the cache may be
  *    re-created between calls (configuration change, process death) and the
  *    next instance's [read] must see the most recent successful [write].
