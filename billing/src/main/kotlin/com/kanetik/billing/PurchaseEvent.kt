@@ -338,11 +338,18 @@ public enum class RevocationReason {
     /**
      * Play refunded the purchase — either user-initiated (the user requested
      * a refund through Play Store / Google Pay) or merchant-initiated (your
-     * support team issued a refund via the Play Console or Voided Purchases
-     * API). Maps to RTDN `OneTimeProductNotification.type = ONE_TIME_PRODUCT_PURCHASE_REFUNDED`
-     * and the equivalent `SubscriptionNotification.type = SUBSCRIPTION_REVOKED`
-     * when the revocation source is a refund. Revoke entitlement; consider a
-     * neutral confirmation toast.
+     * support team issued a refund via the Play Console or the Voided
+     * Purchases API). Source channels differ by product type:
+     *  - **Subscriptions:** RTDN `SubscriptionNotification.notificationType =
+     *    SUBSCRIPTION_REVOKED` when the revocation source is a refund.
+     *  - **One-time products:** RTDN does not currently emit a "refunded"
+     *    notification type for one-time products (only `PURCHASED` and
+     *    `CANCELED`). Track these via the
+     *    [Voided Purchases API](https://developer.android.com/google/play/billing/voided-purchases-api)
+     *    on your backend, then push them through `emitExternalRevocation`
+     *    on the client (e.g., via FCM).
+     *
+     * Revoke entitlement; consider a neutral confirmation toast.
      */
     Refunded,
 

@@ -89,10 +89,17 @@ internal class BillingClientStorage(
     /**
      * External revocation events (consumer-driven via
      * [emitExternalRevocation]). Typed narrower as [PurchaseRevoked] for the
-     * same reasons as [_recoveredUpdates]. Replay = 1 so a revocation that
-     * arrives before a subscriber attaches isn't lost.
+     * same reasons as [_recoveredUpdates]. Replay = 16 so a *small burst* of
+     * revocations arriving before any subscriber attaches (e.g. multiple FCM
+     * messages decoded at process start, before the UI is up) survives the
+     * gap without collapsing — replay = 1 would only retain the most recent
+     * revocation, silently dropping earlier ones for distinct purchase
+     * tokens. 16 is a generous bound for the realistic FCM-burst case
+     * (~200 bytes per cached event = ~3 KB worst case); larger bursts still
+     * cap at 16, so consumers needing guaranteed delivery of every event
+     * persist on their side before calling [emitExternalRevocation].
      */
-    private val _revocationUpdates = MutableSharedFlow<PurchaseRevoked>(replay = 1, extraBufferCapacity = 4)
+    private val _revocationUpdates = MutableSharedFlow<PurchaseRevoked>(replay = 16, extraBufferCapacity = 16)
 
     /**
      * Public-facing merged stream of [PurchaseEvent]s. Hot, shared via the
