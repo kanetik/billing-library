@@ -252,7 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
 - **`PurchaseRevoked(purchaseToken, reason)` top-level `PurchaseEvent`
   variant + `RevocationReason` enum** (`Refunded`, `Chargeback`,
-  `SubscriptionCanceled`, `Other`) — synthetic revocation event for
+  `SubscriptionExpired`, `Other`) — synthetic revocation event for
   server-driven entitlement reversals (refunds, chargebacks, etc.). Sits
   alongside `OwnedPurchases` and `FlowOutcome` as a third `PurchaseEvent`
   category rather than nested under either, because it's neither owned

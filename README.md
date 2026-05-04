@@ -539,30 +539,44 @@ The library exposes a single transport-agnostic emit API on `BillingRepository`:
 public suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason)
 ```
 
-The library does **not** subscribe to FCM, RTDN, or anything server-side — that's your decision (transport, auth, decoding). Your FCM listener (or polling worker, etc.) decodes the payload into a `(purchaseToken, RevocationReason)` pair and calls `emitExternalRevocation`. The event surfaces as `PurchasesUpdate.Revoked` through the same flow you already collect:
+The library does **not** subscribe to FCM, RTDN, or anything server-side — that's your decision (transport, auth, decoding). Your FCM listener (or polling worker, etc.) decodes the payload into a `(purchaseToken, RevocationReason)` pair and calls `emitExternalRevocation`. The event surfaces as `PurchaseRevoked` through the same flow you already collect:
 
 ```kotlin
 class FcmRevocationReceiver : FirebaseMessagingService() {
     @Inject lateinit var billing: BillingRepository
+
+    // Service-scoped CoroutineScope so emitExternalRevocation runs without
+    // blocking the FCM callback thread. SupervisorJob keeps a single emit
+    // failure from cancelling sibling work; the scope is cancelled in
+    // onDestroy below so emits don't outlive the service.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onMessageReceived(message: RemoteMessage) {
         val token = message.data["purchaseToken"] ?: return
         val reason = when (message.data["type"]) {
             "REFUND" -> RevocationReason.Refunded
             "CHARGEBACK" -> RevocationReason.Chargeback
-            "SUBS_EXPIRED" -> RevocationReason.SubscriptionCanceled
+            "SUBS_EXPIRED" -> RevocationReason.SubscriptionExpired
             else -> RevocationReason.Other
         }
-        runBlocking { billing.emitExternalRevocation(token, reason) }
+        scope.launch { billing.emitExternalRevocation(token, reason) }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 }
 ```
 
-`Revoked` events route through the same `replay = 1` recovery channel as `PurchasesUpdate.Recovered` (see "Replay semantics"). A revocation that arrives before the consumer's collector attaches — common when the FCM listener decodes the payload at process start, before the UI is up — is preserved and replayed to the first subscriber. The same dedupe rule applies: a re-attached collector receives the most recent event again, so gate on `purchaseToken` (and variant) if your handler isn't idempotent.
+(For longer-running work or for guaranteed delivery across process death, use WorkManager instead — `emitExternalRevocation` is a fast, in-memory hand-off, but the surrounding decode + persistence is a different question.)
+
+`PurchaseRevoked` events route through a dedicated `replay = 1` channel — separate from `OwnedPurchases.Recovered`, so a revocation that arrives before the consumer's collector attaches isn't evicted by an empty recovery sweep. (Common case: the FCM listener decodes the payload at process start, before the UI is up.) The same dedupe rule applies: a re-attached collector receives the most recent event again, so gate on `purchaseToken` if your handler isn't idempotent. Multiple revocations that pile up before the first subscriber attaches will still collapse to the most recent one (single replay slot) — for guaranteed delivery of every event, persist incoming events on the consumer side before calling `emitExternalRevocation`.
 
 `RevocationReason` buckets:
 - `Refunded` — Play refunded the purchase (consumer-initiated or merchant-initiated).
 - `Chargeback` — payment dispute resolved against the merchant; warrants a security-policy response on top of revocation.
-- `SubscriptionCanceled` — subscription canceled and grace period expired. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
+- `SubscriptionExpired` — subscription has fully expired (auto-renew off **and** the paid-through period elapsed). PBL distinguishes this from `SUBSCRIPTION_CANCELED` which means auto-renew was disabled but the user still has entitlement until the period ends. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
 - `Other` — none of the above (manual revocation by support, fraud-detection action, etc.).
 
 The library is intentionally agnostic to the *contents* of the reason — it neither validates the mapping nor reads it for any internal decision. The enum exists so downstream collectors get a typed switch for differentiated UX (chargeback may flag the account; a plain refund probably just shows a neutral notice).

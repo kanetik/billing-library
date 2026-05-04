@@ -295,7 +295,7 @@ public sealed class FlowOutcome : PurchaseEvent {
 }
 
 /**
- * A synthetic revocation event pushed into [observePurchaseUpdates]
+ * A synthetic revocation event pushed into
  * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] by a consumer via
  * [BillingRepository.emitExternalRevocation]. Carries the affected
  * `purchaseToken` and a [RevocationReason] bucket describing why the
@@ -357,16 +357,20 @@ public enum class RevocationReason {
     Chargeback,
 
     /**
-     * A subscription was canceled and the grace period expired (Play stopped
-     * billing renewals and the user no longer has active entitlement).
-     * Subscription consumers receive this from RTDN `SubscriptionNotification`
-     * `SUBSCRIPTION_EXPIRED` after `SUBSCRIPTION_CANCELED`. Included for
-     * forward compatibility — the v0.1.x library does **not** emit this
-     * itself (subscription helpers ship in v0.2.0); consumers running their
-     * own subscription reconciliation can use this bucket today and the
-     * v0.2.0 helpers will surface the same value automatically.
+     * A subscription has fully expired — auto-renew was canceled and the
+     * paid-through period (plus any grace period) has elapsed, so Play has
+     * stopped billing and the user no longer has active entitlement.
+     * Subscription consumers map RTDN `SubscriptionNotification`
+     * `SUBSCRIPTION_EXPIRED` to this value (PBL distinguishes the active
+     * "auto-renew off but still paid through" `SUBSCRIPTION_CANCELED` state
+     * from the terminal `SUBSCRIPTION_EXPIRED` state — only the latter
+     * actually revokes entitlement). Included for forward compatibility —
+     * the v0.1.x library does **not** emit this itself (subscription
+     * helpers ship in v0.2.0); consumers running their own subscription
+     * reconciliation can use this bucket today and the v0.2.0 helpers
+     * will surface the same value automatically.
      */
-    SubscriptionCanceled,
+    SubscriptionExpired,
 
     /**
      * Other revocation source — consumer-supplied. Use when none of the
