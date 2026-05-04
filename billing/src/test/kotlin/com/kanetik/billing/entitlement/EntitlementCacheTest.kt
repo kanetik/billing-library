@@ -261,6 +261,58 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `start called twice returns the same active Job`() = runTest {
+        val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
+        val cache = EntitlementCache(
+            purchasesUpdates = updates,
+            storage = FakeEntitlementStorage(),
+            gracePolicy = defaultPolicy(),
+            productPredicate = premiumPredicate,
+            clock = { INITIAL_CLOCK },
+            graceTickIntervalMs = 60_000L,
+        )
+        val first = cache.start(this)
+        val second = cache.start(this)
+        // Both calls hand back the same active Job. Cancelling either stops
+        // the cache; there's only one collector + tick.
+        assertThat(second).isSameInstanceAs(first)
+        assertThat(first.isActive).isTrue()
+        first.cancelAndJoin()
+    }
+
+    @Test
+    fun `start is restartable after the previous Job is cancelled`() = runTest {
+        // Verifies the cache doesn't enter a permanently-dead state when a
+        // start()'s Job (or scope) is cancelled — a second start() retries
+        // hydration + launches a fresh collector.
+        val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
+        val cache = EntitlementCache(
+            purchasesUpdates = updates,
+            storage = FakeEntitlementStorage(),
+            gracePolicy = defaultPolicy(),
+            productPredicate = premiumPredicate,
+            clock = { INITIAL_CLOCK },
+            graceTickIntervalMs = 60_000L,
+        )
+        val first = cache.start(this)
+        first.cancelAndJoin()
+        assertThat(first.isActive).isFalse()
+
+        // Fresh start should establish a new active Job.
+        val second = cache.start(this)
+        runCurrent()
+        assertThat(second).isNotSameInstanceAs(first)
+        assertThat(second.isActive).isTrue()
+
+        // Sanity: the new collector actually processes events.
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "after-restart"))))
+        runCurrent()
+        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+
+        second.cancelAndJoin()
+    }
+
+    @Test
     fun `Failure while Revoked stays Revoked - no spurious InGrace`() = runTest {
         val (cache, updates, _, _, job) = newCache()
         // Default state is Revoked; no prior Granted observation.

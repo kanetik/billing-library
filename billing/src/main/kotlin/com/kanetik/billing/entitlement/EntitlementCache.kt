@@ -10,7 +10,6 @@ import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import androidx.annotation.AnyThread
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -185,18 +184,13 @@ public class EntitlementCache(
     // grace tick) can't race on _state / lastConfirmedSnapshot updates.
     private val mutex = Mutex()
 
-    // Latched once start() begins, prevents redundant collectors if a caller
-    // accidentally calls start() twice on the same instance. AtomicBoolean
-    // (not just a Boolean) so the check is safe even if start() is called
-    // from different threads.
-    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
-
-    // Completed when the first start() call has finished hydration. Second+
-    // start() callers await this so they don't return before state.value
-    // reflects the persisted snapshot (otherwise their immediate read would
-    // see the default Revoked even after the racing first caller has
-    // finished hydrating).
-    private val hydrationComplete = CompletableDeferred<Unit>()
+    // The active collection Job from the most recent successful start(),
+    // or null if the cache hasn't been started yet (or a prior start was
+    // cancelled mid-hydration). Guarded by [mutex] so concurrent start()
+    // callers serialise — the second caller blocks until the first has
+    // either established a Job (returns the same handle) or failed
+    // (re-attempts hydration + launch).
+    private var collectionJob: Job? = null
 
     /**
      * Hydrates from [storage] and begins collecting from [purchasesUpdates] +
@@ -211,68 +205,54 @@ public class EntitlementCache(
      * grace tick. Cancel the returned job (or the [scope] itself) to stop
      * the cache.
      *
-     * Calling [start] more than once on the same instance is a no-op for
-     * the second+ call: the latch returns the start-was-called signal and
-     * the second [Job] completes immediately without launching a new
-     * collector. Most apps create one cache per scope and start it once.
+     * Calling [start] more than once on the same instance is safe and
+     * idempotent — concurrent callers serialise on an internal mutex; the
+     * first caller does hydration + launch and stores the resulting Job,
+     * subsequent callers return that same active Job. If a previous start()
+     * was cancelled mid-hydration (or its Job was later cancelled), a fresh
+     * start() will retry — the cache isn't left in a permanently-dead state.
      */
     @AnyThread
-    public suspend fun start(scope: CoroutineScope): Job {
-        if (!started.compareAndSet(false, true)) {
-            // Already started; second-call protection so a misbehaving caller
-            // doesn't end up with N collectors all racing on the same upstream
-            // flow + N tick coroutines all writing to storage. Wait for the
-            // first call's hydration to complete before returning — otherwise
-            // a thread-racing second caller could return early and read
-            // state.value before the first call's hydration lands.
-            hydrationComplete.await()
-            return Job().apply { complete() }
+    public suspend fun start(scope: CoroutineScope): Job = mutex.withLock {
+        // If a previous start() succeeded and that Job is still active,
+        // hand back the same handle — multiple callers cancelling the same
+        // Job is idempotent, and we don't want N collectors racing on
+        // purchasesUpdates + N tick coroutines fighting over storage.
+        collectionJob?.let { if (it.isActive) return@withLock it }
+
+        // Hydrate from storage. Done inside the mutex so a second caller
+        // can't observe state.value before the first caller's hydration
+        // lands — the second caller blocks here until the first has
+        // either established a Job or failed (in which case the second
+        // caller retries hydration). Putting it inside the mutex also
+        // means events emitted on purchasesUpdates DURING hydration are
+        // processed against a fully-hydrated state (reduce() takes the
+        // same mutex).
+        val initial = try {
+            storage.read()
+        } catch (ce: CancellationException) {
+            // Re-throw cancellation so structured concurrency works.
+            // collectionJob remains null; a future start() retries.
+            throw ce
+        } catch (e: Throwable) {
+            logger.e("EntitlementCache: failed to read snapshot from storage; proceeding with default Revoked state", e)
+            null
+        }
+        if (initial != null) {
+            lastConfirmedSnapshot = initial
+            _state.value = if (initial.isEntitled) {
+                EntitlementState.Granted
+            } else {
+                EntitlementState.Revoked
+            }
         }
 
-        // Hydrate from storage first so state is consistent before we begin
-        // emitting transitions. Done here (in the suspend body) rather than
-        // inside the launched coroutine so callers reading `state.value`
-        // immediately after `start()` returns see the hydrated value, not
-        // the default Revoked — preventing the brief UI flicker that would
-        // otherwise happen on app start.
-        try {
-            val initial = try {
-                storage.read()
-            } catch (ce: CancellationException) {
-                // Re-throw cancellation so structured concurrency works: a
-                // cancelled scope shouldn't be turned into a swallowed
-                // exception that logs but keeps the cache running.
-                throw ce
-            } catch (e: Throwable) {
-                logger.e("EntitlementCache: failed to read snapshot from storage; proceeding with default Revoked state", e)
-                null
-            }
-            if (initial != null) {
-                mutex.withLock {
-                    lastConfirmedSnapshot = initial
-                    _state.value = if (initial.isEntitled) {
-                        EntitlementState.Granted
-                    } else {
-                        EntitlementState.Revoked
-                    }
-                }
-            }
-        } finally {
-            // Always signal hydration done — even on CancellationException —
-            // so a second caller blocked on hydrationComplete.await() unblocks.
-            hydrationComplete.complete(Unit)
-        }
-
-        // Periodic tick to detect grace expiry without a fresh upstream event.
-        // A consumer offline for 24h with the app foregrounded should still
-        // see InGrace → Revoked the moment grace lapses, not the next time
-        // Play sends an update.
-        //
+        // Periodic tick detects grace expiry without a fresh upstream event.
         // Tick lifecycle is bound to the upstream collect: if purchasesUpdates
         // ever completes normally, we cancel the tick so this start() Job can
         // finish too — without this, an infinite tick keeps the parent alive
         // forever even after the upstream is done.
-        return scope.launch {
+        val job = scope.launch {
             val tickJob = launch { tickGraceWindow() }
             try {
                 purchasesUpdates.collect { event ->
@@ -282,6 +262,8 @@ public class EntitlementCache(
                 tickJob.cancel()
             }
         }
+        collectionJob = job
+        job
     }
 
     private suspend fun tickGraceWindow() {
