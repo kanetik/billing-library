@@ -31,10 +31,7 @@ internal object BillingLoggingUtils {
                 add("SubCode: ${getSubResponseCodeDescription(subResponseCode)}")
             }
 
-            // debugMessage is a Kotlin platform-type String! (PBL Java); the no-arg
-            // BillingResult() constructor leaves it null, so guard against that
-            // before calling isNotBlank().
-            billingResult.debugMessage?.takeIf { it.isNotBlank() }?.let {
+            billingResult.debugMessage.takeIf { it.isNotBlank() }?.let {
                 add("Debug: '$it'")
             }
 
