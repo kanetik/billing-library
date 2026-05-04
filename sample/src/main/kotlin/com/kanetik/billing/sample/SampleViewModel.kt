@@ -14,6 +14,8 @@ import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
+import com.kanetik.billing.PurchaseRevoked
+import com.kanetik.billing.RevocationReason
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -61,6 +63,14 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                         // tokens internally now (#6), so consumer-side dedupe of
                         // Recovered is no longer required.
                     }
+                    is PurchaseRevoked -> {
+                        // Real apps revoke entitlement here (clear premium flag, kick
+                        // back to a paywall, etc.). The sample just logs — the goal of
+                        // showing this branch is to demonstrate that revocation events
+                        // arrive on the same flow as OwnedPurchases / FlowOutcome, so
+                        // consumers don't need to maintain a parallel pipeline.
+                        appendLog("revoked: ${event.purchaseToken} (${event.reason})")
+                    }
                 }
             }
         }
@@ -96,6 +106,22 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(loading = false) }
                 appendLog("queryProductDetails FAILED: ${e::class.simpleName} (${e.retryType})")
             }
+        }
+    }
+
+    /**
+     * Demo path: simulate a server-side revocation (e.g. a refund processed by
+     * Play that arrived via RTDN→FCM in a real app) by pushing a synthetic
+     * [PurchaseRevoked] event through the same flow consumers already collect.
+     * The library is transport-agnostic — `emitExternalRevocation` just routes
+     * the event through the dedicated revocation replay-cache channel.
+     */
+    fun simulateRevocation() {
+        viewModelScope.launch {
+            billing.emitExternalRevocation(
+                purchaseToken = "synthetic-token-${System.currentTimeMillis()}",
+                reason = RevocationReason.Refunded,
+            )
         }
     }
 

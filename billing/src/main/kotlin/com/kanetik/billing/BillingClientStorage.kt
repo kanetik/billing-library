@@ -36,10 +36,10 @@ internal class BillingClientStorage(
     private val recoverPurchasesOnConnect: Boolean = true
 ) {
     /*
-     * Two-channel architecture
-     * ------------------------
-     * Live PBL events and recovery-sweep events have different replay
-     * requirements:
+     * Three-channel architecture
+     * --------------------------
+     * Live PBL events, recovery-sweep events, and external revocation events
+     * have different replay requirements:
      *
      *  - Live events (purchase flow Live/Canceled/etc., listener-driven)
      *    must NOT replay on re-subscription. A `repeatOnLifecycle` collector
@@ -53,15 +53,28 @@ internal class BillingClientStorage(
      *    attaches in some patterns; without replay the recovery is lost
      *    and Play auto-refunds the unacknowledged purchase ~3 days later.
      *
+     *  - Revocation events (external `emitExternalRevocation` calls driven
+     *    by the consumer's RTDN→Pub/Sub→FCM pipeline) MUST replay to a late
+     *    subscriber. Revocations frequently arrive on a background FCM
+     *    listener before the UI's collector attaches; without replay the
+     *    revocation is silently dropped and entitlement stays granted.
+     *
      * Earlier revisions used a single MutableSharedFlow with replay = 1,
      * which forced consumers to dedupe live events to avoid the re-fire
      * bug. The split here keeps each channel's replay semantics correct
-     * without imposing dedupe duty on every consumer.
+     * without imposing dedupe duty on every consumer. Revocation gets its
+     * own channel rather than sharing the recovery channel because the
+     * recovery channel is typed narrower as [OwnedPurchases.Recovered] —
+     * which doesn't accept [PurchaseRevoked] — and conceptually a revocation
+     * is a third, distinct category (external signal, not owned-state and
+     * not flow attempt outcome).
      *
-     * Public exposure: [purchasesUpdateFlow] merges both channels into one
-     * [Flow]. Late subscribers see the most recent recovery (if any) plus
-     * all future emissions from both channels. Live events flow through
-     * with no replay.
+     * Public exposure: [purchasesUpdateFlow] merges all three channels into
+     * one [Flow]. Late subscribers see the most recent recovery sweep plus up
+     * to the last 16 cached revocations (the revocation channel is sized for
+     * the realistic FCM-burst case — see [_revocationUpdates]) plus all
+     * future emissions from all three channels. Live events flow through with
+     * no replay.
      */
 
     /** Live PBL events from the purchases-updated listener. No replay. */
@@ -123,12 +136,28 @@ internal class BillingClientStorage(
     private val _recoveredUpdates = MutableSharedFlow<OwnedPurchases.Recovered>(replay = 1, extraBufferCapacity = 4)
 
     /**
+     * External revocation events (consumer-driven via
+     * [emitExternalRevocation]). Typed narrower as [PurchaseRevoked] for the
+     * same reasons as [_recoveredUpdates]. Replay = 16 so a *small burst* of
+     * revocations arriving before any subscriber attaches (e.g. multiple FCM
+     * messages decoded at process start, before the UI is up) survives the
+     * gap without collapsing — replay = 1 would only retain the most recent
+     * revocation, silently dropping earlier ones for distinct purchase
+     * tokens. 16 is a generous bound for the realistic FCM-burst case
+     * (~200 bytes per cached event = ~3 KB worst case); larger bursts still
+     * cap at 16, so consumers needing guaranteed delivery of every event
+     * persist on their side before calling [emitExternalRevocation].
+     */
+    private val _revocationUpdates = MutableSharedFlow<PurchaseRevoked>(replay = 16, extraBufferCapacity = 16)
+
+    /**
      * Public-facing merged stream of [PurchaseEvent]s. Hot, shared via the
      * underlying [SharedFlow]s; each subscription to this Flow subscribes to
-     * both channels. Returns [Flow] (not [SharedFlow]) because the type can't
-     * express "replay-on-subscribe for some emissions but not others" — that's
-     * exactly what the channel split provides, and exposing a SharedFlow at the
-     * top would re-introduce the single-replay-slot problem the split solves.
+     * all three channels. Returns [Flow] (not [SharedFlow]) because the type
+     * can't express "replay-on-subscribe for some emissions but not others" —
+     * that's exactly what the channel split provides, and exposing a SharedFlow
+     * at the top would re-introduce the single-replay-slot problem the split
+     * solves.
      *
      * The Recovered branch is `map`ped through a synchronous read of
      * [acknowledgedTokens], so the dedupe applies *at delivery time* rather
@@ -150,8 +179,11 @@ internal class BillingClientStorage(
      * signal preserved) while late subscribers still get the dynamic filter
      * (their first delivery applies the current acked set).
      *
-     * Live events bypass the filter (they aren't replayed and don't carry
-     * the same stale-snapshot risk).
+     * Live events and revocations bypass the filter — live events aren't
+     * replayed at all, and [PurchaseRevoked] is a per-event external signal
+     * that has nothing to do with the acked-token set (each carries its own
+     * `purchaseToken`; the consumer's handler uses that, not the library's
+     * ack tracker).
      */
     val purchasesUpdateFlow: Flow<PurchaseEvent> = merge(
         _liveUpdates,
@@ -165,7 +197,8 @@ internal class BillingClientStorage(
                 val acked = acknowledgedTokens.value
                 OwnedPurchases.Recovered(recovered.purchases.filterNot { it.purchaseToken in acked })
             }
-            .filterNot { it.purchases.isEmpty() }
+            .filterNot { it.purchases.isEmpty() },
+        _revocationUpdates
     )
 
     /*
@@ -232,6 +265,19 @@ internal class BillingClientStorage(
             }
         }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
+
+    /**
+     * Pushes a [PurchaseRevoked] event through the dedicated revocation
+     * channel (`replay = 16`) so late subscribers catch up to the last
+     * 16 cached revocations. Used by
+     * [DefaultBillingRepository.emitExternalRevocation] to route
+     * consumer-supplied revocation signals through the public
+     * [purchasesUpdateFlow]. Suspending `emit` rather than `tryEmit` so a
+     * transient buffer-full doesn't silently drop the event.
+     */
+    suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason) {
+        _revocationUpdates.emit(PurchaseRevoked(purchaseToken, reason))
+    }
 
     /**
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
