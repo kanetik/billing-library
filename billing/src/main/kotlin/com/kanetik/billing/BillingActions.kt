@@ -195,7 +195,7 @@ public interface BillingActions {
      *   library's retry budget.
      */
     @AnyThread
-    @CheckResult(suggest = "branch on HandlePurchaseResult.Success / AlreadyAcknowledged / Failure to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
+    @CheckResult(suggest = "branch on all HandlePurchaseResult variants (Success / AlreadyAcknowledged / NotPurchased / Failure) to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
     public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             return HandlePurchaseResult.NotPurchased

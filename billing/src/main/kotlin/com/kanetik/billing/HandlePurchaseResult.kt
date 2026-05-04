@@ -36,7 +36,14 @@ import com.kanetik.billing.exception.BillingException
  *    internal retry budget. Don't grant. Now unambiguously means a
  *    transient or terminal ack failure worth retrying — the previous
  *    overlap with `Failure(DeveloperErrorException)` for already-acked
- *    purchases is gone.
+ *    purchases is gone for *fresh* `Purchase` objects (the short-circuit
+ *    inspects [Purchase.isAcknowledged] before reaching out to PBL). The
+ *    stale-snapshot case is the one remaining caveat: a `Purchase`
+ *    cached locally with `isAcknowledged = false` whose Play-side state
+ *    has flipped to `true` (e.g., a `Recovered` snapshot that already
+ *    acked successfully but is being replayed) will still surface as
+ *    `Failure(DeveloperErrorException)` until the next sweep yields a
+ *    fresh object.
  *
  * Lower-level [com.kanetik.billing.BillingActions.consumePurchase] and
  * [com.kanetik.billing.BillingActions.acknowledgePurchase] still throw

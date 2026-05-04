@@ -161,10 +161,12 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
             handledRecoveredTokens.update { it + purchase.purchaseToken }
         }
         is HandlePurchaseResult.AlreadyAcknowledged -> {
-            // The Purchase's isAcknowledged was already true — typical when
-            // a different surface (e.g. a server-driven reconcile) acked it
-            // between the sweep and our handle call. Treat as a grant and
-            // mark handled so we don't re-process it.
+            // Not reachable from a Recovered snapshot in practice — the sweep
+            // pre-filters PURCHASED && !isAcknowledged, so the local
+            // isAcknowledged flag is false and handlePurchase doesn't
+            // short-circuit. Listed for exhaustiveness; the arm fires from
+            // manual queryPurchases reconciles where you have a fresh
+            // Purchase with isAcknowledged=true.
             grantEntitlement(purchase)
             handledRecoveredTokens.update { it + purchase.purchaseToken }
         }
