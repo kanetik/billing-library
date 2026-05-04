@@ -165,7 +165,7 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
             // pre-filters PURCHASED && !isAcknowledged, so the local
             // isAcknowledged flag is false and handlePurchase doesn't
             // short-circuit. Listed for exhaustiveness; the arm fires from
-            // manual queryPurchases reconciles where you have a fresh
+            // a manual queryPurchases reconciliation where you have a fresh
             // Purchase with isAcknowledged=true.
             grantEntitlement(purchase)
             handledRecoveredTokens.update { it + purchase.purchaseToken }

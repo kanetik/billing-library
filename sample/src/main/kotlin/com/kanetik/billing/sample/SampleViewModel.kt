@@ -87,7 +87,10 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
      * Real apps would also grant entitlement on HandlePurchaseResult.Success — this
      * sample just logs the outcome.
      *
-     * @return true iff acknowledge/consume landed (safe to mark token as handled).
+     * @return true iff the result is safe to treat as handled / granted —
+     *   either Success (acknowledge/consume call landed) or AlreadyAcknowledged
+     *   (no PBL call needed because the purchase was already acknowledged
+     *   server-side; entitlement-equivalent for the consumer).
      */
     private suspend fun handlePurchaseAndLog(purchase: com.android.billingclient.api.Purchase): Boolean {
         return when (val outcome = billing.handlePurchase(purchase, consume = true)) {
