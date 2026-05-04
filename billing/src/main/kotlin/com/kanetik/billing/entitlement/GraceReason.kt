@@ -4,7 +4,7 @@ package com.kanetik.billing.entitlement
  * Why [EntitlementCache] entered an [EntitlementState.InGrace] state.
  *
  * Mapped from the underlying [com.kanetik.billing.exception.BillingException]
- * carried by a [com.kanetik.billing.PurchasesUpdate.Failure] event:
+ * carried by a [com.kanetik.billing.FlowOutcome.Failure] event:
  *
  *  - [BillingUnavailable] — the billing service itself is unavailable on this
  *    device (Play Services missing, account ineligible, region restriction,

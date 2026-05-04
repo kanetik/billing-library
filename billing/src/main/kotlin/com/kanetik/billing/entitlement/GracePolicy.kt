@@ -2,7 +2,7 @@ package com.kanetik.billing.entitlement
 
 /**
  * How long [EntitlementCache] keeps treating a user as entitled after a
- * [com.kanetik.billing.PurchasesUpdate.Failure] event.
+ * [com.kanetik.billing.FlowOutcome.Failure] event.
  *
  * Two windows because the underlying outages have different shapes:
  *
@@ -58,7 +58,7 @@ public data class GracePolicy(
 
     public companion object {
         /**
-         * Disables grace entirely — every [com.kanetik.billing.PurchasesUpdate.Failure]
+         * Disables grace entirely — every [com.kanetik.billing.FlowOutcome.Failure]
          * transitions a previously-Granted cache straight to
          * [EntitlementState.Revoked]. Use when you'd rather surface the outage
          * to the user immediately than risk a few extra minutes of premium

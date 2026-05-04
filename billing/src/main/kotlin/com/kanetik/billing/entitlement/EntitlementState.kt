@@ -27,9 +27,9 @@ public sealed interface EntitlementState {
      * The user owns a matching purchase. Show premium UI.
      *
      * Reached on:
-     *  - A [com.kanetik.billing.PurchasesUpdate.Success] containing a purchase
+     *  - A [com.kanetik.billing.OwnedPurchases.Live] containing a purchase
      *    matching the cache's `productPredicate`.
-     *  - A [com.kanetik.billing.PurchasesUpdate.Recovered] containing a
+     *  - A [com.kanetik.billing.OwnedPurchases.Recovered] containing a
      *    matching purchase (the recovery sweep on connect).
      *  - A persisted [EntitlementSnapshot] read at start with `isEntitled = true`.
      */
@@ -37,7 +37,7 @@ public sealed interface EntitlementState {
 
     /**
      * Entitlement was recently confirmed but a subsequent
-     * [com.kanetik.billing.PurchasesUpdate.Failure] prevented re-confirmation.
+     * [com.kanetik.billing.FlowOutcome.Failure] prevented re-confirmation.
      * Treat the user as entitled until [expiresAtMs]; after that the cache
      * transitions to [Revoked].
      *
@@ -56,7 +56,7 @@ public sealed interface EntitlementState {
      * No entitlement. Hide premium UI.
      *
      * Reached on:
-     *  - A [com.kanetik.billing.PurchasesUpdate.Recovered] event whose
+     *  - A [com.kanetik.billing.OwnedPurchases.Recovered] event whose
      *    purchase list does *not* contain a match (after the cache has seen
      *    at least one prior emission to establish a baseline — a single
      *    Recovered with no matches at boot doesn't revoke a snapshot from a

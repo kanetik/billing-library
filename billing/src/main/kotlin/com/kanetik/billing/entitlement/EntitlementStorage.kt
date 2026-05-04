@@ -39,7 +39,7 @@ package com.kanetik.billing.entitlement
  *
  * For most apps the on-device storage is fine — Play already enforces the
  * authoritative entitlement state on the next successful connect via
- * [com.kanetik.billing.PurchasesUpdate.Recovered], so a tampered snapshot
+ * [com.kanetik.billing.OwnedPurchases.Recovered], so a tampered snapshot
  * gets overwritten the next time the user has connectivity.
  */
 public interface EntitlementStorage {

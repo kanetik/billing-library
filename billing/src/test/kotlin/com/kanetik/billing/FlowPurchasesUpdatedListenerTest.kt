@@ -11,33 +11,33 @@ import org.junit.Test
 class FlowPurchasesUpdatedListenerTest {
 
     @Test
-    fun `OK with all PURCHASED emits a single Success`() {
+    fun `OK with all PURCHASED emits a single OwnedPurchases Live`() {
         val (sink, listener) = newListener()
         val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
 
         listener.onPurchasesUpdated(okResult(), listOf(purchase))
 
         assertThat(sink.replayCache).hasSize(1)
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.Success::class.java)
-        assertThat((update as PurchasesUpdate.Success).purchases).containsExactly(purchase)
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(OwnedPurchases.Live::class.java)
+        assertThat((event as OwnedPurchases.Live).purchases).containsExactly(purchase)
     }
 
     @Test
-    fun `OK with all PENDING emits a single Pending`() {
+    fun `OK with all PENDING emits a single FlowOutcome Pending`() {
         val (sink, listener) = newListener()
         val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PENDING)
 
         listener.onPurchasesUpdated(okResult(), listOf(purchase))
 
         assertThat(sink.replayCache).hasSize(1)
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.Pending::class.java)
-        assertThat((update as PurchasesUpdate.Pending).purchases).containsExactly(purchase)
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.Pending::class.java)
+        assertThat((event as FlowOutcome.Pending).purchases).containsExactly(purchase)
     }
 
     @Test
-    fun `OK with mixed PENDING and PURCHASED emits Success then Pending separately`() {
+    fun `OK with mixed PENDING and PURCHASED emits Live then Pending separately`() {
         val (sink, listener) = newListener()
         val settled = fakePurchase(productId = "p1", purchaseState = Purchase.PurchaseState.PURCHASED)
         val pending = fakePurchase(productId = "p2", purchaseState = Purchase.PurchaseState.PENDING)
@@ -46,21 +46,21 @@ class FlowPurchasesUpdatedListenerTest {
 
         assertThat(sink.replayCache).hasSize(2)
         val (first, second) = sink.replayCache
-        assertThat(first).isInstanceOf(PurchasesUpdate.Success::class.java)
-        assertThat((first as PurchasesUpdate.Success).purchases).containsExactly(settled)
-        assertThat(second).isInstanceOf(PurchasesUpdate.Pending::class.java)
-        assertThat((second as PurchasesUpdate.Pending).purchases).containsExactly(pending)
+        assertThat(first).isInstanceOf(OwnedPurchases.Live::class.java)
+        assertThat((first as OwnedPurchases.Live).purchases).containsExactly(settled)
+        assertThat(second).isInstanceOf(FlowOutcome.Pending::class.java)
+        assertThat((second as FlowOutcome.Pending).purchases).containsExactly(pending)
     }
 
     @Test
-    fun `OK with empty purchases emits Success with empty list`() {
+    fun `OK with empty purchases emits OwnedPurchases Live with empty list`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(okResult(), emptyList())
 
         assertThat(sink.replayCache).hasSize(1)
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.Success::class.java)
-        assertThat((update as PurchasesUpdate.Success).purchases).isEmpty()
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(OwnedPurchases.Live::class.java)
+        assertThat((event as OwnedPurchases.Live).purchases).isEmpty()
     }
 
     @Test
@@ -69,67 +69,67 @@ class FlowPurchasesUpdatedListenerTest {
         listener.onPurchasesUpdated(okResult(), null)
 
         assertThat(sink.replayCache).hasSize(1)
-        assertThat(sink.replayCache.single()).isInstanceOf(PurchasesUpdate.Success::class.java)
+        assertThat(sink.replayCache.single()).isInstanceOf(OwnedPurchases.Live::class.java)
     }
 
     @Test
-    fun `USER_CANCELED emits Canceled`() {
+    fun `USER_CANCELED emits FlowOutcome Canceled`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.USER_CANCELED), emptyList())
 
-        assertThat(sink.replayCache.single()).isInstanceOf(PurchasesUpdate.Canceled::class.java)
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.Canceled::class.java)
     }
 
     @Test
-    fun `ITEM_ALREADY_OWNED emits ItemAlreadyOwned`() {
+    fun `ITEM_ALREADY_OWNED emits FlowOutcome ItemAlreadyOwned`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.ITEM_ALREADY_OWNED), emptyList())
 
-        assertThat(sink.replayCache.single()).isInstanceOf(PurchasesUpdate.ItemAlreadyOwned::class.java)
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.ItemAlreadyOwned::class.java)
     }
 
     @Test
-    fun `ITEM_UNAVAILABLE emits ItemUnavailable`() {
+    fun `ITEM_UNAVAILABLE emits FlowOutcome ItemUnavailable`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.ITEM_UNAVAILABLE), emptyList())
 
-        assertThat(sink.replayCache.single()).isInstanceOf(PurchasesUpdate.ItemUnavailable::class.java)
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.ItemUnavailable::class.java)
     }
 
     @Test
-    fun `NETWORK_ERROR emits Failure carrying NetworkErrorException`() {
+    fun `NETWORK_ERROR emits FlowOutcome Failure carrying NetworkErrorException`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.NETWORK_ERROR), emptyList())
 
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.Failure::class.java)
-        val failure = update as PurchasesUpdate.Failure
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.Failure::class.java)
+        val failure = event as FlowOutcome.Failure
         assertThat(failure.exception)
             .isInstanceOf(com.kanetik.billing.exception.BillingException.NetworkErrorException::class.java)
     }
 
     @Test
-    fun `BILLING_UNAVAILABLE emits Failure carrying BillingUnavailableException`() {
+    fun `BILLING_UNAVAILABLE emits FlowOutcome Failure carrying BillingUnavailableException`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
 
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.Failure::class.java)
-        val failure = update as PurchasesUpdate.Failure
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.Failure::class.java)
+        val failure = event as FlowOutcome.Failure
         assertThat(failure.exception)
             .isInstanceOf(com.kanetik.billing.exception.BillingException.BillingUnavailableException::class.java)
     }
 
     @Test
-    fun `truly unknown response code still emits UnknownResponse with the code preserved`() {
+    fun `truly unknown response code still emits FlowOutcome UnknownResponse with the code preserved`() {
         val (sink, listener) = newListener()
         // 999 is not a real PBL response code and isn't covered by fromResult's
         // explicit mapping — must flow through the UnknownResponse branch.
         listener.onPurchasesUpdated(result(999), emptyList())
 
-        val update = sink.replayCache.single()
-        assertThat(update).isInstanceOf(PurchasesUpdate.UnknownResponse::class.java)
-        assertThat((update as PurchasesUpdate.UnknownResponse).code).isEqualTo(999)
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.UnknownResponse::class.java)
+        assertThat((event as FlowOutcome.UnknownResponse).code).isEqualTo(999)
     }
 
     // Note: testing the "drop logs to error" path is tricky because
@@ -140,11 +140,11 @@ class FlowPurchasesUpdatedListenerTest {
     // logging logic is simple enough to read for correctness. Covered via
     // integration testing in :sample if it ever becomes a real concern.
 
-    private fun newListener(): Pair<MutableSharedFlow<PurchasesUpdate>, FlowPurchasesUpdatedListener> {
+    private fun newListener(): Pair<MutableSharedFlow<PurchaseEvent>, FlowPurchasesUpdatedListener> {
         // replay = 10 so all emissions are inspectable via replayCache after the
         // listener returns; extraBufferCapacity matches production so tryEmit
         // never drops in normal-path tests.
-        val sink = MutableSharedFlow<PurchasesUpdate>(replay = 10, extraBufferCapacity = 32)
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
         return sink to FlowPurchasesUpdatedListener(sink, BillingLogger.Noop)
     }
 

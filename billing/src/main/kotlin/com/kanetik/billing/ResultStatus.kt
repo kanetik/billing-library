@@ -10,7 +10,7 @@ package com.kanetik.billing
  *
  * Note that Play Billing's pending-purchase concept (a Purchase whose
  * [com.android.billingclient.api.Purchase.purchaseState] is `PENDING`) is
- * surfaced via [com.kanetik.billing.PurchasesUpdate.Pending], not here —
+ * surfaced via [com.kanetik.billing.FlowOutcome.Pending], not here —
  * pending is a property of an individual purchase, not a billing-call outcome.
  */
 public enum class ResultStatus {

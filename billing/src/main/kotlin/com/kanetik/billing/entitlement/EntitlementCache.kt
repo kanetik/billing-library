@@ -1,7 +1,9 @@
 package com.kanetik.billing.entitlement
 
 import com.android.billingclient.api.Purchase
-import com.kanetik.billing.PurchasesUpdate
+import com.kanetik.billing.FlowOutcome
+import com.kanetik.billing.OwnedPurchases
+import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.exception.BillingErrorCategory
 import com.kanetik.billing.exception.BillingException
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +22,7 @@ import kotlinx.coroutines.sync.withLock
  * [com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates].
  *
  * Centralizes the `(isEntitled, lastConfirmedTs, source)` bookkeeping that
- * every consumer ends up reinventing on top of the raw `PurchasesUpdate`
+ * every consumer ends up reinventing on top of the raw `PurchaseEvent`
  * stream. Consumers that want a simple `StateFlow<EntitlementState>` they can
  * collect from a ViewModel get one; consumers that need the raw event stream
  * for custom logic continue to use `observePurchaseUpdates()` directly.
@@ -29,10 +31,10 @@ import kotlinx.coroutines.sync.withLock
  *
  *  - Hydrates from a consumer-provided [EntitlementStorage] so premium UI can
  *    render before the first network round-trip lands.
- *  - Maps [PurchasesUpdate.Success] / [PurchasesUpdate.Recovered] to
+ *  - Maps [OwnedPurchases.Live] / [OwnedPurchases.Recovered] to
  *    [EntitlementState.Granted] / [EntitlementState.Revoked] via the
  *    `productPredicate` you pass in.
- *  - On [PurchasesUpdate.Failure], moves to [EntitlementState.InGrace] for a
+ *  - On [FlowOutcome.Failure], moves to [EntitlementState.InGrace] for a
  *    window determined by the failure type and your [GracePolicy] — premium
  *    keeps working through a brief outage instead of being yanked the
  *    moment Play stops responding.
@@ -86,14 +88,14 @@ import kotlinx.coroutines.sync.withLock
  *
  * ## Sealed-when handling
  *
- * The cache reacts to [PurchasesUpdate.Success], [PurchasesUpdate.Recovered],
- * and [PurchasesUpdate.Failure]. Other variants ([PurchasesUpdate.Pending],
- * [PurchasesUpdate.Canceled], [PurchasesUpdate.ItemAlreadyOwned],
- * [PurchasesUpdate.ItemUnavailable], [PurchasesUpdate.UnknownResponse]) are
+ * The cache reacts to [OwnedPurchases.Live], [OwnedPurchases.Recovered], and
+ * [FlowOutcome.Failure]. The remaining [FlowOutcome] variants ([FlowOutcome.Pending],
+ * [FlowOutcome.Canceled], [FlowOutcome.ItemAlreadyOwned],
+ * [FlowOutcome.ItemUnavailable], [FlowOutcome.UnknownResponse]) are
  * intentionally no-ops here — they don't change owned-purchase state, and a
  * Pending purchase explicitly must not grant entitlement (per Play's rules).
  *
- * Refund / revocation handling will land via `PurchasesUpdate.Revoked`
+ * Refund / revocation handling will land via `PurchaseRevoked`
  * once sibling issue #2 ships — see the TODO inside [reduce].
  *
  * @param purchasesUpdates The hot purchase-update stream — typically
@@ -102,10 +104,11 @@ import kotlinx.coroutines.sync.withLock
  * @param storage Persistence layer. See [EntitlementStorage] for the
  *   contract.
  * @param gracePolicy How long to keep treating the user as entitled after a
- *   [PurchasesUpdate.Failure]. Pass [GracePolicy.None] to disable grace.
- * @param productPredicate Filter applied to each [Purchase] in a Success /
- *   Recovered event to decide whether it grants entitlement. Typical
- *   shapes: `{ it.products.contains("premium_lifetime") }` for a single SKU,
+ *   [FlowOutcome.Failure]. Pass [GracePolicy.None] to disable grace.
+ * @param productPredicate Filter applied to each [Purchase] in an
+ *   [OwnedPurchases.Live] / [OwnedPurchases.Recovered] event to decide
+ *   whether it grants entitlement. Typical shapes:
+ *   `{ it.products.contains("premium_lifetime") }` for a single SKU,
  *   `{ it.products.any { id -> id in premiumIds } }` for a SKU set.
  * @param clock Time source. Defaults to `System.currentTimeMillis`. Inject a
  *   deterministic source in tests so grace-window assertions don't depend
@@ -117,7 +120,7 @@ import kotlinx.coroutines.sync.withLock
  *   driving a virtual clock.
  */
 public class EntitlementCache(
-    private val purchasesUpdates: Flow<PurchasesUpdate>,
+    private val purchasesUpdates: Flow<PurchaseEvent>,
     private val storage: EntitlementStorage,
     private val gracePolicy: GracePolicy,
     private val productPredicate: (Purchase) -> Boolean,
@@ -133,7 +136,7 @@ public class EntitlementCache(
      */
     public val state: StateFlow<EntitlementState> = _state.asStateFlow()
 
-    // Tracks whether we've seen at least one PurchasesUpdate.Recovered. Used
+    // Tracks whether we've seen at least one OwnedPurchases.Recovered. Used
     // to gate the "Recovered with no matching purchase → Revoked" transition:
     // the connect-time sweep can race the cache's first subscription, so a
     // single empty Recovered at boot shouldn't blow away a snapshot from a
@@ -187,8 +190,8 @@ public class EntitlementCache(
         // Play sends an update.
         launch { tickGraceWindow() }
 
-        purchasesUpdates.collect { update ->
-            reduce(update)
+        purchasesUpdates.collect { event ->
+            reduce(event)
         }
     }
 
@@ -206,7 +209,7 @@ public class EntitlementCache(
 
     // Visible for tests + the start() collector. Synchronised on `mutex` so
     // concurrent emissions (upstream collector + tick) serialise.
-    internal suspend fun reduce(update: PurchasesUpdate) {
+    internal suspend fun reduce(event: PurchaseEvent) {
         mutex.withLock {
             // Re-evaluate grace expiry on every emission so an outage longer
             // than the policy correctly transitions InGrace → Revoked even
@@ -216,24 +219,24 @@ public class EntitlementCache(
                 transitionToRevoked()
             }
 
-            when (update) {
-                is PurchasesUpdate.Success -> handleObservation(update.purchases, fromRecoverySweep = false)
-                is PurchasesUpdate.Recovered -> {
+            when (event) {
+                is OwnedPurchases.Live -> handleObservation(event.purchases, fromRecoverySweep = false)
+                is OwnedPurchases.Recovered -> {
                     hasObservedRecovered = true
-                    handleObservation(update.purchases, fromRecoverySweep = true)
+                    handleObservation(event.purchases, fromRecoverySweep = true)
                 }
-                is PurchasesUpdate.Failure -> handleFailure(update.exception)
-                // TODO(#2): handle PurchasesUpdate.Revoked once sibling PR #2 lands.
+                is FlowOutcome.Failure -> handleFailure(event.exception)
+                // TODO(#2): handle PurchaseRevoked once sibling PR #2 lands.
                 //  When a Revoked event arrives carrying a purchase whose token
                 //  matches the cached snapshot's purchaseToken, transition to
                 //  EntitlementState.Revoked unconditionally (no grace — Play
                 //  has explicitly revoked the entitlement, e.g. chargeback /
                 //  refund). Tracked as follow-up to this PR.
-                is PurchasesUpdate.Pending,
-                is PurchasesUpdate.Canceled,
-                is PurchasesUpdate.ItemAlreadyOwned,
-                is PurchasesUpdate.ItemUnavailable,
-                is PurchasesUpdate.UnknownResponse -> {
+                is FlowOutcome.Pending,
+                is FlowOutcome.Canceled,
+                is FlowOutcome.ItemAlreadyOwned,
+                is FlowOutcome.ItemUnavailable,
+                is FlowOutcome.UnknownResponse -> {
                     // No-op. Pending must not grant entitlement (Play's rules).
                     // Canceled / ItemAlreadyOwned / ItemUnavailable carry no
                     // owned-purchase signal that should mutate cache state.
@@ -286,10 +289,11 @@ public class EntitlementCache(
             )
             transitionToRevoked(snapshot)
         }
-        // Success with no match: a Success carrying products we don't care
-        // about (e.g. a non-premium IAP also flowing through the same listener)
-        // doesn't revoke an existing Granted state. Only Recovered's authoritative
-        // owned-state snapshot can negate entitlement.
+        // Live with no match: an OwnedPurchases.Live carrying products we don't
+        // care about (e.g. a non-premium IAP also flowing through the same
+        // listener) doesn't revoke an existing Granted state. Only
+        // OwnedPurchases.Recovered's authoritative owned-state snapshot can
+        // negate entitlement.
     }
 
     private suspend fun handleFailure(exception: BillingException) {

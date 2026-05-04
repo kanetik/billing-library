@@ -4,7 +4,7 @@ A coroutine-first wrapper around [Google Play Billing Library 8.x](https://devel
 
 ## Why
 
-- **Less boilerplate** — `connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()` are coroutine-flavored equivalents of PBL's listener/callback APIs. No `BillingClientStateListener`, no `PurchasesUpdatedListener` wiring at the call site.
+- **Less boilerplate** — `connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()` are coroutine-flavored equivalents of PBL's listener/callback APIs. `observePurchaseUpdates()` returns a `Flow<PurchaseEvent>` split into two sealed roots — `OwnedPurchases` (`Live`, `Recovered`) for owned-state updates and `FlowOutcome` (`Pending`, `Canceled`, etc.) for purchase-flow attempt outcomes — so the type system enforces the cache-write rule at branch sites. No `BillingClientStateListener`, no `PurchasesUpdatedListener` wiring at the call site.
 - **Typed errors** — every `BillingResponseCode` lands as a `BillingException` subtype carrying a `RetryType` hint. Branch on the type, not on integers.
 - **Lifecycle-aware** — `BillingConnectionLifecycleManager` keeps the connection warm while an activity/process is observable and tears it down on destruction, with a 60-second grace window to absorb configuration changes.
 
@@ -25,8 +25,9 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.kanetik.billing.BillingRepositoryCreator
+import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.HandlePurchaseResult
-import com.kanetik.billing.PurchasesUpdate
+import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
 import com.kanetik.billing.logging.BillingLogger
@@ -46,7 +47,7 @@ class CheckoutActivity : ComponentActivity() {
         // Keep the connection alive for the lifetime of this activity.
         lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
 
-        // Observe purchase results from the global PurchasesUpdatedListener.
+        // Observe purchase events from the global PurchasesUpdatedListener.
         // `Recovered` replays its most recent snapshot to re-subscribed
         // collectors (configuration change, ViewModel recreation), so dedupe
         // by purchaseToken in the Recovered branch — see "Purchase recovery"
@@ -54,10 +55,10 @@ class CheckoutActivity : ComponentActivity() {
         // dedupe needs to survive process death.
         val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
         lifecycleScope.launch {
-            billing.observePurchaseUpdates().collect { update ->
-                when (update) {
-                    is PurchasesUpdate.Success -> update.purchases.forEach { handle(it) }
-                    is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+            billing.observePurchaseUpdates().collect { event ->
+                when (event) {
+                    is OwnedPurchases.Live -> event.purchases.forEach { handle(it) }
+                    is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
                         if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
                         // Only mark token as handled on Success — Failure leaves it for the
                         // next sweep to retry, NotPurchased waits for the terminal state.
@@ -65,12 +66,12 @@ class CheckoutActivity : ComponentActivity() {
                             handledRecoveredTokens.update { it + purchase.purchaseToken }
                         }
                     }
-                    is PurchasesUpdate.Pending -> showPendingNotice() // do NOT grant entitlement yet
-                    is PurchasesUpdate.Canceled -> {}
-                    is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
-                    is PurchasesUpdate.ItemUnavailable -> showSoldOut()
-                    is PurchasesUpdate.Failure -> showError(update.exception.userFacingCategory)
-                    is PurchasesUpdate.UnknownResponse -> reportFailure(update.code)
+                    is FlowOutcome.Pending -> showPendingNotice() // do NOT grant entitlement yet
+                    is FlowOutcome.Canceled -> {}
+                    is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
+                    is FlowOutcome.ItemUnavailable -> showSoldOut()
+                    is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
+                    is FlowOutcome.UnknownResponse -> reportFailure(event.code)
                 }
             }
         }
@@ -109,11 +110,41 @@ class CheckoutActivity : ComponentActivity() {
 
 That's enough for a working one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
+> **⚠️ Two-tier `PurchaseEvent` — read before writing to your cache**
+>
+> `observePurchaseUpdates()` emits `PurchaseEvent`, a marker interface with
+> two sealed roots:
+>
+> - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The
+>   user owns these purchases; acknowledge / consume / grant entitlement.
+>   These are **incremental updates, not authoritative owned-state
+>   snapshots** — `Live` forwards whatever PBL delivers (including empty
+>   callbacks and `UNSPECIFIED_STATE` entries), and `Recovered` carries
+>   only the unacknowledged subset from the auto-sweep. Merge into your
+>   own entitlement state on `handlePurchase` Success rather than
+>   replacing your cache from `event.purchases`. For managed entitlement
+>   state with grace policy, use `EntitlementCache` (when issue
+>   [#3](https://github.com/kanetik/billing-library/issues/3) lands).
+> - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
+>   `ItemUnavailable`, `UnknownResponse`) — purchase-flow attempt outcomes.
+>   These describe what *happened* on a single launch attempt. The
+>   `purchases` list is typically empty (or, for `Pending`, purchases
+>   that haven't completed yet) and **must not** be written to an
+>   entitlement cache.
+>
+> The marker interface deliberately omits the `purchases` property — you
+> can't read `event.purchases` without first narrowing to `OwnedPurchases`
+> or `FlowOutcome`. The split's job is to eliminate the original bug:
+> writing `update.purchases` from a `Canceled` (or other `FlowOutcome`)
+> event into your entitlement cache. The split does **not** promise that
+> `OwnedPurchases.purchases` is an authoritative owned-state snapshot —
+> see each variant's KDoc for the actual shape.
+
 ## Purchase recovery
 
 Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.
 
-The library handles this for you. On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released — the underlying connection uses `WhileSubscribed(60s)` so a quick background round-trip *doesn't* reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `PurchasesUpdate.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (update)` collectors do need a new branch for `PurchasesUpdate.Recovered`; see the snippet below.)
+The library handles this for you. On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released — the underlying connection uses `WhileSubscribed(60s)` so a quick background round-trip *doesn't* reconnect), it queries owned `INAPP` + `SUBS` purchases, filters for `PURCHASED && !isAcknowledged`, and emits any matches as `OwnedPurchases.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive `when (event)` collectors do need a branch for `OwnedPurchases.Recovered` distinct from `OwnedPurchases.Live`; see the snippet below.)
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see "Lifecycle integration" below), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the recovery sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire. Internally the recovery channel uses `replay = 1` (see "Replay semantics" below), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.
 
@@ -122,7 +153,7 @@ A consumer-side dedupe is recommended for the `Recovered` branch: a re-subscribe
 ```kotlin
 private val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
 
-is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
+is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
     if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
         HandlePurchaseResult.Success -> {
@@ -138,30 +169,30 @@ is PurchasesUpdate.Recovered -> update.purchases.forEach { purchase ->
 }
 ```
 
-(Live events on the `Success` branch don't need this — see "Replay semantics".)
+(Live events on the `OwnedPurchases.Live` branch don't need this — see "Replay semantics".)
 
 ```kotlin
-billing.observePurchaseUpdates().collect { update ->
-    when (update) {
-        is PurchasesUpdate.Success -> {
-            update.purchases.forEach { handle(it) }
+billing.observePurchaseUpdates().collect { event ->
+    when (event) {
+        is OwnedPurchases.Live -> {
+            event.purchases.forEach { handle(it) }
             fireConfetti() // user-initiated; celebrate
         }
-        is PurchasesUpdate.Recovered -> {
-            // Same handle() call as Success — but no confetti. Background recovery,
+        is OwnedPurchases.Recovered -> {
+            // Same handle() call as Live — but no confetti. Background recovery,
             // not a fresh purchase. NOTE: `Recovered` replays its most recent
             // snapshot to re-subscribed collectors (config change, etc.) with
             // `isAcknowledged = false` even after you handle them. Dedupe by
             // `purchase.purchaseToken` in real apps — see "Purchase recovery"
             // below for the full pattern.
-            update.purchases.forEach { handle(it) }
+            event.purchases.forEach { handle(it) }
         }
-        // ... other arms
+        is FlowOutcome -> { /* sub-when on Pending / Canceled / etc. */ }
     }
 }
 ```
 
-`Success` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical for one-time products.
+`Live` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical for one-time products.
 
 **Subscription replacements need special handling (until v0.2.0).** Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. PBL's `Purchase` API doesn't expose a getter for `linkedPurchaseToken` (`AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`); the field is only present in `purchase.originalJson`. Until v0.2.0 ships the typed `SubscriptionReplacement` variant (see [`docs/ROADMAP.md`](docs/ROADMAP.md)), consumers using subscriptions need to parse it themselves:
 
@@ -209,10 +240,10 @@ private suspend fun handle(purchase: Purchase) {
 
 `observePurchaseUpdates()` is internally a merge of two channels:
 
-- **Live events** (`Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
-- **Recovery events** (`Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
+- **Live events** (`OwnedPurchases.Live` and every `FlowOutcome` variant — `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) — `replay = 0`. A re-attached collector (configuration change, `repeatOnLifecycle`, ViewModel recreation) does **not** re-receive the previous live event. The entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.
+- **Recovery events** (`OwnedPurchases.Recovered`) — `replay = 1`. A late subscriber (one that attaches after the auto-sweep fired) catches the most recent recovery. This is what makes the recovery feature reliable in patterns where the consumer's collector races the connection coming up.
 
-You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `Success` branch and you'll see it exactly once per purchase, even across rotations. The `Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
+You don't need to dedupe handle / grant / UX for live events — fire confetti directly from the `OwnedPurchases.Live` branch and you'll see it exactly once per purchase, even across rotations. The `OwnedPurchases.Recovered` branch can run idempotent handle code without triggering one-shot UX (the user didn't just tap Buy; this is background reconciliation).
 
 ## API overview
 
@@ -222,7 +253,7 @@ You don't need to dedupe handle / grant / UX for live events — fire confetti d
 | `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. |
-| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchasesUpdate>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
+| `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchaseEvent>`. Hot internally; merges a no-replay live channel and a replay=1 recovery channel — see "Replay semantics". |
 | `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase`. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
@@ -233,7 +264,7 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 
 | Subpackage | Contains |
 |---|---|
-| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchasesUpdate`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
+| `com.kanetik.billing` | `BillingRepository`, `BillingRepositoryCreator`, `BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`, `BillingConnectionResult`, `PurchaseEvent`, `OwnedPurchases`, `FlowOutcome`, `HandlePurchaseResult`, `BillingInAppMessageResult`, `ProductDetailsQuery`, `RetryType`, `ResultStatus` |
 | `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
@@ -319,13 +350,13 @@ when (val r = billing.handlePurchase(purchase, consume = false)) {
 }
 ```
 
-The auto-recovery sweep (see [`PurchasesUpdate.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
+The auto-recovery sweep (see [`OwnedPurchases.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
 Lower-level `consumePurchase` and `acknowledgePurchase` still throw `BillingException` directly — callers at that layer are already in the weeds and a thrown exception is appropriate. `handlePurchase` is the high-level helper that gets the typed-result treatment because forgetting the failure case is the most common bug.
 
 ## EntitlementCache (opt-in)
 
-Most apps that consume `observePurchaseUpdates()` end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source)` state machine: take the raw `PurchasesUpdate` stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
+Most apps that consume `observePurchaseUpdates()` end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source)` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
 
 ```kotlin
 import com.kanetik.billing.entitlement.EntitlementCache
@@ -358,7 +389,7 @@ class PremiumViewModel(
 The cache exposes a `StateFlow<EntitlementState>` with three terminal states:
 
 - `Granted` — confirmed entitlement; show premium UI.
-- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `PurchasesUpdate.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (Play Services missing, account ineligible, region restriction) or `TransientFailure` (network error, service disconnect, generic billing error).
+- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (Play Services missing, account ineligible, region restriction) or `TransientFailure` (network error, service disconnect, generic billing error).
 - `Revoked` — no entitlement; hide premium UI.
 
 Grace expiry is re-evaluated on every emission and on a periodic tick, so an extended outage correctly transitions `InGrace → Revoked` even when no further updates arrive in between.
@@ -369,7 +400,7 @@ Use `EntitlementCache` when you want a simple `is the user entitled right now?` 
 
 Skip it if you have your own state machine you're already happy with, or if you need behavior the cache deliberately doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
 
-The cache reacts to `PurchasesUpdate.Success`, `PurchasesUpdate.Recovered`, and `PurchasesUpdate.Failure`. Other variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are intentionally no-ops — they don't change owned-purchase state, and `Pending` explicitly must not grant entitlement (per Play's rules). Refund / revocation handling lands once the sibling `PurchasesUpdate.Revoked` variant ships.
+The cache reacts to `OwnedPurchases.Live`, `OwnedPurchases.Recovered`, and `FlowOutcome.Failure`. The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are intentionally no-ops — they don't change owned-purchase state, and `Pending` explicitly must not grant entitlement (per Play's rules). Refund / revocation handling lands once the sibling `PurchaseRevoked` variant ships.
 
 ### Storage is your responsibility
 
@@ -384,7 +415,7 @@ interface EntitlementStorage {
 
 `EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `read()` once on `start()` to hydrate, then `write()` on every entitlement-affecting transition. `InGrace` is **not** persisted — grace re-derives from the most recent confirmed `confirmedAtMs` on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.
 
-If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), implement `read` / `write` against a signed-prefs layer keyed off a server-issued secret. The cache trusts what storage returns. For most apps the on-device storage is fine — Play already enforces the authoritative entitlement state on the next successful connect via `PurchasesUpdate.Recovered`, so a tampered snapshot gets overwritten the next time the user has connectivity.
+If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), implement `read` / `write` against a signed-prefs layer keyed off a server-issued secret. The cache trusts what storage returns. For most apps the on-device storage is fine — Play already enforces the authoritative entitlement state on the next successful connect via `OwnedPurchases.Recovered`, so a tampered snapshot gets overwritten the next time the user has connectivity.
 
 ### Wiring the connection
 
@@ -456,13 +487,15 @@ Patterns that most apps reimplement. Each one is `internal`-grade quality but op
 ```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)
 
-// Sweep up Success AND Recovered — both carry purchases that need verifying
-// and acknowledging. Filtering only Success would skip recovered purchases
-// from a prior session, defeating the auto-recovery feature.
+// Sweep up OwnedPurchases (Live AND Recovered) — both carry purchases that
+// need verifying and acknowledging. Filtering only Live would skip recovered
+// purchases from a prior session, defeating the auto-recovery feature.
+// FlowOutcome is excluded by design: those events describe attempt outcomes,
+// not owned state — never grant from their `purchases` list.
 billing.observePurchaseUpdates()
-    .filter { it is PurchasesUpdate.Success || it is PurchasesUpdate.Recovered }
-    .collect { update ->
-        update.purchases.forEach { purchase ->
+    .filterIsInstance<OwnedPurchases>()
+    .collect { event ->
+        event.purchases.forEach { purchase ->
             if (!verifier.isSignatureValid(purchase)) {
                 logger.e(TAG, "Signature mismatch for ${purchase.products}")
                 // Don't grant entitlement; consider reporting to your backend.

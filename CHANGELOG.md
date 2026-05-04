@@ -38,12 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `handlePurchase` helper gets the typed-result treatment.
 
 - **`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` return type
-  changed** from `SharedFlow<PurchasesUpdate>` to `Flow<PurchasesUpdate>`.
-  Most consumers using `.collect { }` are unaffected; consumers using
-  `SharedFlow`-specific APIs (`.replayCache`, `.subscriptionCount`, etc.)
-  must adapt. The change is forced by the underlying split-channel
-  architecture (live events on `replay = 0`, recovery events on
-  `replay = 1`); a single `SharedFlow` can't express that.
+  changed** from `SharedFlow<PurchasesUpdate>` to `Flow<PurchaseEvent>`.
+  Two changes folded together: the wrapper type became `Flow` (forced by
+  the underlying split-channel architecture — live events on `replay = 0`,
+  recovery events on `replay = 1`; a single `SharedFlow` can't express
+  that), and the element type became `PurchaseEvent` (see the
+  `PurchasesUpdate` → `PurchaseEvent` split below). Most consumers using
+  `.collect { }` are unaffected at the call site beyond the rename;
+  consumers using `SharedFlow`-specific APIs (`.replayCache`,
+  `.subscriptionCount`, etc.) must adapt.
 
 - **`ProductDetails.toOneTimeFlowParams(...)` and
   `PurchaseFlowCoordinator.launch(...)` gained an `obfuscatedProfileId`
@@ -103,15 +106,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `BillingErrorCategory.Other` for UI purposes). See the Added section
   below for what `WrappedException` represents.
 
-- **`PurchasesUpdate` sealed class gained a new `Recovered` subtype.** Same
-  story as `BillingException.WrappedException`: exhaustive
-  `when (update: PurchasesUpdate) { ... }` without an `else` branch
-  becomes a Kotlin source break. Migration: add a branch for
-  `PurchasesUpdate.Recovered` (handle the same way as `Success` —
-  acknowledge / consume + grant entitlement, plus a
-  `purchaseToken`-based dedupe to absorb the recovery channel's
-  `replay = 1` re-emissions on re-subscribe). See the README "Purchase
-  recovery" section for the full pattern.
+- **`PurchasesUpdate` sealed class replaced with `PurchaseEvent` marker
+  interface, split into `OwnedPurchases` and `FlowOutcome`.** Lumping
+  owned-state events (`Success`, `Recovered`) and flow-attempt outcomes
+  (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`,
+  `UnknownResponse`) under a single sealed class with an
+  `abstract val purchases` field made it natural for consumers to write
+  `update.purchases` into their entitlement cache from any branch — silently
+  corrupting state when the event was actually a `Canceled` (empty list) or
+  `Pending` (purchases that haven't completed yet). The new shape eliminates
+  that specific footgun at compile time (the marker interface has no
+  `purchases` property; reading it requires narrowing to a root):
+
+  ```kotlin
+  sealed interface PurchaseEvent  // no purchases property — must narrow
+
+  sealed class OwnedPurchases : PurchaseEvent {
+      abstract val purchases: List<Purchase>
+      data class Live(...) : OwnedPurchases()       // renamed from Success
+      data class Recovered(...) : OwnedPurchases()
+  }
+
+  sealed class FlowOutcome : PurchaseEvent {
+      abstract val purchases: List<Purchase>
+      data class Pending(...) : FlowOutcome()
+      data class Canceled(...) : FlowOutcome()
+      data class ItemAlreadyOwned(...) : FlowOutcome()
+      data class ItemUnavailable(...) : FlowOutcome()
+      data class UnknownResponse(val code: Int, ...) : FlowOutcome()
+  }
+  ```
+
+  Because `PurchaseEvent` itself has no `purchases` property, reading
+  purchases requires narrowing to `OwnedPurchases` or `FlowOutcome` first.
+  `Success` is renamed to `Live`: `Success` was misleading because both
+  `Live` and `Recovered` convey owned state.
+
+  **Note on cache writes:** `OwnedPurchases` events are incremental updates,
+  not authoritative owned-state snapshots. `Live` forwards whatever PBL
+  delivers on `OK` (including empty callbacks and `UNSPECIFIED_STATE`
+  entries); `Recovered` carries only the `PURCHASED && !isAcknowledged`
+  subset from the auto-sweep. Merge into your entitlement state on
+  `handlePurchase` Success rather than replacing your cache from
+  `event.purchases`. For managed entitlement state with grace policy, use
+  `EntitlementCache` (issue #3).
+
+  Migration:
+
+  ```kotlin
+  // Before:
+  when (update) {
+      is PurchasesUpdate.Success -> update.purchases.forEach { handleAndGrant(it) }
+      is PurchasesUpdate.Recovered -> update.purchases.forEach { handleAndGrant(it) }
+      is PurchasesUpdate.Pending -> showPendingNotice()
+      is PurchasesUpdate.Canceled -> {}
+      is PurchasesUpdate.ItemAlreadyOwned -> restoreEntitlement()
+      is PurchasesUpdate.ItemUnavailable -> showSoldOut()
+      is PurchasesUpdate.UnknownResponse -> reportFailure(update.code)
+  }
+
+  // After (same exhaustive shape):
+  when (event) {
+      is OwnedPurchases.Live -> event.purchases.forEach { handleAndGrant(it) }
+      is OwnedPurchases.Recovered -> event.purchases.forEach { handleAndGrant(it) }
+      is FlowOutcome.Pending -> showPendingNotice()
+      is FlowOutcome.Canceled -> {}
+      is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
+      is FlowOutcome.ItemUnavailable -> showSoldOut()
+      is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+  }
+
+  // Or, when the owned-state arms collapse to one handler:
+  when (event) {
+      is OwnedPurchases -> event.purchases.forEach { handleAndGrant(it) }
+      is FlowOutcome -> { /* sub-when on Pending / Canceled / etc. */ }
+  }
+  ```
+
+  The `observePurchaseUpdates()` method name is unchanged; only its return
+  type changes from `Flow<PurchasesUpdate>` to `Flow<PurchaseEvent>`. The
+  `Recovered` channel still carries `replay = 1` and still requires the
+  `purchaseToken`-based dedupe pattern documented in the README "Purchase
+  recovery" section.
 
 ### Added
 
@@ -143,16 +219,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automatic purchase recovery on connect** — on every successful Play Billing
   connection, the library queries owned `INAPP` + `SUBS` purchases in parallel
   and emits any `PURCHASED && !isAcknowledged` matches through
-  `observePurchaseUpdates()` as a new `PurchasesUpdate.Recovered` variant.
+  `observePurchaseUpdates()` as an `OwnedPurchases.Recovered` event.
   Closes the gap that lets Play auto-refund stranded purchases after 3 days
   when an app crash, network failure, or process death interrupts the
   acknowledgement path. Opt-out via
   `BillingRepositoryCreator.create(recoverPurchasesOnConnect = false)` for
   consumers running their own server-side reconciliation.
-- **`PurchasesUpdate.Recovered(purchases)` sealed variant** — same payload
-  as `Success`, distinct variant so consumer UX can differentiate
+- **`OwnedPurchases.Recovered(purchases)` sealed variant** — same payload
+  as `OwnedPurchases.Live`, distinct variant so consumer UX can differentiate
   user-initiated purchases (fire confetti) from background recovery (silent).
-  Handle code is identical to `Success` — call
+  Handle code is identical to `Live` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
 - **`PurchasesUpdate.Failure(exception, purchases)` sealed variant** —
   carries the typed `BillingException` Play Billing surfaced for failure
@@ -185,8 +261,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`BillingException` class-level KDoc** documents that `.message` is a
   debug-context dump for logs only, and routes UI handling through
   `userFacingCategory`.
-- **README** gains a "Purchase recovery" section explaining the new
-  `Recovered` variant and the auto-sweep behavior.
+- **README** gains a "Purchase recovery" section explaining the
+  `OwnedPurchases.Recovered` variant and the auto-sweep behavior.
 - **README** gains "Showing errors to users" and "Handling `handlePurchase`
   failures correctly" subsections under Error handling.
 - **README** gains a "Granting entitlement: multi-quantity" section
@@ -194,22 +270,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consumable entitlement (Play supports multi-quantity purchases; the
   field defaults to 1, so single-unit code keeps working but
   silently under-grants on multi-quantity).
-- **`PurchasesUpdate` KDoc** documents the new variant and the
-  multi-quantity grant rule at the class level.
-- **Sample** updated to handle both `Success` and `Recovered` through one
-  shared dispatch.
+- **README** gains a "two-tier `PurchaseEvent`" callout under Quick start
+  spelling out the `OwnedPurchases` vs `FlowOutcome` cache-write rule.
+- **`PurchaseEvent` KDoc** describes the two-tier semantic, the cache-write
+  rule, and the multi-quantity grant rule at the marker-interface level.
+- **Sample** updated to handle both `OwnedPurchases.Live` and
+  `OwnedPurchases.Recovered`, plus a single `is FlowOutcome` arm covering
+  the attempt-outcome variants.
 
 ### Migration notes
 
-`PurchasesUpdate` is a sealed class; adding `Recovered` produces a Kotlin
-exhaustiveness warning at any `when (update) { ... }` site that doesn't
-have an `else`. Add an arm:
+`PurchasesUpdate` is gone — replaced by the `PurchaseEvent` marker
+interface and its two sealed roots (`OwnedPurchases`, `FlowOutcome`).
+Existing `when (update: PurchasesUpdate) { ... }` sites need to switch
+to the new types:
 
 ```kotlin
-is PurchasesUpdate.Recovered -> update.purchases.forEach { handle(it) }
+when (event) {
+    is OwnedPurchases.Live -> event.purchases.forEach { handle(it) }
+    is OwnedPurchases.Recovered -> event.purchases.forEach { handle(it) }
+    is FlowOutcome.Pending -> showPendingNotice()
+    is FlowOutcome.Canceled -> {}
+    is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
+    is FlowOutcome.ItemUnavailable -> showSoldOut()
+    is FlowOutcome.UnknownResponse -> reportFailure(event.code)
+}
 ```
 
-The handle/grant code is the same as your `Success` arm.
+The handle/grant code is the same for `Live` and `Recovered`. **Do not
+write `event.purchases` to your entitlement cache from any `FlowOutcome`
+branch** — those events describe attempt outcomes, not owned state. See
+the README "Two-tier `PurchaseEvent`" callout under Quick start.
 
 ## [0.1.0] - 2026-04-30
 

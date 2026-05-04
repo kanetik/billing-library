@@ -4,7 +4,9 @@ import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
-import com.kanetik.billing.PurchasesUpdate
+import com.kanetik.billing.FlowOutcome
+import com.kanetik.billing.OwnedPurchases
+import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.fakePurchase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,10 +26,10 @@ class EntitlementCacheTest {
     private val premiumPredicate: (Purchase) -> Boolean = { it.products.contains(premiumProductId) }
 
     @Test
-    fun `Success with matching purchase transitions to Granted and persists snapshot`() = runTest {
+    fun `Live with matching purchase transitions to Granted and persists snapshot`() = runTest {
         val (cache, updates, storage, _, job) = newCache()
 
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok1"))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok1"))))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
@@ -46,7 +48,7 @@ class EntitlementCacheTest {
     fun `Recovered with matching purchase transitions to Granted and persists snapshot`() = runTest {
         val (cache, updates, storage, _, job) = newCache()
 
-        updates.emit(PurchasesUpdate.Recovered(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok2"))))
+        updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok2"))))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
@@ -77,7 +79,7 @@ class EntitlementCacheTest {
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
         // Recovered with no match means Play says we don't own it any more.
-        updates.emit(PurchasesUpdate.Recovered(emptyList()))
+        updates.emit(OwnedPurchases.Recovered(emptyList()))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
@@ -91,11 +93,11 @@ class EntitlementCacheTest {
     fun `Failure with BillingUnavailable response code transitions to InGrace BillingUnavailable`() = runTest {
         val (cache, updates, _, clock, job) = newCache()
         // Establish Granted baseline so Failure can move us to InGrace.
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
         runCurrent()
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
-        updates.emit(PurchasesUpdate.Failure(billingUnavailableException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(billingUnavailableException(), emptyList()))
         runCurrent()
 
         val state = cache.state.value
@@ -110,11 +112,11 @@ class EntitlementCacheTest {
     @Test
     fun `Failure with NetworkError response code transitions to InGrace TransientFailure`() = runTest {
         val (cache, updates, _, clock, job) = newCache()
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
         runCurrent()
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
-        updates.emit(PurchasesUpdate.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
 
         val state = cache.state.value
@@ -130,9 +132,9 @@ class EntitlementCacheTest {
     fun `InGrace transitions to Revoked when grace window expires on next emission`() = runTest {
         val mutableClock = MutableClock(INITIAL_CLOCK)
         val (cache, updates, _, _, job) = newCache(clock = mutableClock::value)
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
         runCurrent()
-        updates.emit(PurchasesUpdate.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
         val grace = cache.state.value as EntitlementState.InGrace
 
@@ -141,7 +143,7 @@ class EntitlementCacheTest {
         mutableClock.advance(grace.expiresAtMs - mutableClock.value + 1L)
         // Any subsequent emission triggers re-evaluation; pick a benign one
         // that doesn't otherwise change state (Pending is a no-op).
-        updates.emit(PurchasesUpdate.Pending(emptyList()))
+        updates.emit(FlowOutcome.Pending(emptyList()))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
@@ -156,9 +158,9 @@ class EntitlementCacheTest {
             clock = mutableClock::value,
             graceTickIntervalMs = tickInterval,
         )
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
         runCurrent()
-        updates.emit(PurchasesUpdate.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
         val grace = cache.state.value as EntitlementState.InGrace
 
@@ -178,8 +180,8 @@ class EntitlementCacheTest {
     fun `Granted snapshot persists across cache instances via storage`() = runTest {
         val storage = FakeEntitlementStorage()
 
-        // First instance: confirm a Success and let it write through.
-        val firstUpdates = MutableSharedFlow<PurchasesUpdate>(extraBufferCapacity = 16)
+        // First instance: confirm a Live event and let it write through.
+        val firstUpdates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val firstCache = EntitlementCache(
             purchasesUpdates = firstUpdates,
             storage = storage,
@@ -190,13 +192,13 @@ class EntitlementCacheTest {
         )
         val firstJob = firstCache.start(this)
         runCurrent()
-        firstUpdates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok-rt"))))
+        firstUpdates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok-rt"))))
         runCurrent()
         assertThat(firstCache.state.value).isEqualTo(EntitlementState.Granted)
         firstJob.cancelAndJoin()
 
         // Second instance with the same storage hydrates as Granted.
-        val secondUpdates = MutableSharedFlow<PurchasesUpdate>(extraBufferCapacity = 16)
+        val secondUpdates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val secondCache = EntitlementCache(
             purchasesUpdates = secondUpdates,
             storage = storage,
@@ -218,7 +220,7 @@ class EntitlementCacheTest {
         val (cache, updates, _, _, job) = newCache()
         // Default state is Revoked; no prior Granted observation.
 
-        updates.emit(PurchasesUpdate.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
 
         assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
@@ -226,16 +228,16 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Success of an unrelated product does not revoke an existing Granted state`() = runTest {
+    fun `Live of an unrelated product does not revoke an existing Granted state`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
         runCurrent()
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
-        updates.emit(PurchasesUpdate.Success(listOf(fakePurchase(productId = "coins_pack_50"))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = "coins_pack_50"))))
         runCurrent()
 
-        // Success of a non-premium IAP does not negate entitlement; only
+        // Live of a non-premium IAP does not negate entitlement; only
         // Recovered (which is authoritative for owned-state) can do that.
         assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
         job.cancelAndJoin()
@@ -245,7 +247,7 @@ class EntitlementCacheTest {
 
     private data class CacheUnderTest(
         val cache: EntitlementCache,
-        val updates: MutableSharedFlow<PurchasesUpdate>,
+        val updates: MutableSharedFlow<PurchaseEvent>,
         val storage: FakeEntitlementStorage,
         val clock: () -> Long,
         val job: Job,
@@ -256,7 +258,7 @@ class EntitlementCacheTest {
         clock: () -> Long = { INITIAL_CLOCK },
         graceTickIntervalMs: Long = 60_000L,
     ): CacheUnderTest {
-        val updates = MutableSharedFlow<PurchasesUpdate>(extraBufferCapacity = 16)
+        val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
