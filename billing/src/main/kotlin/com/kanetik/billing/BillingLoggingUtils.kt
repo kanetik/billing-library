@@ -31,9 +31,11 @@ internal object BillingLoggingUtils {
                 add("SubCode: ${getSubResponseCodeDescription(subResponseCode)}")
             }
 
-            // debugMessage is a Kotlin platform-type String! (PBL Java); the no-arg
-            // BillingResult() constructor leaves it null, so guard against that
-            // before calling isNotBlank().
+            // BillingResult.getDebugMessage() looks @NonNull from the Kotlin-side
+            // platform type, but the no-arg `BillingResult()` constructor (used by
+            // CoroutinesBillingConnectionFactory's error-fallback path and by
+            // direct test instantiation) leaves the field actually null at runtime.
+            // Keep the safe call — `survives null debug message` test guards this.
             billingResult.debugMessage?.takeIf { it.isNotBlank() }?.let {
                 add("Debug: '$it'")
             }

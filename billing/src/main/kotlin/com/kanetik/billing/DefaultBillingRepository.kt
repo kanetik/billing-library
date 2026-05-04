@@ -138,12 +138,22 @@ internal class DefaultBillingRepository(
         // a result back the consume succeeded, and PBL guarantees the token is set
         // on success. The !! guards against an unexpected PBL contract violation
         // by failing loudly rather than returning a phantom null.
-        return executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
+        val token = executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
+        // Record the token so the recovery sweep filters this purchase out of
+        // future Recovered emissions (Play treats consume as implicit
+        // acknowledgement for consumables; subsequent sweeps still see the
+        // token until Play removes the purchase from query results).
+        billingClientStorage.markAcknowledged(token)
+        return token
     }
 
     @AnyThread
     override suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams) {
         executeBillingOperation({ client -> client.acknowledgePurchase(params) })
+        // Record the token only after a successful acknowledge. A failure
+        // throws above; suppressing the next sweep on a failed ack would
+        // orphan the purchase.
+        billingClientStorage.markAcknowledged(params.purchaseToken)
     }
 
     @UiThread
