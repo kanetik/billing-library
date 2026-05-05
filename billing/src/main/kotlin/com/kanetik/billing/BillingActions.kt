@@ -22,6 +22,45 @@ import com.kanetik.billing.exception.BillingException
  * connection (see [BillingConnector]), runs with internal retry / backoff for transient
  * failures, and surfaces hard failures as a typed [BillingException] subtype so
  * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
+ *
+ * ## Wrapping suspend members for resilience
+ *
+ * Suspend members propagate **structured cancellation** correctly: a
+ * [kotlinx.coroutines.CancellationException] raised by the surrounding scope
+ * being torn down is rethrown so cancellation cascades. Internal `withTimeout`
+ * timeouts — which surface as
+ * [kotlinx.coroutines.TimeoutCancellationException], a `CancellationException`
+ * subclass — are intentionally converted into a [com.kanetik.billing.exception.BillingException]
+ * instead, since they represent a billing-layer failure rather than a scope
+ * teardown.
+ *
+ * If you wrap a call to absorb non-billing failures (e.g. inside a long-lived
+ * collector that should not die on a transient billing error), use an explicit
+ * `try/catch` that **rethrows** `CancellationException` rather than
+ * `runCatching { ... }` — the standard `runCatching` catches every
+ * `Throwable`, including `CancellationException`, and silently swallows scope
+ * cancellation:
+ *
+ * ```
+ * try {
+ *     billing.queryPurchases(params)
+ * } catch (e: kotlinx.coroutines.CancellationException) {
+ *     throw e
+ * } catch (e: Exception) {
+ *     // log / handle non-cancellation failures
+ * }
+ * ```
+ *
+ * `Exception` (not `Throwable`) so JVM `Error`s — `OutOfMemoryError`,
+ * `LinkageError`, etc. — propagate. (The library's own catch chains in
+ * [handlePurchase] go further: they catch `Throwable` for typed-result
+ * completeness, but rethrow `VirtualMachineError`, `LinkageError`, and
+ * `ThreadDeath` explicitly before any broad catch — same end result.)
+ *
+ * This is general kotlinx-coroutines hygiene (not billing-specific) but worth
+ * calling out because long-lived collectors of
+ * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] and resilience-wrapped
+ * `BillingActions` calls are the two most common sites where this footgun bites.
  */
 public interface BillingActions {
 
@@ -265,15 +304,95 @@ public interface BillingActions {
     /**
      * Launches the Play Billing purchase flow.
      *
-     * Must be called on the main thread. The returned coroutine completes once Play
-     * has shown the purchase UI; the actual purchase outcome arrives separately via
-     * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] (and may take seconds to
-     * minutes — pending purchases can sit unresolved indefinitely).
+     * Must be called on the main thread. The returned coroutine completes once
+     * `BillingClient.launchBillingFlow` has returned — i.e., once the launch request
+     * has been submitted to Play. PBL does not surface a "UI has rendered" signal,
+     * so completion of this call is **not** a guarantee that the purchase sheet is
+     * (or ever will be) on screen; it is only a guarantee that no synchronous error
+     * was raised during submission. The actual purchase outcome arrives separately
+     * via [BillingPurchaseUpdatesOwner.observePurchaseUpdates] (and may take seconds
+     * to minutes — pending purchases can sit unresolved indefinitely).
      *
      * For one-time products, prefer [com.kanetik.billing.ext.toOneTimeFlowParams] to
      * build [params] correctly under PBL 8's offer-token rules. For higher-level
      * orchestration (in-flight guard, watchdog, typed result), see
      * [com.kanetik.billing.ext.PurchaseFlowCoordinator].
+     *
+     * ## Dual throw-vs-event contract
+     *
+     * `launchFlow` has two outcome channels and consumers must wire up both:
+     *
+     * ### Synchronous-throw path
+     *
+     * Errors PBL knows about *before* showing the purchase sheet are surfaced as
+     * thrown [BillingException] subtypes from this call:
+     *  - [BillingException.DeveloperErrorException][com.kanetik.billing.exception.BillingException.DeveloperErrorException]
+     *    — [activity] is finishing or destroyed when the flow is launched.
+     *    The library checks `activity.isFinishing || activity.isDestroyed`
+     *    and short-circuits with a synthesized `DEVELOPER_ERROR` rather than
+     *    calling into PBL against an invalid window.
+     *  - [BillingException.ServiceUnavailableException][com.kanetik.billing.exception.BillingException.ServiceUnavailableException]
+     *    — wrapped from a `NullPointerException` thrown by
+     *    `BillingClient.launchBillingFlow` itself (typically the
+     *    `ProxyBillingActivity` null-`PendingIntent` crash).
+     *  - [BillingException.FatalErrorException][com.kanetik.billing.exception.BillingException.FatalErrorException]
+     *    — wrapped from any other unexpected `Exception` raised inside the
+     *    underlying call (synthesizes `BillingResponseCode.ERROR`).
+     *  - Any other [BillingException] subtype mapped from the
+     *    [com.android.billingclient.api.BillingResponseCode] returned
+     *    synchronously by `client.launchBillingFlow` itself — most notably
+     *    [BillingException.ItemAlreadyOwnedException][com.kanetik.billing.exception.BillingException.ItemAlreadyOwnedException]
+     *    when PBL knows the user owns the SKU without needing to render UI.
+     *
+     * ### Asynchronous-event path
+     *
+     * Outcomes that require Play to show UI (or wait for the user) arrive on
+     * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] as
+     * [com.kanetik.billing.FlowOutcome] variants:
+     *  - [FlowOutcome.Pending][com.kanetik.billing.FlowOutcome.Pending]
+     *  - [FlowOutcome.Canceled][com.kanetik.billing.FlowOutcome.Canceled]
+     *  - [FlowOutcome.ItemAlreadyOwned][com.kanetik.billing.FlowOutcome.ItemAlreadyOwned]
+     *  - [FlowOutcome.ItemUnavailable][com.kanetik.billing.FlowOutcome.ItemUnavailable]
+     *  - [FlowOutcome.Failure][com.kanetik.billing.FlowOutcome.Failure]
+     *  - [FlowOutcome.UnknownResponse][com.kanetik.billing.FlowOutcome.UnknownResponse]
+     *
+     * Successful purchases arrive as [com.kanetik.billing.OwnedPurchases.Live]
+     * on the same stream.
+     *
+     * ### ⚠️ ITEM_ALREADY_OWNED is dual-path
+     *
+     * `ITEM_ALREADY_OWNED` can land on **either** channel depending on whether
+     * Play knows synchronously (no UI shown — thrown
+     * [ItemAlreadyOwnedException][com.kanetik.billing.exception.BillingException.ItemAlreadyOwnedException]
+     * here) or detects it asynchronously through `PurchasesUpdatedListener`
+     * (UI shown — emitted as [FlowOutcome.ItemAlreadyOwned][com.kanetik.billing.FlowOutcome.ItemAlreadyOwned]).
+     * Handle the same restore-entitlement flow in both places, e.g.:
+     *
+     * ```
+     * // Throw site (around the launchFlow call):
+     * try {
+     *     billing.launchFlow(activity, params)
+     * } catch (e: BillingException.ItemAlreadyOwnedException) {
+     *     restoreEntitlement()
+     * } catch (e: BillingException) {
+     *     showError(e.userFacingCategory)
+     * }
+     *
+     * // Event site (in your observePurchaseUpdates collector):
+     * when (event) {
+     *     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
+     *     // ...other branches
+     * }
+     * ```
+     *
+     * Missing either branch leaves "user already owns this" cases silently
+     * unhandled depending on Play's timing.
+     *
+     * @throws BillingException any synchronous failure as described above.
+     *   Parent-scope [kotlinx.coroutines.CancellationException] propagates
+     *   through unchanged; see the class-level KDoc for the
+     *   resilience-wrapping rule (and the `TimeoutCancellationException`
+     *   carve-out for internal connection timeouts).
      */
     @MainThread
     public suspend fun launchFlow(activity: Activity, params: BillingFlowParams)

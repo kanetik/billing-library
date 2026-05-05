@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`DefaultBillingRepository.launchFlow` now propagates
+  `CancellationException` correctly.** The prior broad `catch (e: Exception)`
+  block would wrap a `CancellationException` into a `BillingException`,
+  silently breaking structured cancellation when the surrounding scope was
+  torn down. Added a dedicated `catch (ce: CancellationException) { throw ce }`
+  arm before the general wrapping logic so `launchFlow` upholds the same CE
+  contract as every other suspend member. (#15)
+
+### Changed
+
+- **`BillingActions` class-level KDoc** gains a "Wrapping suspend members for
+  resilience" note explaining that suspend members propagate structured
+  cancellation (parent-scope `CancellationException` is rethrown; an internal
+  `withTimeout`'s `TimeoutCancellationException` is intentionally converted
+  to a `BillingException` because it represents a billing-layer failure),
+  and that `runCatching { ... }` catches all `Throwable` (including
+  `CancellationException`) and silently re-introduces the swallow-CE footgun
+  at the consumer layer. The note recommends explicit `try/catch` with a
+  `CancellationException` rethrow rather than `runCatching`. (#15)
+- **`BillingPurchaseUpdatesOwner.observePurchaseUpdates` KDoc** gains an
+  equivalent resilience note — long-lived collectors are the most common
+  cancellation-swallowing site, so the warning is repeated there for
+  visibility. (#15)
+- **`BillingActions.launchFlow` KDoc** expanded with the dual throw-vs-event
+  contract: synchronous PBL errors (invalid activity, `NullPointerException`
+  from `client.launchBillingFlow`, other `Exception`s, and any non-`OK`
+  `BillingResponseCode` returned synchronously — including
+  `ITEM_ALREADY_OWNED` when PBL knows without showing UI) surface as thrown
+  `BillingException` subtypes, while UI-mediated outcomes arrive on
+  `observePurchaseUpdates` as `FlowOutcome` variants. Calls out that
+  `ITEM_ALREADY_OWNED` is dual-path and must be handled in both the
+  `try/catch` around `launchFlow` *and* the `FlowOutcome.ItemAlreadyOwned`
+  branch in the collector. Also clarifies that the returned coroutine
+  completes once `BillingClient.launchBillingFlow` has returned (i.e., the
+  request was submitted to Play) — PBL exposes no "UI rendered" signal, so
+  completion is not a visibility guarantee. (#17)
+
 ## [0.1.1] - 2026-05-03
 
 ### Breaking

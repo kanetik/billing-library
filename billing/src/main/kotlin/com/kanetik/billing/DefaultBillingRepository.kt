@@ -177,6 +177,12 @@ internal class DefaultBillingRepository(
                 dispatcher = uiDispatcher,
                 maxAttempts = 1
             )
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            // Must come before the broad Exception catch below — otherwise a
+            // CancellationException raised by structured cancellation would get
+            // wrapped into a BillingException and silently break the scope teardown.
+            // Matches the rethrow contract every other suspend member upholds.
+            throw ce
         } catch (e: Exception) {
             // Re-throw the exception if it's already a BillingException, otherwise wrap it
             if (e !is BillingException) {
