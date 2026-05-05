@@ -28,11 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the existing empty-`Recovered` filter in `BillingClientStorage`.
 
   **Behavioral change for consumers that explicitly handle empty Live**
-  (telemetry, debug logging, etc.): the empty-`Live` branch is unreachable.
-  No-ops keyed off `event.purchases.isEmpty()` inside an `is OwnedPurchases.Live ->`
-  arm should be removed; debug counters that incremented on every empty
-  callback won't fire. Consumers that already merge (rather than replace)
-  on `Live` need no change. (#13)
+  (telemetry, debug logging, etc.): the empty-purchases sub-branch
+  inside an `is OwnedPurchases.Live ->` arm is now unreachable. No-ops
+  keyed off `event.purchases.isEmpty()` should be removed; debug counters
+  that incremented on every empty callback won't fire. Consumers that
+  already merge (rather than replace) on `Live` need no change. (#13)
 
 ### Changed
 
