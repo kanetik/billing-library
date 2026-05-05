@@ -93,7 +93,14 @@ class CheckoutActivity : ComponentActivity() {
         billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
     }
 
-    /** @return true iff acknowledge/consume landed at Play (safe to mark token as handled). */
+    /**
+     * @return true iff this token's processing is terminal and should be marked
+     *   in the recovery-dedupe set — either the ack landed at Play (grant
+     *   entitlement) or Play says the purchase isn't owned (recovery can't
+     *   resolve ITEM_NOT_OWNED, so further retries are pointless). False means
+     *   the state is still pending OR the ack failure is retryable on the next
+     *   recovery sweep — leave it unmarked.
+     */
     private suspend fun handle(purchase: Purchase): Boolean {
         // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
         // See "Handling handlePurchase failures correctly" below for the full pattern.
@@ -101,7 +108,7 @@ class CheckoutActivity : ComponentActivity() {
             HandlePurchaseResult.Success -> { grantPremium(); true }
             HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
-            HandlePurchaseResult.NotOwned -> false // stale snapshot — defer to grace/revoke
+            HandlePurchaseResult.NotOwned -> true // terminal — recovery can't resolve ITEM_NOT_OWNED; dedupe to avoid infinite re-handle on every replay
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
                 false // recovery sweep retries on next clean connect; don't mark as handled

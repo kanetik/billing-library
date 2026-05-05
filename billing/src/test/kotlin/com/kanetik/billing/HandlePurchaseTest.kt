@@ -2,6 +2,7 @@ package com.kanetik.billing
 
 import android.app.Activity
 import com.android.billingclient.api.AcknowledgePurchaseParams
+import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ConsumeParams
@@ -133,7 +134,7 @@ class HandlePurchaseTest {
         // consumers can defer to grace/revoke logic instead of mis-treating
         // it as a retry case.
         val thrown = BillingException.ItemNotOwnedException(
-            BillingResult.newBuilder().setResponseCode(8).build()
+            BillingResult.newBuilder().setResponseCode(BillingClient.BillingResponseCode.ITEM_NOT_OWNED).build()
         )
         val actions = RecordingBillingActions(consumeThrows = thrown)
         val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
@@ -146,7 +147,7 @@ class HandlePurchaseTest {
     @Test
     fun `handlePurchase maps ItemNotOwnedException to NotOwned (not Failure) for acknowledge path`() = runTest {
         val thrown = BillingException.ItemNotOwnedException(
-            BillingResult.newBuilder().setResponseCode(8).build()
+            BillingResult.newBuilder().setResponseCode(BillingClient.BillingResponseCode.ITEM_NOT_OWNED).build()
         )
         val actions = RecordingBillingActions(acknowledgeThrows = thrown)
         val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
