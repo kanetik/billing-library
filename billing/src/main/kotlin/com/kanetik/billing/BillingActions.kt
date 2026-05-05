@@ -38,10 +38,15 @@ import com.kanetik.billing.exception.BillingException
  *     billing.queryPurchases(params)
  * } catch (e: kotlinx.coroutines.CancellationException) {
  *     throw e
- * } catch (e: Throwable) {
+ * } catch (e: Exception) {
  *     // log / handle non-cancellation failures
  * }
  * ```
+ *
+ * `Exception` (not `Throwable`) so JVM `Error`s — `OutOfMemoryError`,
+ * `LinkageError`, etc. — propagate; the library's own catch chains in
+ * [handlePurchase] follow the same rule and rethrow `VirtualMachineError`,
+ * `LinkageError`, and `ThreadDeath` explicitly before any broad catch.
  *
  * This is general kotlinx-coroutines hygiene (not billing-specific) but worth
  * calling out because long-lived collectors of
