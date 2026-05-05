@@ -1,6 +1,7 @@
 package com.kanetik.billing
 
 import com.android.billingclient.api.Purchase
+import com.kanetik.billing.exception.BillingException
 
 /**
  * A single purchase event emitted by [BillingPurchaseUpdatesOwner.observePurchaseUpdates].
@@ -26,10 +27,11 @@ import com.android.billingclient.api.Purchase
  *  - **[FlowOutcome]** — purchase-flow attempt outcomes. Variants
  *    ([FlowOutcome.Pending], [FlowOutcome.Canceled],
  *    [FlowOutcome.ItemAlreadyOwned], [FlowOutcome.ItemUnavailable],
- *    [FlowOutcome.UnknownResponse]) report what *happened* on a single launch
- *    attempt. The `purchases` lists are typically empty (or, for `Pending`,
- *    purchases that haven't completed yet) and **must not** be written to an
- *    entitlement cache — doing so silently corrupts state.
+ *    [FlowOutcome.Failure], [FlowOutcome.UnknownResponse]) report what
+ *    *happened* on a single launch attempt. The `purchases` lists are
+ *    typically empty (or, for `Pending`, purchases that haven't completed
+ *    yet) and **must not** be written to an entitlement cache — doing so
+ *    silently corrupts state.
  *  - **[PurchaseRevoked]** — external revocation signal pushed in by the
  *    consumer via [com.kanetik.billing.BillingRepository.emitExternalRevocation].
  *    Carries a `purchaseToken` + [RevocationReason] rather than a `Purchase`;
@@ -53,6 +55,7 @@ import com.android.billingclient.api.Purchase
  *         is FlowOutcome.Canceled -> {}
  *         is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
  *         is FlowOutcome.ItemUnavailable -> showSoldOut()
+ *         is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
  *         is FlowOutcome.UnknownResponse -> reportFailure(event.code)
  *         is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
  *     }
@@ -261,6 +264,10 @@ public sealed class OwnedPurchases : PurchaseEvent {
  *  - [ItemAlreadyOwned] — non-consumable already owned; treat as already-granted
  *    (restore entitlement from your own records).
  *  - [ItemUnavailable] — product not available (region, country, etc.).
+ *  - [Failure] — Play returned a typed-failure response code (network error,
+ *    billing-unavailable, service unavailable, etc.). Carries the matching
+ *    [com.kanetik.billing.exception.BillingException] subtype so consumers can
+ *    branch on `userFacingCategory` / `retryType` without re-deriving.
  *  - [UnknownResponse] — anything else (raw response code in [UnknownResponse.code]).
  */
 public sealed class FlowOutcome : PurchaseEvent {
@@ -294,6 +301,27 @@ public sealed class FlowOutcome : PurchaseEvent {
      * `purchases` is typically empty.
      */
     public data class ItemUnavailable(override val purchases: List<Purchase>) : FlowOutcome()
+
+    /**
+     * A purchase-flow callback that surfaced a typed [BillingException] subtype
+     * Play Billing classifies as a failure (network errors, billing-unavailable,
+     * service unavailable, etc.). Carries the original exception so consumers can
+     * branch on subtype, [BillingException.userFacingCategory], or
+     * [BillingException.retryType] without re-deriving from response codes.
+     *
+     * `purchases` is whatever Play returned in the failing callback — typically
+     * empty, but preserved here for symmetry with the other variants.
+     *
+     * Library-internal entitlement helpers (e.g. `EntitlementCache` in
+     * [com.kanetik.billing.entitlement]) consume this variant to drive
+     * grace-window logic on transient outages. Most consumer code can treat
+     * Failure the same way it would treat [UnknownResponse] — surface a
+     * "couldn't reach Play, try again" message from [BillingException.userFacingCategory].
+     */
+    public data class Failure(
+        public val exception: BillingException,
+        override val purchases: List<Purchase>,
+    ) : FlowOutcome()
 
     /**
      * Any response code outside the documented set above. Raw integer code

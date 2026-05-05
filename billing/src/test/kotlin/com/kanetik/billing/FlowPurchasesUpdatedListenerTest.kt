@@ -97,13 +97,39 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `unknown response code emits FlowOutcome UnknownResponse with the code preserved`() {
+    fun `NETWORK_ERROR emits FlowOutcome Failure carrying NetworkErrorException`() {
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(result(BillingResponseCode.NETWORK_ERROR), emptyList())
 
         val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.Failure::class.java)
+        val failure = event as FlowOutcome.Failure
+        assertThat(failure.exception)
+            .isInstanceOf(com.kanetik.billing.exception.BillingException.NetworkErrorException::class.java)
+    }
+
+    @Test
+    fun `BILLING_UNAVAILABLE emits FlowOutcome Failure carrying BillingUnavailableException`() {
+        val (sink, listener) = newListener()
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
+
+        val event = sink.replayCache.single()
+        assertThat(event).isInstanceOf(FlowOutcome.Failure::class.java)
+        val failure = event as FlowOutcome.Failure
+        assertThat(failure.exception)
+            .isInstanceOf(com.kanetik.billing.exception.BillingException.BillingUnavailableException::class.java)
+    }
+
+    @Test
+    fun `truly unknown response code still emits FlowOutcome UnknownResponse with the code preserved`() {
+        val (sink, listener) = newListener()
+        // 999 is not a real PBL response code and isn't covered by fromResult's
+        // explicit mapping — must flow through the UnknownResponse branch.
+        listener.onPurchasesUpdated(result(999), emptyList())
+
+        val event = sink.replayCache.single()
         assertThat(event).isInstanceOf(FlowOutcome.UnknownResponse::class.java)
-        assertThat((event as FlowOutcome.UnknownResponse).code).isEqualTo(BillingResponseCode.NETWORK_ERROR)
+        assertThat((event as FlowOutcome.UnknownResponse).code).isEqualTo(999)
     }
 
     // Note: testing the "drop logs to error" path is tricky because

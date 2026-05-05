@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.ProductDetails
 import com.kanetik.billing.BillingConnectionResult
+import com.kanetik.billing.entitlement.EntitlementState
 
 class MainActivity : ComponentActivity() {
 
@@ -63,6 +65,7 @@ private fun SampleScreen(
     ) {
         Text("Kanetik Billing Sample", style = MaterialTheme.typography.headlineSmall)
         ConnectionRow(state.connection)
+        EntitlementRow(state.entitlement)
         Button(onClick = viewModel::loadProducts) {
             Text("Query products")
         }
@@ -94,8 +97,20 @@ private fun ConnectionRow(result: BillingConnectionResult?) {
 }
 
 @Composable
+private fun EntitlementRow(state: EntitlementState) {
+    val label = when (state) {
+        is EntitlementState.Granted -> "Entitlement: GRANTED"
+        is EntitlementState.InGrace -> "Entitlement: IN GRACE (reason=${state.reason}, expiresAtMs=${state.expiresAtMs})"
+        is EntitlementState.Revoked -> "Entitlement: REVOKED"
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Text(text = label, modifier = Modifier.padding(12.dp))
+    }
+}
+
+@Composable
 private fun ProductCard(product: ProductDetails, onBuy: () -> Unit) {
-    Card(modifier = Modifier.fillMaxSize()) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = product.productId, style = MaterialTheme.typography.titleMedium)
             Text(text = product.name)

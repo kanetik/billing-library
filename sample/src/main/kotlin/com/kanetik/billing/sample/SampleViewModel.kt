@@ -17,6 +17,11 @@ import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.PurchaseRevoked
 import com.kanetik.billing.RevocationReason
+import com.kanetik.billing.entitlement.EntitlementCache
+import com.kanetik.billing.entitlement.EntitlementSnapshot
+import com.kanetik.billing.entitlement.EntitlementState
+import com.kanetik.billing.entitlement.EntitlementStorage
+import com.kanetik.billing.entitlement.GracePolicy
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -26,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class SampleViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -36,10 +42,40 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 
     val lifecycleManager = BillingConnectionLifecycleManager(billing)
 
+    // Demo-only in-memory storage. Real apps implement EntitlementStorage
+    // against DataStore / EncryptedSharedPreferences / signed prefs.
+    private val entitlementStorage: EntitlementStorage = InMemoryEntitlementStorage()
+
+    private val entitlementCache = EntitlementCache(
+        purchasesUpdates = billing.observePurchaseUpdates(),
+        storage = entitlementStorage,
+        gracePolicy = GracePolicy(
+            // Long enough to span typical "lost wifi" outages without yanking
+            // entitlement. Real apps tune these to their own retention vs.
+            // freeloader-protection priorities.
+            billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
+            transientFailureMs = TimeUnit.HOURS.toMillis(6),
+        ),
+        productPredicate = { it.products.contains(TEST_PRODUCT_ID) },
+        logger = BillingLogger.Android,
+    ).also {
+        // start() suspends until hydration completes — launch it from the
+        // ViewModel scope so init doesn't block, but the cache will be ready
+        // (state.value reflects the persisted snapshot) within a coroutine
+        // resume of viewModelScope's first dispatch.
+        viewModelScope.launch { it.start(viewModelScope) }
+    }
+
     private val _state = MutableStateFlow(SampleUiState())
     val state: StateFlow<SampleUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            entitlementCache.state.collect { entitlement ->
+                _state.update { it.copy(entitlement = entitlement) }
+                appendLog("entitlement -> ${entitlement::class.simpleName}")
+            }
+        }
         viewModelScope.launch {
             billing.connectToBilling().collect { result ->
                 _state.update { it.copy(connection = result) }
@@ -187,4 +223,20 @@ data class SampleUiState(
     val lastEvent: PurchaseEvent? = null,
     val loading: Boolean = false,
     val log: List<String> = emptyList(),
+    val entitlement: EntitlementState = EntitlementState.Revoked,
 )
+
+/**
+ * Demo-only [EntitlementStorage] backed by an in-process variable. Survives
+ * the activity lifecycle (the ViewModel survives configuration changes) but
+ * not process death. Real apps implement against DataStore / signed prefs.
+ */
+private class InMemoryEntitlementStorage : EntitlementStorage {
+    @Volatile private var snapshot: EntitlementSnapshot? = null
+
+    override suspend fun read(): EntitlementSnapshot? = snapshot
+
+    override suspend fun write(snapshot: EntitlementSnapshot) {
+        this.snapshot = snapshot
+    }
+}

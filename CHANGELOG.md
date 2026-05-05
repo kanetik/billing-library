@@ -273,6 +273,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user-initiated purchases (fire confetti) from background recovery (silent).
   Handle code is identical to `Live` — call
   `handlePurchase(purchase, consume = ?)` and grant entitlement.
+- **`FlowOutcome.Failure(exception, purchases)` sealed variant** —
+  carries the typed `BillingException` Play Billing surfaced for failure
+  response codes (`NETWORK_ERROR`, `BILLING_UNAVAILABLE`,
+  `SERVICE_UNAVAILABLE`, `SERVICE_DISCONNECTED`, `FEATURE_NOT_SUPPORTED`,
+  `DEVELOPER_ERROR`, `ERROR`, `ITEM_NOT_OWNED`). Consumers that previously
+  branched these as `UnknownResponse(code)` can switch to branching on
+  `exception.userFacingCategory` / `exception.retryType`. `UnknownResponse`
+  is now reserved for response codes PBL doesn't document.
+- **`com.kanetik.billing.entitlement` package** (opt-in) — centralizes the
+  `(isEntitled, lastConfirmedTs, source)` state machine that every consumer
+  was reinventing on top of `observePurchaseUpdates()`. Public types:
+  `EntitlementCache`, `EntitlementState` (`Granted` / `InGrace` / `Revoked`),
+  `GracePolicy`, `GraceReason` (`BillingUnavailable` / `TransientFailure`),
+  `EntitlementSnapshot`, `EntitlementStorage`. Exposes a
+  `StateFlow<EntitlementState>` with grace-window logic anchored to the
+  last confirmed observation timestamp (so repeated `FlowOutcome.Failure`
+  emissions don't extend grace indefinitely), consumer-implemented
+  persistence (the library does not pick a persistence layer), and
+  grace-expiry re-evaluation on every emission so an extended outage
+  correctly transitions `InGrace → Revoked` without external triggers.
+  Revocation flows through `PurchaseRevoked` (matched against the cached
+  snapshot's `purchaseToken`) — `OwnedPurchases.Live` / `Recovered` are
+  treated as grant-only signals, since `Recovered` only emits the unacked
+  subset and an empty Recovered for an entitled-but-acked user would
+  falsely revoke under a "Recovered is authoritative" interpretation. See
+  the README "EntitlementCache (opt-in)" section.
 - **`PurchaseRevoked(purchaseToken, reason)` top-level `PurchaseEvent`
   variant + `RevocationReason` enum** (`Refunded`, `Chargeback`,
   `SubscriptionExpired`, `Other`) — synthetic revocation event for
