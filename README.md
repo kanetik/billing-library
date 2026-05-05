@@ -120,13 +120,14 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 > - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The
 >   user owns these purchases; acknowledge / consume / grant entitlement.
 >   These are **incremental updates, not authoritative owned-state
->   snapshots** — `Live` forwards whatever PBL delivers (including empty
->   callbacks and `UNSPECIFIED_STATE` entries), and `Recovered` carries
->   only the unacknowledged subset from the auto-sweep. Merge into your
->   own entitlement state on `handlePurchase` Success rather than
->   replacing your cache from `event.purchases`. For managed entitlement
->   state with grace policy, use `EntitlementCache` (when issue
->   [#3](https://github.com/kanetik/billing-library/issues/3) lands).
+>   snapshots** — `Live` carries the `PURCHASED`-or-`UNSPECIFIED_STATE`
+>   subset of an `OK` callback, and `Recovered` carries only the
+>   unacknowledged subset from the auto-sweep. Both channels are filtered
+>   to non-empty before delivery (PBL occasionally fires the listener with
+>   no purchases at all; the library drops those at the source). Merge
+>   into your own entitlement state on `handlePurchase` Success rather
+>   than replacing your cache from `event.purchases`. For managed
+>   entitlement state with grace policy, use `EntitlementCache`.
 > - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
 >   `ItemUnavailable`, `UnknownResponse`) — purchase-flow attempt outcomes.
 >   These describe what *happened* on a single launch attempt. The

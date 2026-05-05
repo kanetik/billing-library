@@ -117,9 +117,10 @@ public sealed interface PurchaseEvent
  *
  * **These are incremental updates, not authoritative owned-state snapshots.**
  * Specifically:
- *  - [Live] forwards whatever PBL delivers on its `OK` callback — that
- *    includes empty callbacks and `UNSPECIFIED_STATE` entries (see
- *    [Live]'s KDoc); it is not "everything the user owns right now."
+ *  - [Live] carries the `PURCHASED`-or-`UNSPECIFIED_STATE` subset of an `OK`
+ *    callback (see [Live]'s KDoc); it is not "everything the user owns
+ *    right now." Both [Live] and [Recovered] are filtered to non-empty
+ *    before delivery.
  *  - [Recovered] carries only the `PURCHASED && !isAcknowledged` subset
  *    discovered by the auto-sweep — it is not the full owned set either.
  *
@@ -127,10 +128,11 @@ public sealed interface PurchaseEvent
  * [com.kanetik.billing.BillingActions.handlePurchase] and merge granted
  * entitlement into your own state on [HandlePurchaseResult.Success] or
  * [HandlePurchaseResult.AlreadyAcknowledged]. Replacing your cache with
- * `event.purchases` will drop entitlement on every empty `Live` callback or
- * every `Recovered` sweep that doesn't see the full owned set. For managed
- * entitlement state, use [com.kanetik.billing.entitlement.EntitlementCache],
- * which handles the merge logic and grace policy internally.
+ * `event.purchases` will drop entitlement on every `Recovered` sweep that
+ * doesn't see the full owned set (a [Live] event with `purchases.isEmpty()`
+ * is never delivered — see [Live]). For managed entitlement state, use
+ * [com.kanetik.billing.entitlement.EntitlementCache], which handles the
+ * merge logic and grace policy internally.
  *
  * Two variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"
@@ -151,14 +153,15 @@ public sealed class OwnedPurchases : PurchaseEvent {
     /**
      * Live owned-purchases update with `BillingResponseCode == OK` —
      * typically a purchase that just completed via
-     * [com.kanetik.billing.BillingActions.launchFlow], but also covers two
-     * edge cases the underlying PBL listener delivers through this same path:
-     *  - **`UNSPECIFIED_STATE` purchases**: rare, undocumented PBL state.
-     *    `handlePurchase` no-ops on these (returns
-     *    [com.kanetik.billing.HandlePurchaseResult.NotPurchased]).
-     *  - **Empty OK callbacks** (`purchases.isEmpty()`): PBL occasionally
-     *    fires the listener with no purchases; the listener forwards as
-     *    `Live(emptyList())` so consumers don't have to special-case it.
+     * [com.kanetik.billing.BillingActions.launchFlow], but also covers
+     * `UNSPECIFIED_STATE` purchases (rare, undocumented PBL state;
+     * `handlePurchase` no-ops on these and returns
+     * [com.kanetik.billing.HandlePurchaseResult.NotPurchased]).
+     *
+     * The channel is filtered to non-empty: PBL occasionally fires the
+     * listener with no purchases at all, and the library drops those at the
+     * source rather than forwarding `Live(emptyList())` (no actionable
+     * signal; symmetric with the [Recovered] empty-filter).
      *
      * For each `PURCHASED`-state entry: hand it to
      * [com.kanetik.billing.BillingActions.handlePurchase] (with

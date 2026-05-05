@@ -47,12 +47,17 @@ internal class FlowPurchasesUpdatedListener(
                     it.purchaseState == Purchase.PurchaseState.PENDING
                 }
                 buildList {
-                    if (settled.isNotEmpty() || pending.isEmpty()) {
-                        // Empty-purchases callback (rare, but handled) flows through
-                        // OwnedPurchases.Live with an empty list — preserves the prior
-                        // contract for "OK with no purchases" callers.
+                    if (settled.isNotEmpty()) {
                         add(OwnedPurchases.Live(settled))
                     }
+                    // PBL occasionally fires the listener with literally nothing
+                    // (settled + pending both empty). There's no actionable signal
+                    // for the consumer in that case — pending purchases route through
+                    // FlowOutcome.Pending, so an empty Live carries no information.
+                    // Drop it at the source rather than forwarding a no-op event
+                    // that consumers writing event.purchases into an entitlement
+                    // cache would silently treat as "user owns nothing." Symmetric
+                    // with BillingClientStorage's empty-Recovered filter.
                     if (pending.isNotEmpty()) {
                         add(FlowOutcome.Pending(pending))
                     }
