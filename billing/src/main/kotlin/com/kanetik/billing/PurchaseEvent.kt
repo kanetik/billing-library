@@ -23,7 +23,7 @@ import com.kanetik.billing.exception.BillingException
  *    own entitlement state — these events are **incremental updates, not
  *    authoritative owned-state snapshots** (see each variant's KDoc for the
  *    specific shape). For managed entitlement state, use
- *    `EntitlementCache` (when issue #3 lands).
+ *    [com.kanetik.billing.entitlement.EntitlementCache].
  *  - **[FlowOutcome]** — purchase-flow attempt outcomes. Variants
  *    ([FlowOutcome.Pending], [FlowOutcome.Canceled],
  *    [FlowOutcome.ItemAlreadyOwned], [FlowOutcome.ItemUnavailable],
@@ -125,12 +125,12 @@ public sealed interface PurchaseEvent
  *
  * **Cache pattern: merge, do not replace.** Hand each event's purchases to
  * [com.kanetik.billing.BillingActions.handlePurchase] and merge granted
- * entitlement into your own state on `Success` (or `AlreadyAcknowledged`,
- * once issue #7 lands). Replacing your cache with `event.purchases` will
- * drop entitlement on every empty `Live` callback or every `Recovered`
- * sweep that doesn't see the full owned set. For managed entitlement
- * state, use `EntitlementCache` (when issue #3 lands), which handles the
- * merge logic and grace policy internally.
+ * entitlement into your own state on [HandlePurchaseResult.Success] or
+ * [HandlePurchaseResult.AlreadyAcknowledged]. Replacing your cache with
+ * `event.purchases` will drop entitlement on every empty `Live` callback or
+ * every `Recovered` sweep that doesn't see the full owned set. For managed
+ * entitlement state, use [com.kanetik.billing.entitlement.EntitlementCache],
+ * which handles the merge logic and grace policy internally.
  *
  * Two variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"

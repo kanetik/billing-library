@@ -49,8 +49,11 @@ import com.kanetik.billing.exception.BillingException
  *    snapshot persists in the recovery channel's replay slot until a
  *    later sweep emits a different result, or until the consumer queries
  *    fresh purchases via [com.android.billingclient.api.BillingClient.queryPurchasesAsync].
- *    (Issue #6 — Recovered dedupe — addresses this case directly by
- *    filtering replayed snapshots against handled tokens.)
+ *    `BillingClientStorage`'s acknowledged-token filter narrows this to the
+ *    rare case where the cached `Purchase` was passed back into
+ *    `handlePurchase` from the consumer's own state rather than via
+ *    `Recovered` (the recovery delivery already filters replayed snapshots
+ *    against handled tokens before emitting).
  *
  * Lower-level [com.kanetik.billing.BillingActions.consumePurchase] and
  * [com.kanetik.billing.BillingActions.acknowledgePurchase] still throw
