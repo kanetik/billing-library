@@ -52,9 +52,10 @@ import com.kanetik.billing.exception.BillingException
  * ```
  *
  * `Exception` (not `Throwable`) so JVM `Error`s — `OutOfMemoryError`,
- * `LinkageError`, etc. — propagate; the library's own catch chains in
- * [handlePurchase] follow the same rule and rethrow `VirtualMachineError`,
- * `LinkageError`, and `ThreadDeath` explicitly before any broad catch.
+ * `LinkageError`, etc. — propagate. (The library's own catch chains in
+ * [handlePurchase] go further: they catch `Throwable` for typed-result
+ * completeness, but rethrow `VirtualMachineError`, `LinkageError`, and
+ * `ThreadDeath` explicitly before any broad catch — same end result.)
  *
  * This is general kotlinx-coroutines hygiene (not billing-specific) but worth
  * calling out because long-lived collectors of
@@ -326,10 +327,10 @@ public interface BillingActions {
      * Errors PBL knows about *before* showing the purchase sheet are surfaced as
      * thrown [BillingException] subtypes from this call:
      *  - [BillingException.DeveloperErrorException][com.kanetik.billing.exception.BillingException.DeveloperErrorException]
-     *    — [activity] is finishing or destroyed when the flow is launched
-     *    (the library checks `activity.isFinishing || activity.isDestroyed` and
-     *    rejects synthesizing a `DEVELOPER_ERROR` rather than calling into PBL
-     *    against an invalid window).
+     *    — [activity] is finishing or destroyed when the flow is launched.
+     *    The library checks `activity.isFinishing || activity.isDestroyed`
+     *    and short-circuits with a synthesized `DEVELOPER_ERROR` rather than
+     *    calling into PBL against an invalid window.
      *  - [BillingException.ServiceUnavailableException][com.kanetik.billing.exception.BillingException.ServiceUnavailableException]
      *    — wrapped from a `NullPointerException` thrown by
      *    `BillingClient.launchBillingFlow` itself (typically the
@@ -387,10 +388,11 @@ public interface BillingActions {
      * Missing either branch leaves "user already owns this" cases silently
      * unhandled depending on Play's timing.
      *
-     * @throws BillingException any synchronous failure as described above. As with
-     *   every other suspend member, [kotlinx.coroutines.CancellationException] is
-     *   rethrown internally and must propagate — see the class-level KDoc for the
-     *   resilience-wrapping rule.
+     * @throws BillingException any synchronous failure as described above.
+     *   Parent-scope [kotlinx.coroutines.CancellationException] propagates
+     *   through unchanged; see the class-level KDoc for the
+     *   resilience-wrapping rule (and the `TimeoutCancellationException`
+     *   carve-out for internal connection timeouts).
      */
     @MainThread
     public suspend fun launchFlow(activity: Activity, params: BillingFlowParams)

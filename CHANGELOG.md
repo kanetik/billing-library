@@ -15,15 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently breaking structured cancellation when the surrounding scope was
   torn down. Added a dedicated `catch (ce: CancellationException) { throw ce }`
   arm before the general wrapping logic so `launchFlow` upholds the same CE
-  contract as every other suspend member. Surfaced by Copilot review of PR
-  #19 against the (#15) doc claim that the contract was already universal.
+  contract as every other suspend member. (#15)
 
 ### Changed
 
 - **`BillingActions` class-level KDoc** gains a "Wrapping suspend members for
-  resilience" note: every suspend member rethrows
-  `kotlinx.coroutines.CancellationException` internally for structured-cancellation
-  correctness, but `runCatching { ... }` catches all `Throwable` (including
+  resilience" note explaining that suspend members propagate structured
+  cancellation (parent-scope `CancellationException` is rethrown; an internal
+  `withTimeout`'s `TimeoutCancellationException` is intentionally converted
+  to a `BillingException` because it represents a billing-layer failure),
+  and that `runCatching { ... }` catches all `Throwable` (including
   `CancellationException`) and silently re-introduces the swallow-CE footgun
   at the consumer layer. The note recommends explicit `try/catch` with a
   `CancellationException` rethrow rather than `runCatching`. (#15)

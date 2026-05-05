@@ -18,15 +18,14 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 /**
- * Regression test for the launchFlow CE-rethrow fix surfaced by Copilot review of
- * PR #19. The prior implementation's broad `catch (e: Exception)` would have wrapped
- * a [kotlinx.coroutines.CancellationException] from parent-scope teardown into a
- * [BillingException], silently breaking structured cancellation. The fix adds an
- * explicit `catch (ce: CancellationException) { throw ce }` arm before the broad
- * catch.
- *
- * If the fix regresses, this test fails because the cancelled coroutine surfaces a
- * `BillingException` instead of letting CE propagate.
+ * Regression test for `DefaultBillingRepository.launchFlow`'s
+ * `CancellationException` contract: a `CancellationException` raised by
+ * parent-scope teardown must propagate untouched (not be wrapped into a
+ * `BillingException` by the broad `catch (e: Exception)` that handles the
+ * other `launchBillingFlow` failures). The launchFlow body has a dedicated
+ * `catch (ce: CancellationException) { throw ce }` arm before the broad
+ * catch; if it's removed or reordered, structured cancellation is silently
+ * broken when the surrounding scope tears down.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultBillingRepositoryLaunchFlowCancellationTest {

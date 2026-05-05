@@ -47,8 +47,9 @@ import kotlinx.coroutines.flow.Flow
  * that **rethrows** [kotlinx.coroutines.CancellationException] rather than
  * `runCatching { ... }` — the standard `runCatching` catches every
  * `Throwable`, including `CancellationException`, and silently swallowing it
- * leaves your collector un-cancelable when its parent scope tears down. See
- * [BillingActions]'s class-level KDoc for the matching note on suspend members.
+ * leaves your collector non-cancellable (its parent scope can no longer tear
+ * it down). See [BillingActions]'s class-level KDoc for the matching note on
+ * suspend members.
  */
 public interface BillingPurchaseUpdatesOwner {
 
