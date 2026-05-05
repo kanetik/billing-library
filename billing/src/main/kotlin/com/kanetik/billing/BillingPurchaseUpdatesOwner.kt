@@ -38,6 +38,17 @@ import kotlinx.coroutines.flow.Flow
  * can't express "replay-on-subscribe for some emissions but not others" — the
  * channel split provides that, and exposing a single SharedFlow at the top would
  * collapse the distinction.
+ *
+ * ## Wrapping the collector in `runCatching`
+ *
+ * Long-lived collectors of this flow are the most common site for the
+ * `runCatching`-swallows-cancellation footgun. If you wrap individual
+ * emissions (or the collector body) in `runCatching { ... }` for resilience,
+ * rethrow [kotlinx.coroutines.CancellationException] from your handler — the
+ * standard `runCatching` catches every `Throwable`, including
+ * `CancellationException`, and silently swallowing it leaves your collector
+ * un-cancelable when its parent scope tears down. See
+ * [BillingActions]'s class-level KDoc for the same note on suspend members.
  */
 public interface BillingPurchaseUpdatesOwner {
 

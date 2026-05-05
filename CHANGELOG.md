@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`BillingActions` class-level KDoc** gains a "Wrapping suspend members in
+  `runCatching`" note: every suspend member rethrows
+  `kotlinx.coroutines.CancellationException` internally for structured-cancellation
+  correctness, but `runCatching` catches all `Throwable` (including
+  `CancellationException`) and silently re-introduces the swallow-CE footgun
+  at the consumer layer. The note tells consumers to rethrow CE explicitly
+  inside their `runCatching` wrapper. (#15)
+- **`BillingPurchaseUpdatesOwner.observePurchaseUpdates` KDoc** gains an
+  equivalent CE-rethrow note — long-lived collectors are the most common
+  `runCatching` site, so the warning is repeated there for visibility. (#15)
+- **`BillingActions.launchFlow` KDoc** expanded with the dual throw-vs-event
+  contract: synchronous PBL errors (invalid activity, `NullPointerException`
+  from `client.launchBillingFlow`, other `Exception`s, and any non-`OK`
+  `BillingResponseCode` returned synchronously — including
+  `ITEM_ALREADY_OWNED` when PBL knows without showing UI) surface as thrown
+  `BillingException` subtypes, while UI-mediated outcomes arrive on
+  `observePurchaseUpdates` as `FlowOutcome` variants. Calls out that
+  `ITEM_ALREADY_OWNED` is dual-path and must be handled in both the
+  `try/catch` around `launchFlow` *and* the `FlowOutcome.ItemAlreadyOwned`
+  branch in the collector. (#17)
+
 ## [0.1.1] - 2026-05-03
 
 ### Breaking
