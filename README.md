@@ -101,6 +101,7 @@ class CheckoutActivity : ComponentActivity() {
             HandlePurchaseResult.Success -> { grantPremium(); true }
             HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
+            HandlePurchaseResult.NotOwned -> false // stale snapshot — defer to grace/revoke
             is HandlePurchaseResult.Failure -> {
                 showError(r.exception.userFacingCategory)
                 false // recovery sweep retries on next clean connect; don't mark as handled
@@ -171,6 +172,10 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
             // so the next sweep will surface this purchase again for retry.
         }
         HandlePurchaseResult.NotPurchased -> {}
+        HandlePurchaseResult.NotOwned -> {
+            // Play says this purchase isn't owned anymore (refunded, revoked,
+            // already consumed). Don't grant; defer to grace/revoke logic.
+        }
     }
 }
 ```
@@ -233,6 +238,7 @@ private suspend fun handle(purchase: Purchase) {
         }
         HandlePurchaseResult.AlreadyAcknowledged -> {} // unreachable for consume=true (consumables aren't acked)
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
+        HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
         // never grant on Failure — recovery sweep retries on the next connection
     }
@@ -345,19 +351,26 @@ The library deliberately doesn't ship localized user-facing strings (tone, voice
 
 ### Handling `handlePurchase` failures correctly
 
-`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `AlreadyAcknowledged`, `NotPurchased`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
+`handlePurchase` returns a sealed `HandlePurchaseResult` — `Success`, `AlreadyAcknowledged`, `NotPurchased`, `NotOwned`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else** — Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
 
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
     HandlePurchaseResult.Success -> grantPremium()
     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+    HandlePurchaseResult.NotOwned -> {
+        // Play says this purchase isn't owned anymore (stale snapshot,
+        // refund, parallel consume). Don't grant; defer to grace/revoke
+        // logic and consider re-querying owned purchases.
+    }
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
     // do NOT grant on Failure — the recovery sweep retries on next connect
 }
 ```
 
 The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase` already has `isAcknowledged = true` — the library short-circuits before reaching out to Play. Treat it as entitlement-equivalent to `Success`; it exists as a separate variant so consumers can distinguish "we just acked" from "it was already done" for logging / metrics, and so `Failure` no longer overlaps with `Failure(DeveloperErrorException)` from a redundant acknowledge call. **Consumers can now safely untrack-on-Failure for retry on the next recovery sweep** — `Failure` unambiguously means a transient or terminal ack failure worth retrying, never an "already-acked, this will fail forever" loop. The `consume = true` path does not produce `AlreadyAcknowledged` — consumables aren't acked, they're consumed, and Play doesn't expose an `isConsumed` field on `Purchase` for a parallel check.
+
+The `NotOwned` variant fires when Play replies `ITEM_NOT_OWNED` from the underlying acknowledge / consume call after the library's `RetryType.REQUERY_PURCHASE_RETRY` budget is exhausted. Semantically distinct from `Failure`: ownership disagrees with the input (typically a stale `queryPurchases` snapshot), and retrying the ack against a non-owned purchase keeps returning `ITEM_NOT_OWNED` — recovery sweeps can't help. Don't grant; defer to your grace / revoke logic and consider re-querying owned purchases. Previously this surfaced as `Failure(BillingException.ItemNotOwnedException)`, forcing consumers to reach into the exception subclass hierarchy to distinguish ownership-mismatch from transient ack-call failures.
 
 The auto-recovery sweep (see [`OwnedPurchases.Recovered`](#purchase-recovery)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
@@ -530,6 +543,10 @@ billing.observePurchaseUpdates()
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
                 HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
                 HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+                HandlePurchaseResult.NotOwned -> {
+                    // Play says this purchase isn't owned — defer to grace/revoke logic.
+                    logger.w(TAG, "handlePurchase NotOwned for ${purchase.products}")
+                }
                 is HandlePurchaseResult.Failure -> {
                     // Don't grant — recovery sweep retries on the next clean connect.
                     logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")

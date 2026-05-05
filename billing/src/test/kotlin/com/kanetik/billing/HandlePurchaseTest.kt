@@ -125,6 +125,38 @@ class HandlePurchaseTest {
     }
 
     @Test
+    fun `handlePurchase maps ItemNotOwnedException to NotOwned (not Failure) for consume path`() = runTest {
+        // ITEM_NOT_OWNED is semantically distinct from the other ack-failure
+        // BillingException subtypes — it means ownership disagrees with the
+        // input (stale snapshot, refund, parallel consume), not that the ack
+        // call itself transiently failed. Surface it as its own variant so
+        // consumers can defer to grace/revoke logic instead of mis-treating
+        // it as a retry case.
+        val thrown = BillingException.ItemNotOwnedException(
+            BillingResult.newBuilder().setResponseCode(8).build()
+        )
+        val actions = RecordingBillingActions(consumeThrows = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        val result = actions.handlePurchase(purchase, consume = true)
+
+        assertThat(result).isEqualTo(HandlePurchaseResult.NotOwned)
+    }
+
+    @Test
+    fun `handlePurchase maps ItemNotOwnedException to NotOwned (not Failure) for acknowledge path`() = runTest {
+        val thrown = BillingException.ItemNotOwnedException(
+            BillingResult.newBuilder().setResponseCode(8).build()
+        )
+        val actions = RecordingBillingActions(acknowledgeThrows = thrown)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        val result = actions.handlePurchase(purchase, consume = false)
+
+        assertThat(result).isEqualTo(HandlePurchaseResult.NotOwned)
+    }
+
+    @Test
     fun `handlePurchase wraps non-BillingException throwables as Failure(WrappedException)`() = runTest {
         // A custom BillingActions implementation might throw something other than
         // BillingException — a NullPointerException from a `!!` contract check,

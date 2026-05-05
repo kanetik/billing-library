@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`HandlePurchaseResult` sealed class gained a new `NotOwned` subtype.**
+  Same exhaustive-`when` story as the other sealed-type additions in 0.1.x:
+  consumers branching exhaustively on `HandlePurchaseResult` without an
+  `else` arm need to add a branch for `HandlePurchaseResult.NotOwned`.
+  Previously, `ITEM_NOT_OWNED` from `acknowledgePurchase` / `consumePurchase`
+  surfaced as `Failure(BillingException.ItemNotOwnedException)`, which
+  conflated two semantically-distinct cases under one `Failure` bucket:
+  transient ack-call failures (where ownership is unchanged and the next
+  recovery sweep will retry) versus ownership-mismatch (where retrying
+  the ack against a non-owned purchase keeps returning `ITEM_NOT_OWNED`
+  forever). The new `NotOwned` variant carves the latter out so consumers
+  can defer to their grace / revoke logic instead of mis-treating it as
+  a retry case.
+
+  ```kotlin
+  // Before:
+  when (val r = billing.handlePurchase(purchase, consume = false)) {
+      HandlePurchaseResult.Success,
+      HandlePurchaseResult.AlreadyAcknowledged -> grant()
+      HandlePurchaseResult.NotPurchased -> {} // pending
+      is HandlePurchaseResult.Failure -> {
+          if (r.exception is BillingException.ItemNotOwnedException) {
+              // queryPurchases was stale; don't grant; defer to grace-or-revoke
+          } else {
+              // Transient ack failure; recovery sweep retries on next connect
+              showError(r.exception.userFacingCategory)
+          }
+      }
+  }
+
+  // After:
+  when (val r = billing.handlePurchase(purchase, consume = false)) {
+      HandlePurchaseResult.Success,
+      HandlePurchaseResult.AlreadyAcknowledged -> grant()
+      HandlePurchaseResult.NotPurchased -> {} // pending
+      HandlePurchaseResult.NotOwned -> {
+          // Ownership disagrees with the input — Play says this purchase
+          // isn't owned anymore. Don't grant; defer to grace/revoke logic
+          // and consider re-querying owned purchases.
+      }
+      is HandlePurchaseResult.Failure -> {
+          // Now unambiguously a transient or terminal ack-call failure.
+          showError(r.exception.userFacingCategory)
+      }
+  }
+  ```
+
+  `Failure(BillingException.ItemNotOwnedException)` no longer occurs from
+  `handlePurchase` — the exception subclass still exists (lower-level
+  `acknowledgePurchase` / `consumePurchase` continue to throw it directly),
+  but the high-level helper now maps it to the typed `NotOwned` variant
+  before returning.
+
+### Added
+
+- **`HandlePurchaseResult.NotOwned` variant** (`data object`) — returned by
+  `handlePurchase` when the underlying acknowledge / consume call returned
+  `ITEM_NOT_OWNED` after the library's `RetryType.REQUERY_PURCHASE_RETRY`
+  budget was exhausted. Contrasts with `NotPurchased` (a pre-flight check
+  that the `Purchase` object isn't `PURCHASED` — no PBL call made) and
+  `Failure` (post-flight ack-call failure where ownership is unchanged
+  and retry is appropriate). Recommended treatment: don't grant; defer
+  to your grace / revoke logic; consider re-querying owned purchases.
+
 ## [0.1.1] - 2026-05-03
 
 ### Breaking

@@ -17,6 +17,7 @@ import com.kanetik.billing.exception.BillingException
  *     HandlePurchaseResult.Success -> grantPremium()              // safe: ack landed
  *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium()    // safe: ack already in place
  *     HandlePurchaseResult.NotPurchased -> {}                     // pending — wait for terminal state
+ *     HandlePurchaseResult.NotOwned -> {}                          // stale snapshot — defer to grace/revoke
  *     is HandlePurchaseResult.Failure -> {
  *         // do NOT grant — auto-recovery sweep retries on next connect
  *         showError(r.exception.userFacingCategory)
@@ -24,7 +25,7 @@ import com.kanetik.billing.exception.BillingException
  * }
  * ```
  *
- * The four variants:
+ * The five variants:
  *  - [Success] — the acknowledge / consume call landed. Safe to grant.
  *  - [AlreadyAcknowledged] — for `consume = false`, the library detected
  *    [Purchase.isAcknowledged] was already `true` and short-circuited
@@ -32,6 +33,11 @@ import com.kanetik.billing.exception.BillingException
  *    from [Success] for logging / telemetry (no PBL call was made).
  *  - [NotPurchased] — the purchase wasn't in
  *    [Purchase.PurchaseState.PURCHASED] state. Don't grant.
+ *  - [NotOwned] — Play replied `ITEM_NOT_OWNED` from acknowledge / consume:
+ *    ownership disagrees with the input. The caller passed in a stale
+ *    `Purchase` (typically from a cached `queryPurchases` snapshot) whose
+ *    Play-side ownership has since flipped. Don't grant; defer to your
+ *    grace / revoke logic and consider re-querying owned purchases.
  *  - [Failure] — the acknowledge / consume call failed after the library's
  *    internal retry budget. Don't grant. Now unambiguously means a
  *    transient or terminal ack failure worth retrying — the previous
@@ -114,6 +120,42 @@ public sealed class HandlePurchaseResult {
     public data object NotPurchased : HandlePurchaseResult()
 
     /**
+     * Play reported the purchase isn't owned anymore — the underlying
+     * acknowledge / consume call returned
+     * [com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED]
+     * after the library's internal
+     * [RetryType.REQUERY_PURCHASE_RETRY][com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY]
+     * budget was exhausted. **Do not grant entitlement.**
+     *
+     * Typical cause: the consumer passed in a stale [Purchase] from a
+     * cached [com.android.billingclient.api.BillingClient.queryPurchasesAsync]
+     * snapshot, the library went to ack / consume it, and Play replied
+     * "this purchase isn't owned anymore." Ownership disagrees with the
+     * input — refunded, revoked, or already consumed by a parallel
+     * client.
+     *
+     * Contrast with the neighboring variants:
+     *  - [NotPurchased] is a **pre-flight** state check ("the [Purchase]
+     *    object's `purchaseState` isn't `PURCHASED` — wait for terminal
+     *    state, no PBL call was made"). [NotOwned] is a **post-flight**
+     *    response from Play ("we tried to ack / consume; Play says this
+     *    purchase doesn't exist anymore").
+     *  - [Failure] covers transient or terminal failures of the **ack
+     *    call itself** (network, service disconnected, etc.) — ownership
+     *    state is unchanged and the auto-recovery sweep on next connect
+     *    will retry the ack. [NotOwned] is the opposite: the ack didn't
+     *    fail, ownership did. Re-trying the ack against a non-owned
+     *    purchase will keep returning [NotOwned].
+     *
+     * Recommended consumer treatment: don't grant; defer to your grace
+     * window / revoke logic; consider re-querying owned purchases via
+     * [BillingActions.queryPurchases][com.kanetik.billing.BillingActions.queryPurchases]
+     * to get a fresh snapshot before deciding whether to revoke
+     * entitlement.
+     */
+    public data object NotOwned : HandlePurchaseResult()
+
+    /**
      * The acknowledge / consume call failed after the library's internal
      * retry budget was exhausted. **Do not grant entitlement.**
      *
@@ -127,6 +169,14 @@ public sealed class HandlePurchaseResult {
      * Play-side `isAcknowledged` has flipped will still surface as
      * `Failure(DeveloperErrorException)` until the next sweep replaces
      * the snapshot.
+     *
+     * As of the [NotOwned] variant being added, [Failure] also no longer
+     * carries [BillingException.ItemNotOwnedException] — that case
+     * surfaces as [NotOwned] instead, so [Failure] now unambiguously
+     * means a transient or terminal **ack-call** failure (network,
+     * service disconnected, fatal billing error, etc.) where ownership
+     * state is unchanged and retry is the right call. Ownership-mismatch
+     * — where retry can't help — has its own variant.
      *
      * Recovery path depends on whether `recoverPurchasesOnConnect` is left
      * at its default (`true`):
