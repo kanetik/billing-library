@@ -23,22 +23,29 @@ import com.kanetik.billing.exception.BillingException
  * failures, and surfaces hard failures as a typed [BillingException] subtype so
  * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
  *
- * ## Wrapping suspend members in `runCatching`
+ * ## Wrapping suspend members for resilience
  *
  * Suspend members rethrow [kotlinx.coroutines.CancellationException] internally so
- * structured cancellation propagates correctly. If you wrap a call in
- * `runCatching { ... }` for resilience, rethrow `CancellationException` from your
- * wrapper too — the standard `runCatching` catches every `Throwable`, including
- * `CancellationException`, which silently swallows scope cancellation:
+ * structured cancellation propagates correctly. If you wrap a call to absorb
+ * non-billing failures (e.g. inside a long-lived collector that should not die
+ * on a transient billing error), use an explicit `try/catch` that **rethrows**
+ * `CancellationException` rather than `runCatching { ... }` — the standard
+ * `runCatching` catches every `Throwable`, including `CancellationException`,
+ * and silently swallows scope cancellation:
  *
  * ```
- * val result = runCatching { billing.queryPurchases(params) }
- *     .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+ * try {
+ *     billing.queryPurchases(params)
+ * } catch (e: kotlinx.coroutines.CancellationException) {
+ *     throw e
+ * } catch (e: Throwable) {
+ *     // log / handle non-cancellation failures
+ * }
  * ```
  *
  * This is general kotlinx-coroutines hygiene (not billing-specific) but worth
  * calling out because long-lived collectors of
- * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] and `runCatching`-wrapped
+ * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] and resilience-wrapped
  * `BillingActions` calls are the two most common sites where this footgun bites.
  */
 public interface BillingActions {
@@ -370,7 +377,7 @@ public interface BillingActions {
      * @throws BillingException any synchronous failure as described above. As with
      *   every other suspend member, [kotlinx.coroutines.CancellationException] is
      *   rethrown internally and must propagate — see the class-level KDoc for the
-     *   `runCatching` wrapping rule.
+     *   resilience-wrapping rule.
      */
     @MainThread
     public suspend fun launchFlow(activity: Activity, params: BillingFlowParams)

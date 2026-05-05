@@ -7,18 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`DefaultBillingRepository.launchFlow` now propagates
+  `CancellationException` correctly.** The prior broad `catch (e: Exception)`
+  block would wrap a `CancellationException` into a `BillingException`,
+  silently breaking structured cancellation when the surrounding scope was
+  torn down. Added a dedicated `catch (ce: CancellationException) { throw ce }`
+  arm before the general wrapping logic so `launchFlow` upholds the same CE
+  contract as every other suspend member. Surfaced by Copilot review of PR
+  #19 against the (#15) doc claim that the contract was already universal.
+
 ### Changed
 
-- **`BillingActions` class-level KDoc** gains a "Wrapping suspend members in
-  `runCatching`" note: every suspend member rethrows
+- **`BillingActions` class-level KDoc** gains a "Wrapping suspend members for
+  resilience" note: every suspend member rethrows
   `kotlinx.coroutines.CancellationException` internally for structured-cancellation
-  correctness, but `runCatching` catches all `Throwable` (including
+  correctness, but `runCatching { ... }` catches all `Throwable` (including
   `CancellationException`) and silently re-introduces the swallow-CE footgun
-  at the consumer layer. The note tells consumers to rethrow CE explicitly
-  inside their `runCatching` wrapper. (#15)
+  at the consumer layer. The note recommends explicit `try/catch` with a
+  `CancellationException` rethrow rather than `runCatching`. (#15)
 - **`BillingPurchaseUpdatesOwner.observePurchaseUpdates` KDoc** gains an
-  equivalent CE-rethrow note — long-lived collectors are the most common
-  `runCatching` site, so the warning is repeated there for visibility. (#15)
+  equivalent resilience note — long-lived collectors are the most common
+  cancellation-swallowing site, so the warning is repeated there for
+  visibility. (#15)
 - **`BillingActions.launchFlow` KDoc** expanded with the dual throw-vs-event
   contract: synchronous PBL errors (invalid activity, `NullPointerException`
   from `client.launchBillingFlow`, other `Exception`s, and any non-`OK`
@@ -28,7 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `observePurchaseUpdates` as `FlowOutcome` variants. Calls out that
   `ITEM_ALREADY_OWNED` is dual-path and must be handled in both the
   `try/catch` around `launchFlow` *and* the `FlowOutcome.ItemAlreadyOwned`
-  branch in the collector. (#17)
+  branch in the collector. Also clarifies that the returned coroutine
+  completes once `BillingClient.launchBillingFlow` has returned (i.e., the
+  request was submitted to Play) — PBL exposes no "UI rendered" signal, so
+  completion is not a visibility guarantee. (#17)
 
 ## [0.1.1] - 2026-05-03
 
