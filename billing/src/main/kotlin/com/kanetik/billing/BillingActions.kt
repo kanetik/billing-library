@@ -25,13 +25,21 @@ import com.kanetik.billing.exception.BillingException
  *
  * ## Wrapping suspend members for resilience
  *
- * Suspend members rethrow [kotlinx.coroutines.CancellationException] internally so
- * structured cancellation propagates correctly. If you wrap a call to absorb
- * non-billing failures (e.g. inside a long-lived collector that should not die
- * on a transient billing error), use an explicit `try/catch` that **rethrows**
- * `CancellationException` rather than `runCatching { ... }` — the standard
- * `runCatching` catches every `Throwable`, including `CancellationException`,
- * and silently swallows scope cancellation:
+ * Suspend members propagate **structured cancellation** correctly: a
+ * [kotlinx.coroutines.CancellationException] raised by the surrounding scope
+ * being torn down is rethrown so cancellation cascades. Internal `withTimeout`
+ * timeouts — which surface as
+ * [kotlinx.coroutines.TimeoutCancellationException], a `CancellationException`
+ * subclass — are intentionally converted into a [com.kanetik.billing.exception.BillingException]
+ * instead, since they represent a billing-layer failure rather than a scope
+ * teardown.
+ *
+ * If you wrap a call to absorb non-billing failures (e.g. inside a long-lived
+ * collector that should not die on a transient billing error), use an explicit
+ * `try/catch` that **rethrows** `CancellationException` rather than
+ * `runCatching { ... }` — the standard `runCatching` catches every
+ * `Throwable`, including `CancellationException`, and silently swallows scope
+ * cancellation:
  *
  * ```
  * try {
