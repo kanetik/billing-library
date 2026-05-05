@@ -121,13 +121,14 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 > - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The
 >   user owns these purchases; acknowledge / consume / grant entitlement.
 >   These are **incremental updates, not authoritative owned-state
->   snapshots** — `Live` forwards whatever PBL delivers (including empty
->   callbacks and `UNSPECIFIED_STATE` entries), and `Recovered` carries
->   only the unacknowledged subset from the auto-sweep. Merge into your
->   own entitlement state on `handlePurchase` Success rather than
->   replacing your cache from `event.purchases`. For managed entitlement
->   state with grace policy, use `EntitlementCache` (when issue
->   [#3](https://github.com/kanetik/billing-library/issues/3) lands).
+>   snapshots** — `Live` carries the `PURCHASED`-or-`UNSPECIFIED_STATE`
+>   subset of an `OK` callback, and `Recovered` carries only the
+>   unacknowledged subset from the auto-sweep. Both channels are filtered
+>   to non-empty before delivery (PBL occasionally fires the listener with
+>   no purchases at all; the library drops those at the source). Merge
+>   into your own entitlement state on `handlePurchase` Success rather
+>   than replacing your cache from `event.purchases`. For managed
+>   entitlement state with grace policy, use `EntitlementCache`.
 > - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
 >   `ItemUnavailable`, `UnknownResponse`) — purchase-flow attempt outcomes.
 >   These describe what *happened* on a single launch attempt. The
@@ -432,7 +433,7 @@ Use `EntitlementCache` when you want a simple `is the user entitled right now?` 
 Skip it if you have your own state machine you're already happy with, or if you need behavior the cache deliberately doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
 
 The cache reacts to four event paths:
-- `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke — `Live` can carry empty/UNSPECIFIED_STATE callbacks or unrelated products, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
+- `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke — `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to the predicate, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
 - `FlowOutcome.Failure` triggers `InGrace` (or transitions straight to `Revoked` if the policy window is zero or has already elapsed since the last confirmation).
 - `PurchaseRevoked` matched against `lastConfirmedSnapshot.purchaseToken` transitions to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline (or whatever transport carries refund/chargeback signals); see "Server-driven revocation".
 

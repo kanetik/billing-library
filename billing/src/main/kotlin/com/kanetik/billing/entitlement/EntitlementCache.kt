@@ -136,8 +136,8 @@ import kotlinx.coroutines.sync.withLock
  *  - [OwnedPurchases.Live] / [OwnedPurchases.Recovered]: **grant-only**.
  *    A match against [productPredicate] transitions to [EntitlementState.Granted]
  *    and persists the snapshot. A non-match on either does **not** revoke —
- *    `Live` can carry empty/UNSPECIFIED_STATE callbacks or unrelated
- *    products, and `Recovered` only emits the `PURCHASED && !isAcknowledged`
+ *    `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to
+ *    [productPredicate], and `Recovered` only emits the `PURCHASED && !isAcknowledged`
  *    subset filtered against the library's acknowledgedTokens set, so an
  *    already-acked entitling purchase will never appear there. Treating
  *    either as authoritative for revocation would falsely revoke users
@@ -425,8 +425,8 @@ public class EntitlementCache(
             .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED && productPredicate(it) }
             ?: return null
         // No-match cases (both Live and Recovered) intentionally do NOT
-        // revoke. Live can carry empty/UNSPECIFIED_STATE callbacks or
-        // products unrelated to this cache's productPredicate, and Recovered
+        // revoke. Live can carry UNSPECIFIED_STATE entries or products
+        // unrelated to this cache's productPredicate, and Recovered
         // only emits the PURCHASED && !isAcknowledged subset of owned
         // purchases (filtered against the library's acknowledgedTokens set
         // per the dedupe in BillingClientStorage). Treating either as
