@@ -350,7 +350,7 @@ internal class BillingClientStorage(
             //       Purchase.isAcknowledged is `false` even after the
             //       consumer acked them — re-handle calls then surface
             //       Failure(DeveloperErrorException) for non-consumables
-            //       and Failure(ItemNotOwnedException) for consumables.
+            //       and HandlePurchaseResult.NotOwned for consumables.
             //
             // (a) is final. The only option where the library never emits
             // misleading state — replay always reflects a fully-successful

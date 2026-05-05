@@ -170,6 +170,7 @@ public interface BillingActions {
      *     HandlePurchaseResult.Success -> grantPremium()
      *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made
      *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
+     *     HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke
      *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
      * }
      * ```
@@ -238,12 +239,15 @@ public interface BillingActions {
      *   [HandlePurchaseResult.AlreadyAcknowledged] if `consume = false` and
      *   [Purchase.isAcknowledged] was already `true` (no PBL call made),
      *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
-     *   state, or [HandlePurchaseResult.Failure] (carrying the underlying
-     *   `BillingException`) if the acknowledge / consume call failed after the
-     *   library's retry budget.
+     *   state, [HandlePurchaseResult.NotOwned] if Play replied
+     *   `ITEM_NOT_OWNED` from the ack / consume call (stale snapshot —
+     *   ownership disagrees with the input), or [HandlePurchaseResult.Failure]
+     *   (carrying the underlying `BillingException`) if the acknowledge /
+     *   consume call failed after the library's retry budget for any other
+     *   reason.
      */
     @AnyThread
-    @CheckResult(suggest = "branch on all HandlePurchaseResult variants (Success / AlreadyAcknowledged / NotPurchased / Failure) to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
+    @CheckResult(suggest = "branch on all HandlePurchaseResult variants (Success / AlreadyAcknowledged / NotPurchased / NotOwned / Failure) to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent")
     public suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             return HandlePurchaseResult.NotPurchased
@@ -280,7 +284,23 @@ public interface BillingActions {
             @Suppress("DEPRECATION")
             throw threadDeath
         } catch (e: BillingException) {
-            HandlePurchaseResult.Failure(e)
+            // ITEM_NOT_OWNED is semantically distinct from the other
+            // BillingException subtypes: it's not an ack-call failure —
+            // ownership state is unchanged and there's nothing the library
+            // can retry to recover. Re-issuing the ack against the same
+            // non-owned Purchase will keep returning ITEM_NOT_OWNED. It's
+            // Play telling us ownership disagrees with the input. The
+            // library's RetryType.REQUERY_PURCHASE_RETRY budget has
+            // already been exhausted by the time the exception propagates
+            // here, so the consumer is the only one who can resolve it
+            // (defer to grace/revoke, re-query owned purchases). Surface
+            // it as its own variant rather than bucketing it with
+            // transient ack failures.
+            if (e is BillingException.ItemNotOwnedException) {
+                HandlePurchaseResult.NotOwned
+            } else {
+                HandlePurchaseResult.Failure(e)
+            }
         } catch (t: Throwable) {
             // Custom BillingActions implementations might throw something other
             // than BillingException (a defensive NPE from a `!!` contract check,

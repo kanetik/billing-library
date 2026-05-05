@@ -254,6 +254,13 @@ public sealed class BillingException(
      * Tried to consume a purchase the user doesn't own. Mirror of
      * [ItemAlreadyOwnedException]; same recovery strategy.
      *
+     * The lower-level [com.kanetik.billing.BillingActions.consumePurchase] /
+     * [com.kanetik.billing.BillingActions.acknowledgePurchase] callers see
+     * this thrown directly. From [com.kanetik.billing.BillingActions.handlePurchase]
+     * it is mapped to [com.kanetik.billing.HandlePurchaseResult.NotOwned]
+     * rather than surfaced as `Failure(ItemNotOwnedException)`; pattern-match
+     * the variant rather than the exception subclass at that layer.
+     *
      * Retry strategy: [RetryType.REQUERY_PURCHASE_RETRY].
      */
     public class ItemNotOwnedException(result: BillingResult) : BillingException(result, RetryType.REQUERY_PURCHASE_RETRY)

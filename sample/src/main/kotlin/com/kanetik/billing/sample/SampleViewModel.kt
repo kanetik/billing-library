@@ -145,6 +145,14 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 appendLog("handlePurchase skipped (not in PURCHASED state)")
                 false
             }
+            HandlePurchaseResult.NotOwned -> {
+                // Play replied ITEM_NOT_OWNED — ownership disagrees with the
+                // input (typically a stale queryPurchases snapshot). Real apps
+                // should defer to grace/revoke logic and consider re-querying
+                // owned purchases; the sample just logs it.
+                appendLog("handlePurchase skipped (Play says NotOwned — stale snapshot?)")
+                false
+            }
             is HandlePurchaseResult.Failure -> {
                 appendLog(
                     "handlePurchase FAILED: ${outcome.exception::class.simpleName} (${outcome.exception.userFacingCategory})"
