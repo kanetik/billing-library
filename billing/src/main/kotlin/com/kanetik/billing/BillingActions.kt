@@ -283,10 +283,14 @@ public interface BillingActions {
     /**
      * Launches the Play Billing purchase flow.
      *
-     * Must be called on the main thread. The returned coroutine completes once Play
-     * has shown the purchase UI; the actual purchase outcome arrives separately via
-     * [BillingPurchaseUpdatesOwner.observePurchaseUpdates] (and may take seconds to
-     * minutes — pending purchases can sit unresolved indefinitely).
+     * Must be called on the main thread. The returned coroutine completes once
+     * `BillingClient.launchBillingFlow` has returned — i.e., once the launch request
+     * has been submitted to Play. PBL does not surface a "UI has rendered" signal,
+     * so completion of this call is **not** a guarantee that the purchase sheet is
+     * (or ever will be) on screen; it is only a guarantee that no synchronous error
+     * was raised during submission. The actual purchase outcome arrives separately
+     * via [BillingPurchaseUpdatesOwner.observePurchaseUpdates] (and may take seconds
+     * to minutes — pending purchases can sit unresolved indefinitely).
      *
      * For one-time products, prefer [com.kanetik.billing.ext.toOneTimeFlowParams] to
      * build [params] correctly under PBL 8's offer-token rules. For higher-level
