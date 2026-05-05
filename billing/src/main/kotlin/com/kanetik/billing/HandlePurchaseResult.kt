@@ -43,7 +43,10 @@ import com.kanetik.billing.exception.BillingException
  *    transient or terminal ack failure worth retrying — the previous
  *    overlap with `Failure(DeveloperErrorException)` for already-acked
  *    purchases is gone for *fresh* `Purchase` objects (the short-circuit
- *    inspects [Purchase.isAcknowledged] before reaching out to PBL). The
+ *    inspects [Purchase.isAcknowledged] before reaching out to PBL), and
+ *    the previous overlap with `Failure(ItemNotOwnedException)` for
+ *    ownership-mismatch cases is gone — that case now surfaces as
+ *    [NotOwned] instead. The
  *    stale-snapshot case is the one remaining caveat: a `Purchase`
  *    cached locally with `isAcknowledged = false` whose Play-side state
  *    has flipped to `true` (e.g., a `Recovered` snapshot that was already

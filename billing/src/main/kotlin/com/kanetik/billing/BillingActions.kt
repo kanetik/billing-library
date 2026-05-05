@@ -285,15 +285,17 @@ public interface BillingActions {
             throw threadDeath
         } catch (e: BillingException) {
             // ITEM_NOT_OWNED is semantically distinct from the other
-            // BillingException subtypes: it's not an ack-call failure
-            // (ownership state is unchanged and the auto-recovery sweep
-            // would just retry forever) — it's Play telling us ownership
-            // disagrees with the input. The library's RetryType
-            // .REQUERY_PURCHASE_RETRY budget has already been exhausted by
-            // the time the exception propagates here, so the consumer is
-            // the only one who can resolve it (defer to grace/revoke,
-            // re-query owned purchases). Surface it as its own variant
-            // rather than bucketing it with transient ack failures.
+            // BillingException subtypes: it's not an ack-call failure —
+            // ownership state is unchanged and there's nothing the library
+            // can retry to recover. Re-issuing the ack against the same
+            // non-owned Purchase will keep returning ITEM_NOT_OWNED. It's
+            // Play telling us ownership disagrees with the input. The
+            // library's RetryType.REQUERY_PURCHASE_RETRY budget has
+            // already been exhausted by the time the exception propagates
+            // here, so the consumer is the only one who can resolve it
+            // (defer to grace/revoke, re-query owned purchases). Surface
+            // it as its own variant rather than bucketing it with
+            // transient ack failures.
             if (e is BillingException.ItemNotOwnedException) {
                 HandlePurchaseResult.NotOwned
             } else {
