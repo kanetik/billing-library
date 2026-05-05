@@ -53,23 +53,28 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `OK with empty purchases emits OwnedPurchases Live with empty list`() {
+    fun `OK with empty purchases drops the event entirely (no empty Live forwarded)`() {
+        // Issue #13: PBL occasionally fires onPurchasesUpdated with literally
+        // nothing. The listener used to forward Live(emptyList()) for symmetry
+        // with prior contracts, but consumers writing event.purchases into an
+        // entitlement cache silently wiped state. Empty Live carries no
+        // actionable signal (Pending purchases route through FlowOutcome.Pending),
+        // so the event is dropped at the source.
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(okResult(), emptyList())
 
-        assertThat(sink.replayCache).hasSize(1)
-        val event = sink.replayCache.single()
-        assertThat(event).isInstanceOf(OwnedPurchases.Live::class.java)
-        assertThat((event as OwnedPurchases.Live).purchases).isEmpty()
+        assertThat(sink.replayCache).isEmpty()
     }
 
     @Test
-    fun `null purchases list is treated as empty`() {
+    fun `null purchases list is treated as empty and produces no event`() {
+        // Same drop-at-source contract as the empty-list case above —
+        // PurchasesUpdatedListener.onPurchasesUpdated is nullable, and a null
+        // payload is normalized to an empty list internally.
         val (sink, listener) = newListener()
         listener.onPurchasesUpdated(okResult(), null)
 
-        assertThat(sink.replayCache).hasSize(1)
-        assertThat(sink.replayCache.single()).isInstanceOf(OwnedPurchases.Live::class.java)
+        assertThat(sink.replayCache).isEmpty()
     }
 
     @Test

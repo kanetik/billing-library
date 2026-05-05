@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   torn down. Added a dedicated `catch (ce: CancellationException) { throw ce }`
   arm before the general wrapping logic so `launchFlow` upholds the same CE
   contract as every other suspend member. (#15)
+- **`OwnedPurchases.Live` events with `purchases.isEmpty()` are no longer
+  forwarded to consumers.** PBL occasionally fires
+  `PurchasesUpdatedListener.onPurchasesUpdated` with no purchases at all
+  (settled and pending both empty); the listener used to forward an
+  `OwnedPurchases.Live(emptyList())` event in that case. Consumers writing
+  `event.purchases` into an entitlement cache silently wiped state on every
+  empty callback. The empty event carries no actionable signal — Pending
+  purchases route through `FlowOutcome.Pending` separately — so it's now
+  dropped at the source in `FlowPurchasesUpdatedListener`. Symmetric with
+  the existing empty-`Recovered` filter in `BillingClientStorage`.
+
+  **Behavioral change for consumers that explicitly handle empty Live**
+  (telemetry, debug logging, etc.): the empty-purchases sub-branch
+  inside an `is OwnedPurchases.Live ->` arm is now unreachable. No-ops
+  keyed off `event.purchases.isEmpty()` should be removed; debug counters
+  that incremented on every empty callback won't fire. Consumers that
+  already merge (rather than replace) on `Live` need no change. (#13)
 
 ### Changed
 
