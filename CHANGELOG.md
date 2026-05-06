@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EntitlementStorage` implementation, signs the snapshot on every write
   (HMAC-SHA256 over a versioned canonical encoding), and verifies the
   signature on read. Tampered or unsigned snapshots are dropped — the cache
-  reads them as cold-start and `OwnedPurchases.Live` re-confirms on next
-  launch. Closes the gap that previously kept freemium-with-real-value apps
+  reads them as cold-start and the next `OwnedPurchases.Live` or
+  `OwnedPurchases.Recovered` re-confirms on next launch. Closes the gap that previously kept freemium-with-real-value apps
   from adopting `EntitlementCache`: the library now ships first-party
   signing instead of telling consumers to roll their own. New public types,
   all under `com.kanetik.billing.entitlement.signed`:
