@@ -75,8 +75,13 @@ public class ServerSeededKeyProvider(
         return seedMutex.withLock {
             cachedSeed?.let { return@withLock it }
 
-            val persisted = cache.read()
-            val seed = persisted ?: fetchSeed().also { cache.write(it) }
+            // Defensive copies on every boundary: a SeedCache impl might
+            // return its internal buffer (and later mutate it), and a
+            // fetchSeed lambda might do the same. The cached array must be
+            // owned by us, and the array we hand to cache.write must not be
+            // the same one we keep, so a cache impl mutating its input can't
+            // change the live key.
+            val seed = (cache.read()?.copyOf() ?: fetchSeed().copyOf().also { cache.write(it.copyOf()) })
             cachedSeed = seed
             seed
         }

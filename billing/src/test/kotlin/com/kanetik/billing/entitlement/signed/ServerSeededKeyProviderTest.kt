@@ -75,6 +75,39 @@ class ServerSeededKeyProviderTest {
     }
 
     @Test
+    fun `mutating bytes returned by fetchSeed does not affect cached key`() = runTest {
+        val mutableSeed = ByteArray(32) { 0x33 }
+        val provider = ServerSeededKeyProvider(
+            fetchSeed = { mutableSeed },
+            cache = InMemorySeedCache(),
+        )
+        val data = "payload".toByteArray()
+        val sigBefore = provider.sign(data)
+
+        // Caller mutates the seed they handed us. We should have copied it.
+        mutableSeed.fill(0x00)
+
+        val sigAfter = provider.sign(data)
+        assertThat(sigAfter).isEqualTo(sigBefore)
+    }
+
+    @Test
+    fun `mutating cache contents after sign does not affect cached key`() = runTest {
+        val cache = InMemorySeedCache().also { it.cached = ByteArray(32) { 0x44 } }
+        val provider = ServerSeededKeyProvider(
+            fetchSeed = { error("should not fetch") },
+            cache = cache,
+        )
+        val data = "payload".toByteArray()
+        val sigBefore = provider.sign(data)
+
+        cache.cached!!.fill(0x00)
+
+        val sigAfter = provider.sign(data)
+        assertThat(sigAfter).isEqualTo(sigBefore)
+    }
+
+    @Test
     fun `fetched seed is persisted to cache for subsequent sessions`() = runTest {
         val cache = InMemorySeedCache()
         val provider = ServerSeededKeyProvider(

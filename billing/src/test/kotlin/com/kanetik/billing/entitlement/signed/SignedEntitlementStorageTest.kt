@@ -93,6 +93,38 @@ class SignedEntitlementStorageTest {
     }
 
     @Test
+    fun `read fires UnsupportedVersion when blob declares version 0`() = runTest {
+        val tamperEvents = mutableListOf<TamperEvent>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+
+        storage.write(sampleSnapshot)
+        val zeroVersionBlob = ByteBuffer.allocate(36).apply {
+            putInt(0)
+            put(sigStore.last!!.copyOfRange(4, 36))
+        }.array()
+        sigStore.last = zeroVersionBlob
+
+        assertThat(storage.read()).isNull()
+        assertThat(tamperEvents).containsExactly(TamperEvent.UnsupportedVersion(0))
+    }
+
+    @Test
+    fun `read fires UnsupportedVersion when blob declares negative version`() = runTest {
+        val tamperEvents = mutableListOf<TamperEvent>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+
+        storage.write(sampleSnapshot)
+        val negativeVersionBlob = ByteBuffer.allocate(36).apply {
+            putInt(-1)
+            put(sigStore.last!!.copyOfRange(4, 36))
+        }.array()
+        sigStore.last = negativeVersionBlob
+
+        assertThat(storage.read()).isNull()
+        assertThat(tamperEvents).containsExactly(TamperEvent.UnsupportedVersion(-1))
+    }
+
+    @Test
     fun `read fires InvalidSignature when blob is truncated below minimum size`() = runTest {
         val tamperEvents = mutableListOf<TamperEvent>()
         val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })

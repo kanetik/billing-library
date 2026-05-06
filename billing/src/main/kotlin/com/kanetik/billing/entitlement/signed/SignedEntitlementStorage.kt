@@ -115,7 +115,7 @@ public class SignedEntitlementStorage(
         }
 
         val version = ByteBuffer.wrap(blob, 0, VERSION_PREFIX_SIZE).int
-        if (version > SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION) {
+        if (version < MIN_VERSION || version > SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION) {
             onTamperDetected(TamperEvent.UnsupportedVersion(version))
             return null
         }
@@ -148,14 +148,27 @@ public class SignedEntitlementStorage(
          *
          * Intended for one-shot use on first launch after upgrade. The caller
          * is responsible for guarding with a "migration applied" marker (e.g.,
-         * a SharedPreferences boolean) so this runs at most once per install:
+         * a SharedPreferences boolean) so this runs at most once per install.
+         * `migrateUnsignedSnapshot` is `suspend` (it reads and writes through
+         * the same dispatchers your storage normally uses), so call it from a
+         * coroutine — and call it **before** constructing the
+         * [SignedEntitlementStorage] that wraps the same trio, so the cache's
+         * first read sees the freshly-written signature instead of firing
+         * [TamperEvent.MissingSignature]:
          *
          * ```kotlin
-         * if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
-         *     SignedEntitlementStorage.migrateUnsignedSnapshot(
-         *         rawStorage, keyProvider, signatureStore,
-         *     )
-         *     prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
+         * suspend fun bootstrapEntitlementStorage(): EntitlementStorage {
+         *     val rawStorage = MyDataStoreEntitlementStorage(context)
+         *     val keyProvider = KeystoreBackedKeyProvider.create()
+         *     val sigStore = SharedPreferencesSignatureStore(context)
+         *
+         *     if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
+         *         SignedEntitlementStorage.migrateUnsignedSnapshot(
+         *             rawStorage, keyProvider, sigStore,
+         *         )
+         *         prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
+         *     }
+         *     return SignedEntitlementStorage(rawStorage, keyProvider, sigStore)
          * }
          * ```
          *
@@ -205,6 +218,11 @@ public class SignedEntitlementStorage(
         private const val VERSION_PREFIX_SIZE = 4
         private const val HMAC_SHA256_SIZE = 32
         private const val SIGNATURE_BLOB_SIZE = VERSION_PREFIX_SIZE + HMAC_SHA256_SIZE
+
+        // Lowest version this build will accept on read. SnapshotCanonicalBytes
+        // currently knows v1; allowing v0 or negatives would let a corrupted /
+        // forged blob crash read() via encode() throwing.
+        private const val MIN_VERSION = 1
     }
 }
 

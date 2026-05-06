@@ -491,18 +491,20 @@ val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productPred
 
 By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and returns null — a one-time cold-start. The next `OwnedPurchases.Live` confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
 
-If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call `SignedEntitlementStorage.migrateUnsignedSnapshot` once on first launch after upgrade, guarded by your own marker:
+If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call `SignedEntitlementStorage.migrateUnsignedSnapshot` once on first launch after upgrade, guarded by your own marker. `migrateUnsignedSnapshot` is `suspend`, so call it from a coroutine — and call it **before** constructing the `SignedEntitlementStorage` that wraps the same trio, so the cache's first read sees the signature you just wrote:
 
 ```kotlin
-val rawStorage = MyDataStoreEntitlementStorage(context)
-val keyProvider = KeystoreBackedKeyProvider.create()
-val sigStore = SharedPreferencesSignatureStore(context)
+suspend fun bootstrapEntitlementStorage(context: Context): EntitlementStorage {
+    val rawStorage = MyDataStoreEntitlementStorage(context)
+    val keyProvider = KeystoreBackedKeyProvider.create()
+    val sigStore = SharedPreferencesSignatureStore(context)
 
-if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
-    SignedEntitlementStorage.migrateUnsignedSnapshot(rawStorage, keyProvider, sigStore)
-    prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
+    if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
+        SignedEntitlementStorage.migrateUnsignedSnapshot(rawStorage, keyProvider, sigStore)
+        prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
+    }
+    return SignedEntitlementStorage(rawStorage, keyProvider, sigStore, onTamperDetected = { ... })
 }
-val storage = SignedEntitlementStorage(rawStorage, keyProvider, sigStore, onTamperDetected = { ... })
 ```
 
 Tradeoff: the helper trusts the existing snapshot once. If pre-upgrade tampering is in your threat model, skip the helper and accept the cold-start. The helper itself can't be made into a permanent decorator mode without leaving a "delete the sig file to re-trigger migration" backdoor — that's why it's a static one-shot guarded by consumer-side state.

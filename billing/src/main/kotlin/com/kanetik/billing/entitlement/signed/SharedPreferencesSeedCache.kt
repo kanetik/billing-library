@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * Default [SeedCache] that persists the per-install seed in a private
@@ -38,7 +39,15 @@ public class SharedPreferencesSeedCache(
     override suspend fun write(seed: ByteArray) {
         withContext(Dispatchers.IO) {
             val encoded = Base64.encodeToString(seed, Base64.NO_WRAP)
-            prefs.edit().putString(KEY_SEED, encoded).commit()
+            // commit() reports false on a failed synchronous disk write. If we
+            // swallow that, ServerSeededKeyProvider may re-fetch on the next
+            // session (legitimate fetch), but worse, on the *current* session
+            // it caches a seed the next process can't see — so signatures
+            // written this session won't verify next session. Surface it.
+            val ok = prefs.edit().putString(KEY_SEED, encoded).commit()
+            if (!ok) {
+                throw IOException("Failed to persist seed to SharedPreferences (file=$fileName)")
+            }
         }
     }
 
