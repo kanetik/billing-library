@@ -48,7 +48,8 @@ package com.kanetik.billing.entitlement
  * [com.kanetik.billing.entitlement.signed.SignedEntitlementStorage] — a
  * decorator that signs the snapshot on write and verifies it on read using
  * an HMAC key from a [com.kanetik.billing.entitlement.signed.HmacKeyProvider]
- * (Android Keystore-backed by default). The decorator stays neutral on the
+ * (recommended default: [com.kanetik.billing.entitlement.signed.KeystoreBackedKeyProvider],
+ * which is Android Keystore-backed). The decorator stays neutral on the
  * persistence backend; you only have to wire up signing once.
  *
  * For most apps the on-device storage is fine — Play already enforces the
