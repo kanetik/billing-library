@@ -109,7 +109,11 @@ public class SignedEntitlementStorage(
             onTamperDetected(TamperEvent.MissingSignature)
             return null
         }
-        if (blob.size < SIGNATURE_BLOB_SIZE) {
+        // Wire format is fixed: VERSION_PREFIX_SIZE + HMAC_SHA256_SIZE = exactly
+        // SIGNATURE_BLOB_SIZE bytes. Anything else is malformed — including
+        // trailing bytes, which would otherwise be silently folded into the
+        // HMAC slice and verified against the wrong shape.
+        if (blob.size != SIGNATURE_BLOB_SIZE) {
             onTamperDetected(TamperEvent.InvalidSignature)
             return null
         }
@@ -194,8 +198,11 @@ public class SignedEntitlementStorage(
             keyProvider: HmacKeyProvider,
             signatureStore: SignatureStore,
         ): Boolean {
-            val snapshot = delegate.read() ?: return false
+            // Idempotent: skip the (potentially expensive) snapshot read when a
+            // signature is already in place. Repeated calls become a single
+            // signature read.
             if (signatureStore.readSignature() != null) return false
+            val snapshot = delegate.read() ?: return false
 
             val blob = signSnapshot(snapshot, keyProvider)
             signatureStore.writeSignature(blob)
@@ -209,7 +216,15 @@ public class SignedEntitlementStorage(
             val version = SnapshotCanonicalBytes.CURRENT_VERSION
             val canonical = SnapshotCanonicalBytes.encode(snapshot, version)
             val hmac = keyProvider.sign(canonical)
-            val blob = ByteBuffer.allocate(VERSION_PREFIX_SIZE + hmac.size)
+            // The wire format is anchored to HMAC-SHA256's 32-byte output; an
+            // HmacKeyProvider that returns a different size would silently
+            // produce blobs the reader doesn't define. Fail fast at the writer
+            // so a misconfigured custom provider surfaces as a contract
+            // violation rather than corrupt persistence.
+            require(hmac.size == HMAC_SHA256_SIZE) {
+                "HmacKeyProvider produced ${hmac.size}-byte signature; expected $HMAC_SHA256_SIZE (HMAC-SHA256)"
+            }
+            val blob = ByteBuffer.allocate(SIGNATURE_BLOB_SIZE)
             blob.putInt(version)
             blob.put(hmac)
             return blob.array()

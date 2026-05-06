@@ -125,7 +125,7 @@ class SignedEntitlementStorageTest {
     }
 
     @Test
-    fun `read fires InvalidSignature when blob is truncated below minimum size`() = runTest {
+    fun `read fires InvalidSignature when blob is truncated below expected size`() = runTest {
         val tamperEvents = mutableListOf<TamperEvent>()
         val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
 
@@ -134,6 +134,37 @@ class SignedEntitlementStorageTest {
 
         assertThat(storage.read()).isNull()
         assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+    }
+
+    @Test
+    fun `read fires InvalidSignature when blob has trailing bytes beyond expected size`() = runTest {
+        val tamperEvents = mutableListOf<TamperEvent>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+
+        storage.write(sampleSnapshot)
+        sigStore.last = sigStore.last!! + ByteArray(4) { 0x42 }
+
+        assertThat(storage.read()).isNull()
+        assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+    }
+
+    @Test
+    fun `write throws when keyProvider produces wrong-sized hmac`() = runTest {
+        val storage = SignedEntitlementStorage(
+            delegate = InMemoryStorage(),
+            keyProvider = object : HmacKeyProvider {
+                override suspend fun sign(data: ByteArray): ByteArray = ByteArray(16) { 0x01 }
+            },
+            signatureStore = InMemorySignatureStore(),
+        )
+
+        try {
+            storage.write(sampleSnapshot)
+            error("Expected IllegalArgumentException")
+        } catch (e: IllegalArgumentException) {
+            assertThat(e.message).contains("16-byte")
+            assertThat(e.message).contains("32")
+        }
     }
 
     @Test
@@ -165,6 +196,24 @@ class SignedEntitlementStorageTest {
         )
         assertThat(storage.read()).isEqualTo(sampleSnapshot)
         assertThat(tamperEvents).isEmpty()
+    }
+
+    @Test
+    fun `migrateUnsignedSnapshot does not read delegate when signature already present`() = runTest {
+        val keyProvider = FixedKeyHmacProvider(KEY_BYTES)
+        val sigStore = InMemorySignatureStore().also { it.last = ByteArray(36) }
+        val delegate = object : EntitlementStorage {
+            var readCalls = 0
+            override suspend fun read(): EntitlementSnapshot? {
+                readCalls++; return null
+            }
+            override suspend fun write(snapshot: EntitlementSnapshot) = error("unexpected")
+        }
+
+        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(delegate, keyProvider, sigStore)
+
+        assertThat(migrated).isFalse()
+        assertThat(delegate.readCalls).isEqualTo(0)
     }
 
     @Test
