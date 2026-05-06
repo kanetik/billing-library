@@ -463,7 +463,7 @@ For most apps the on-device storage is fine — a tampered snapshot gets overwri
 
 ### Tamper-resistant storage
 
-If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), wrap your `EntitlementStorage` in `SignedEntitlementStorage`. The decorator signs the snapshot on every write and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start and the next `OwnedPurchases.Live` re-confirms truth).
+If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), wrap your `EntitlementStorage` in `SignedEntitlementStorage`. The decorator signs the snapshot on every write and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start and the next `OwnedPurchases.Live` or `OwnedPurchases.Recovered` re-confirms truth).
 
 ```kotlin
 import com.kanetik.billing.entitlement.signed.*
@@ -489,7 +489,7 @@ val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productPred
 
 #### Migrating an existing unsigned snapshot
 
-By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and returns null — a one-time cold-start. The next `OwnedPurchases.Live` confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
+By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and returns null — a one-time cold-start. The next `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
 
 If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call `SignedEntitlementStorage.migrateUnsignedSnapshot` once on first launch after upgrade, guarded by your own marker. `migrateUnsignedSnapshot` is `suspend`, so call it from a coroutine — and call it **before** constructing the `SignedEntitlementStorage` that wraps the same trio, so the cache's first read sees the signature you just wrote:
 

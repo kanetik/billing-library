@@ -33,7 +33,21 @@ public class SharedPreferencesSeedCache(
 
     override suspend fun read(): ByteArray? = withContext(Dispatchers.IO) {
         val encoded = prefs.getString(KEY_SEED, null) ?: return@withContext null
-        runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
+        // Treat decode failure as corruption, not cache miss. Returning null
+        // here would let ServerSeededKeyProvider re-fetch a fresh seed,
+        // silently invalidating every signature that was written against the
+        // original seed — the same outcome an attacker corrupting the file
+        // would want. Throwing surfaces the corruption to the caller; they
+        // can decide whether to clear the cache and re-fetch deliberately or
+        // bail out. (Asymmetric with SharedPreferencesSignatureStore.read,
+        // which returns a shape-invalid blob — that path has the
+        // SignedEntitlementStorage size check downstream to convert it to
+        // InvalidSignature; the seed has no equivalent shape check.)
+        try {
+            Base64.decode(encoded, Base64.NO_WRAP)
+        } catch (e: IllegalArgumentException) {
+            throw IOException("Stored seed in SharedPreferences (file=$fileName) is not valid Base64; cache is corrupt.", e)
+        }
     }
 
     override suspend fun write(seed: ByteArray) {

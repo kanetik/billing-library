@@ -56,8 +56,8 @@ import java.nio.ByteBuffer
  * untouched — the next write retries from a consistent state. If the
  * signature write fails *after* the snapshot write succeeded, the next read
  * sees a snapshot/signature mismatch (or no signature on first ever write)
- * and falls back to the cold-start path; `OwnedPurchases.Live` re-confirms
- * on next launch.
+ * and falls back to the cold-start path; the next `OwnedPurchases.Live` or
+ * `OwnedPurchases.Recovered` re-confirms on next launch.
  *
  * # Threat-model caveats
  *
