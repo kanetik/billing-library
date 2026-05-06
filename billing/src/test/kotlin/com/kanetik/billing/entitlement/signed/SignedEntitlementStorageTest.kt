@@ -149,6 +149,25 @@ class SignedEntitlementStorageTest {
     }
 
     @Test
+    fun `write does not persist snapshot when keyProvider sign throws`() = runTest {
+        val delegate = InMemoryStorage()
+        val sigStore = InMemorySignatureStore()
+        val storage = SignedEntitlementStorage(
+            delegate, keyProvider = ThrowingKeyProvider, signatureStore = sigStore,
+        )
+
+        try {
+            storage.write(sampleSnapshot)
+            error("Expected IllegalStateException from sign()")
+        } catch (e: IllegalStateException) {
+            // expected
+        }
+
+        assertThat(delegate.lastWritten).isNull()
+        assertThat(sigStore.last).isNull()
+    }
+
+    @Test
     fun `write throws when keyProvider produces wrong-sized hmac`() = runTest {
         val storage = SignedEntitlementStorage(
             delegate = InMemoryStorage(),
@@ -279,4 +298,9 @@ private class FixedKeyHmacProvider(private val key: ByteArray) : HmacKeyProvider
         mac.init(SecretKeySpec(key, "HmacSHA256"))
         return mac.doFinal(data)
     }
+}
+
+private object ThrowingKeyProvider : HmacKeyProvider {
+    override suspend fun sign(data: ByteArray): ByteArray =
+        throw IllegalStateException("simulated key provider failure")
 }

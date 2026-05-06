@@ -49,10 +49,15 @@ import java.nio.ByteBuffer
  *
  * # Write path
  *
- * `write` always writes the snapshot to the delegate first, then writes the
- * signature blob. If the signature write fails after the snapshot write
- * succeeded, the next read sees an unsigned snapshot and falls back to the
- * cold-start path; `OwnedPurchases.Live` re-confirms on next launch.
+ * `write` computes the signature blob first (no side effects), then persists
+ * the snapshot via [delegate], then persists the signature via
+ * [signatureStore]. Ordering signing first means a [keyProvider] failure
+ * (e.g., transient Keystore key generation error) leaves both stores
+ * untouched — the next write retries from a consistent state. If the
+ * signature write fails *after* the snapshot write succeeded, the next read
+ * sees a snapshot/signature mismatch (or no signature on first ever write)
+ * and falls back to the cold-start path; `OwnedPurchases.Live` re-confirms
+ * on next launch.
  *
  * # Threat-model caveats
  *
@@ -135,8 +140,13 @@ public class SignedEntitlementStorage(
     }
 
     override suspend fun write(snapshot: EntitlementSnapshot) {
-        delegate.write(snapshot)
+        // Sign first (no side effects), then persist. A keyProvider failure —
+        // e.g., transient AndroidKeyStore key generation flake, ServerSeeded
+        // fetcher throwing — would otherwise leave delegate updated with a
+        // snapshot the next read can't verify. Computing the blob up front
+        // makes signing failures fully retriable.
         val blob = signSnapshot(snapshot, keyProvider)
+        delegate.write(snapshot)
         signatureStore.writeSignature(blob)
     }
 
@@ -271,10 +281,11 @@ public sealed interface TamperEvent {
     public object InvalidSignature : TamperEvent
 
     /**
-     * The signature blob declared a version higher than this build of the
-     * library knows how to verify. Implies forgery, blob corruption, or a
-     * forward-incompatible blob written by a newer library version that
-     * downgraded.
+     * The signature blob declared a version this build of the library can't
+     * verify (either above [SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION] or
+     * below `1`). Implies forgery, blob corruption, or a forward-incompatible
+     * blob written by a newer library version that the app was later
+     * downgraded from.
      */
     public data class UnsupportedVersion(val version: Int) : TamperEvent
 }
