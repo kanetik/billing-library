@@ -41,11 +41,15 @@ package com.kanetik.billing.entitlement
  *
  * ## Integrity
  *
- * If your threat model includes users tampering with on-device storage to
- * extend entitlement (e.g. a freemium app where premium has real value),
- * implement [write] / [read] against a signed-prefs layer keyed off a
- * server-issued secret. The [EntitlementSnapshot] type is plain data — no
- * built-in signature or HMAC; the cache trusts what storage returns.
+ * The [EntitlementSnapshot] type is plain data — no built-in signature or
+ * HMAC; the cache trusts what storage returns. If your threat model includes
+ * users tampering with on-device storage to extend entitlement (e.g. a
+ * freemium app where premium has real value), wrap your implementation in
+ * [com.kanetik.billing.entitlement.signed.SignedEntitlementStorage] — a
+ * decorator that signs the snapshot on write and verifies it on read using
+ * an HMAC key from a [com.kanetik.billing.entitlement.signed.HmacKeyProvider]
+ * (Android Keystore-backed by default). The decorator stays neutral on the
+ * persistence backend; you only have to wire up signing once.
  *
  * For most apps the on-device storage is fine — Play already enforces the
  * authoritative entitlement state on the next successful connect via

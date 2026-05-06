@@ -459,7 +459,53 @@ interface EntitlementStorage {
 
 `EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `read()` once on `start()` to hydrate, then `write()` on every entitlement-affecting transition. `InGrace` is **not** persisted — grace re-derives from the most recent confirmed `confirmedAtMs` on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.
 
-If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), implement `read` / `write` against a signed-prefs layer keyed off a server-issued secret. The cache trusts what storage returns. For most apps the on-device storage is fine — a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement.
+For most apps the on-device storage is fine — a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement. The cache trusts what storage returns.
+
+### Tamper-resistant storage
+
+If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), wrap your `EntitlementStorage` in `SignedEntitlementStorage`. The decorator signs the snapshot on every write and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start and the next `OwnedPurchases.Live` re-confirms truth).
+
+```kotlin
+import com.kanetik.billing.entitlement.signed.*
+
+val storage: EntitlementStorage = SignedEntitlementStorage(
+    delegate = MyDataStoreEntitlementStorage(context),
+    keyProvider = KeystoreBackedKeyProvider.create(),
+    signatureStore = SharedPreferencesSignatureStore(context),
+    onTamperDetected = { event ->
+        when (event) {
+            TamperEvent.MissingSignature -> logger.info("First read after upgrade")
+            TamperEvent.InvalidSignature -> logger.warn("Possible tampering detected")
+            is TamperEvent.UnsupportedVersion -> logger.warn("Unknown sig version ${event.version}")
+        }
+    },
+)
+val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productPredicate)
+```
+
+`SignedEntitlementStorage` keeps the library neutral on the persistence backend — the underlying `EntitlementStorage` still owns the snapshot bytes, the signature blob lives separately in `SignatureStore`. Pick `KeystoreBackedKeyProvider` (the recommended default; uses Android Keystore HMAC keys, hardware-backed where available) or `ServerSeededKeyProvider` (per-install seed from your backend, cached locally — see its KDoc for the plaintext-cache caveat). The library can't enforce key non-extractability and isn't a replacement for server-side validation; both caveats are documented on the relevant types.
+
+`onTamperDetected` distinguishes three cases via the `TamperEvent` sealed type. The most common one in practice is `MissingSignature` — fired the first time the decorator reads a snapshot that was written by a release without `SignedEntitlementStorage`. Treat it differently from `InvalidSignature` in your telemetry; the latter is the strong tamper indicator.
+
+#### Migrating an existing unsigned snapshot
+
+By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and returns null — a one-time cold-start. The next `OwnedPurchases.Live` confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
+
+If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call `SignedEntitlementStorage.migrateUnsignedSnapshot` once on first launch after upgrade, guarded by your own marker:
+
+```kotlin
+val rawStorage = MyDataStoreEntitlementStorage(context)
+val keyProvider = KeystoreBackedKeyProvider.create()
+val sigStore = SharedPreferencesSignatureStore(context)
+
+if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
+    SignedEntitlementStorage.migrateUnsignedSnapshot(rawStorage, keyProvider, sigStore)
+    prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
+}
+val storage = SignedEntitlementStorage(rawStorage, keyProvider, sigStore, onTamperDetected = { ... })
+```
+
+Tradeoff: the helper trusts the existing snapshot once. If pre-upgrade tampering is in your threat model, skip the helper and accept the cold-start. The helper itself can't be made into a permanent decorator mode without leaving a "delete the sig file to re-trigger migration" backdoor — that's why it's a static one-shot guarded by consumer-side state.
 
 ### Wiring the connection
 

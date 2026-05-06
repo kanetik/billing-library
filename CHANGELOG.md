@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SignedEntitlementStorage` decorator + HMAC key-provider helpers for
+  tamper-resistant on-device persistence.** Wraps any existing
+  `EntitlementStorage` implementation, signs the snapshot on every write
+  (HMAC-SHA256 over a versioned canonical encoding), and verifies the
+  signature on read. Tampered or unsigned snapshots are dropped — the cache
+  reads them as cold-start and `OwnedPurchases.Live` re-confirms on next
+  launch. Closes the gap that previously kept freemium-with-real-value apps
+  from adopting `EntitlementCache`: the library now ships first-party
+  signing instead of telling consumers to roll their own. New public types,
+  all under `com.kanetik.billing.entitlement.signed`:
+
+  - `SignedEntitlementStorage` — the decorator. Includes a `TamperEvent`
+    callback (`MissingSignature` / `InvalidSignature` / `UnsupportedVersion`)
+    so consumers can route the common one-time post-upgrade case differently
+    from the strong tamper indicator in their telemetry. Includes a static
+    `migrateUnsignedSnapshot` helper for adopters who want to avoid the
+    one-time cold-start by trusting an existing snapshot once.
+  - `HmacKeyProvider` — interface; `sign(data) / verify(data, sig)` shape
+    so non-extractable Keystore keys are first-class.
+  - `KeystoreBackedKeyProvider` — Android Keystore-backed HMAC-SHA256, the
+    recommended default. Hardware-backed where available.
+  - `ServerSeededKeyProvider` — per-install seed fetched from a backend on
+    first use, cached locally. The default `SharedPreferencesSeedCache` is
+    plaintext; consumers needing real tamper resistance should prefer
+    `KeystoreBackedKeyProvider` (caveat documented on both types).
+  - `SignatureStore` / `SeedCache` interfaces with
+    `SharedPreferencesSignatureStore` / `SharedPreferencesSeedCache`
+    defaults. Consumers can swap either with their own backend (DataStore,
+    Room, encrypted prefs).
+
+  The signature wire format is `4-byte version || 32-byte HMAC-SHA256` over
+  a deterministic canonical encoding of `(version, snapshot)`. Versioned
+  signing means future field additions to `EntitlementSnapshot` won't
+  invalidate existing signatures — signed at v1 keeps verifying at v2 as
+  long as the new field is nullable / has a documented v1-default. (#16)
+
 ### Breaking
 
 - **`HandlePurchaseResult` sealed class gained a new `NotOwned` subtype.**
