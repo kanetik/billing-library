@@ -47,7 +47,7 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())
 - `connectToBilling()` reaches `Success`
 - `queryProductDetails` returns at least one `ProductDetails`
 - `launchFlow` accepts the params without throwing
-- `observePurchaseUpdates()` collector receives the expected `PurchasesUpdate` variant
+- `observePurchaseUpdates()` collector receives the expected `PurchaseEvent` variant
 - `handlePurchase(purchase, consume = …)` runs through to completion
 
 ### What Level 1 does *not* verify
@@ -128,12 +128,14 @@ The most useful Lab feature for library validation. Force any response code on a
 
 1. Dashboard → **Response simulator → Manage**.
 2. Add response codes you want simulated:
-   - `USER_CANCELED` → exercises your `PurchasesUpdate.Canceled` branch.
-   - `BILLING_UNAVAILABLE` → triggers `BillingException.BillingUnavailableException`.
-   - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` and your `PurchasesUpdate.ItemAlreadyOwned` branch.
-   - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's exponential-backoff retry loop (since `RetryType.SAFE`).
-   - `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `SERVICE_TIMEOUT` — `RetryType.SAFE` paths.
-   - `DEVELOPER_ERROR` / `FEATURE_NOT_SUPPORTED` — `RetryType.NEVER` paths.
+   - `USER_CANCELED` → exercises your `FlowOutcome.Canceled` branch.
+   - `BILLING_UNAVAILABLE` → triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`).
+   - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.REQUERY_PURCHASE_RETRY`) and your `FlowOutcome.ItemAlreadyOwned` branch.
+   - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's exponential-backoff retry loop (`RetryType.EXPONENTIAL_RETRY`).
+   - `SERVICE_DISCONNECTED` → `BillingException.ServiceDisconnectedException` (`RetryType.SIMPLE_RETRY`).
+   - `SERVICE_UNAVAILABLE` → `BillingException.ServiceUnavailableException` (`RetryType.EXPONENTIAL_RETRY`).
+   - `DEVELOPER_ERROR` → `BillingException.DeveloperErrorException` (`RetryType.NONE`).
+   - `FEATURE_NOT_SUPPORTED` → `BillingException.FeatureNotSupportedException` (`RetryType.NONE`).
 3. Activate the simulator (toggle in the dashboard).
 4. Run your app and exercise the relevant flow — Lab returns the simulated code instead of the real Play response.
 
@@ -151,9 +153,9 @@ Dashboard → **Configuration settings → Add** and configure the override.
 ### Subscription settings — grace period, account hold, price changes
 
 Sub-specific test states that are hard to engineer organically:
-- **Grace period** — payment failed but user still has access
-- **Account hold** — payment failed for longer; user lost access
-- **Price changes** — user accepting/rejecting a price increase
+- Grace period — payment failed but the user still has access
+- Account hold — payment failed for longer; the user lost access
+- Price changes — user accepting or rejecting a price increase
 
 Dashboard → **Subscription settings → Manage**, select the subscription you've already configured in Play Console, set the state.
 
@@ -187,7 +189,7 @@ Until v0.2.0 ships the official `:billing-testing` artifact (with a built-in `Fa
 val billing = mockk<BillingRepository>()
 coEvery { billing.queryProductDetails(any()) } returns listOf(productDetails())
 coEvery { billing.launchFlow(any(), any()) } returns Unit
-every { billing.observePurchaseUpdates() } returns flowOf(PurchasesUpdate.Success(listOf(purchase())))
+every { billing.observePurchaseUpdates() } returns flowOf(OwnedPurchases.Live(listOf(purchase())))
 ```
 
 `BillingRepository` is composed of three narrower interfaces (`BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`) — depend on the narrowest one your code under test needs, and mock that.
