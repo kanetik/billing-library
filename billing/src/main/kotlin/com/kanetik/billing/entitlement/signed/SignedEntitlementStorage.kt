@@ -20,10 +20,10 @@ import java.nio.ByteBuffer
  * The signature blob is `4 bytes version (BE int) || 32 bytes HMAC-SHA256`.
  * The version is included both in the blob (so verification knows how to
  * canonical-encode the snapshot) and inside the HMAC input (so it's
- * authenticated and an attacker can't downgrade the version). See
- * [SnapshotCanonicalBytes] for the per-version snapshot encoding and the
- * procedure for adding a new version when [EntitlementSnapshot] grows a
- * field.
+ * authenticated and an attacker can't downgrade the version). The per-version
+ * snapshot canonical encoding is internal; the wire format is stable and
+ * versioned so future field additions to [EntitlementSnapshot] don't
+ * invalidate signatures written by older library versions.
  *
  * # Read path
  *
@@ -57,7 +57,8 @@ import java.nio.ByteBuffer
  * signature write fails *after* the snapshot write succeeded, the next read
  * sees a snapshot/signature mismatch (or no signature on first ever write)
  * and falls back to the cold-start path; the next `OwnedPurchases.Live` or
- * `OwnedPurchases.Recovered` re-confirms on next launch.
+ * `OwnedPurchases.Recovered` re-confirms truth (often within the same
+ * launch, once the billing connection establishes).
  *
  * # Threat-model caveats
  *
@@ -282,10 +283,10 @@ public sealed interface TamperEvent {
 
     /**
      * The signature blob declared a version this build of the library can't
-     * verify (either above [SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION] or
-     * below `1`). Implies forgery, blob corruption, or a forward-incompatible
-     * blob written by a newer library version that the app was later
-     * downgraded from.
+     * verify (either above the highest version this build supports or below
+     * `1`). Implies forgery, blob corruption, or a forward-incompatible blob
+     * written by a newer library version that the app was later downgraded
+     * from.
      */
     public data class UnsupportedVersion(val version: Int) : TamperEvent
 }

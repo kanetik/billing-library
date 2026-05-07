@@ -242,7 +242,7 @@ class SignedEntitlementStorageTest {
         val firstBlob = sigStore.last!!.copyOf()
 
         val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(
-            delegate = storage, // re-using through the decorator is fine; delegate.read returns the same snapshot
+            delegate = storage,
             keyProvider = FixedKeyHmacProvider(KEY_BYTES),
             signatureStore = sigStore,
         )
