@@ -740,6 +740,15 @@ class FcmRevocationReceiver : FirebaseMessagingService() {
 
 (For longer-running work or for guaranteed delivery across process death, use WorkManager instead — `emitExternalRevocation` is a fast, in-memory hand-off, but the surrounding decode + persistence is a different question.)
 
+### Other emit triggers
+
+RTDN→FCM is the canonical transport, but `emitExternalRevocation` is the right hook anywhere the consumer has authoritative evidence that ownership flipped. `EntitlementCache` treats `OwnedPurchases.Live`/`Recovered` as grant-only (see "Sealed-when handling"), so an empty owned-purchases result alone never transitions the cache to `Revoked` — you have to push the event yourself. Two common cases beyond FCM:
+
+- **Authoritative-empty `queryPurchases` after a refresh.** If your refresh path observes a successful `queryPurchases` that returns no entitling purchases *and* your persisted cache snapshot is `Granted`, that's a refund landing without an FCM (still common — RTDN→FCM pipelines aren't always wired). Emit `PurchaseRevoked` for the cached token with `RevocationReason.Other` (or `Refunded` if your refresh path can disambiguate). Gate on the raw `queryPurchases` output, not the signature-verified subset — a verification miss means "still owned, but rejected by your verifier", not "revoked."
+- **Debug `consumePurchase` flows.** A debug "consume the test purchase" button (or any test path that consumes a non-consumable) succeeds at the Play layer but leaves the cache `Granted` forever, because the cache has no signal that ownership flipped. Emit `PurchaseRevoked` for the cached token after the consume loop so the debug path exercises the same revocation transition production would see, and the cache persists as `Revoked` across cold start.
+
+In both cases the helper is small — read your `EntitlementStorage` snapshot, no-op if null or already `Revoked`, otherwise call `emitExternalRevocation(snapshot.purchaseToken, reason)`.
+
 `PurchaseRevoked` events route through a dedicated `replay = 16` channel — separate from `OwnedPurchases.Recovered`, so a revocation that arrives before the consumer's collector attaches isn't evicted by an empty recovery sweep. (Common case: the FCM listener decodes the payload at process start, before the UI is up.) Up to 16 revocations cached for late subscribers, sized for the realistic FCM-burst case (multi-product chargebacks resolving simultaneously, or several revocations decoded at process start). The same dedupe rule applies: a re-attached collector replays its share of the cache, so gate on `purchaseToken` if your handler isn't idempotent. Bursts beyond 16 events drop the oldest first — for guaranteed delivery of every event past that bound, persist on the consumer side before calling `emitExternalRevocation`.
 
 `RevocationReason` buckets:
