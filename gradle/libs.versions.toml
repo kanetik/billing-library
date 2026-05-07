@@ -4,7 +4,7 @@
 # uses `org.jetbrains.kotlin.plugin.compose` which requires its version to
 # match the project's Kotlin. AGP 9.2.0 bundles Kotlin 2.2.10 — keep this
 # pin in sync if AGP is bumped.
-androidGradlePlugin = "9.2.0"
+androidGradlePlugin = "9.2.1"
 kotlin = "2.3.21"
 playBillingKtx = "8.3.0"
 kotlinxCoroutines = "1.10.2"
@@ -12,7 +12,7 @@ lifecycle = "2.10.0"
 coreKtx = "1.18.0"
 # Sample-only deps. Compose UI/material versions are resolved through the BOM
 # so we don't pin them individually.
-composeBom = "2026.04.01"
+composeBom = "2026.05.00"
 activityCompose = "1.13.0"
 junit = "4.13.2"
 mockk = "1.14.9"
@@ -26,7 +26,7 @@ vanniktechMavenPublish = "0.36.0"
 # (rather than relying on vanniktech's deprecated boolean publishJavadocJar
 # convenience) so the Dokka task name is under our control. vanniktech 0.36+
 # requires Dokka v2 mode, so 1.x is not an option.
-dokka = "2.1.0"
+dokka = "2.2.0"
 
 [libraries]
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBillingKtx" }
