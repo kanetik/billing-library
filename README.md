@@ -4,9 +4,9 @@ A coroutine-first wrapper around [Google Play Billing Library 8.x](https://devel
 
 ## Why
 
-- **Less boilerplate** — `connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()` are coroutine-flavored equivalents of PBL's listener/callback APIs. `observePurchaseUpdates()` returns a `Flow<PurchaseEvent>` split into two sealed roots — `OwnedPurchases` (`Live`, `Recovered`) for owned-state updates and `FlowOutcome` (`Pending`, `Canceled`, etc.) for purchase-flow attempt outcomes — so the type system enforces the cache-write rule at branch sites. No `BillingClientStateListener`, no `PurchasesUpdatedListener` wiring at the call site.
-- **Typed errors** — every `BillingResponseCode` lands as a `BillingException` subtype carrying a `RetryType` hint. Branch on the type, not on integers.
-- **Lifecycle-aware** — `BillingConnectionLifecycleManager` keeps the connection warm while an activity/process is observable and tears it down on destruction, with a 60-second grace window to absorb configuration changes.
+- The coroutine wrappers — `connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()` — replace PBL's listener/callback wiring at the call site. `observePurchaseUpdates()` returns a `Flow<PurchaseEvent>` split into two sealed roots: `OwnedPurchases` (`Live`, `Recovered`) for owned-state updates and `FlowOutcome` (`Pending`, `Canceled`, etc.) for purchase-flow attempt outcomes. The split is what stops you from accidentally writing a `Canceled` event's `purchases` list into your entitlement cache.
+- Every `BillingResponseCode` lands as a typed `BillingException` subtype with a `RetryType` hint. Branch on the type, not on integers.
+- `BillingConnectionLifecycleManager` keeps the connection warm while an activity (or process) is observable and tears it down on destruction. There's a 60-second grace window so configuration changes don't churn the connection.
 
 ## Installation
 
@@ -143,13 +143,12 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 >   that haven't completed yet) and **must not** be written to an
 >   entitlement cache.
 >
-> The marker interface deliberately omits the `purchases` property — you
-> can't read `event.purchases` without first narrowing to `OwnedPurchases`
-> or `FlowOutcome`. The split's job is to eliminate the original bug:
-> writing `update.purchases` from a `Canceled` (or other `FlowOutcome`)
-> event into your entitlement cache. The split does **not** promise that
-> `OwnedPurchases.purchases` is an authoritative owned-state snapshot —
-> see each variant's KDoc for the actual shape.
+> The marker interface doesn't expose `purchases` directly — you have to
+> narrow to `OwnedPurchases` or `FlowOutcome` first. That's what prevents
+> the original bug: writing `update.purchases` from a `Canceled` (or other
+> `FlowOutcome`) event into your entitlement cache. Note:
+> `OwnedPurchases.purchases` still isn't an authoritative owned-state
+> snapshot — see each variant's KDoc for the actual shape.
 
 ## Purchase recovery
 
@@ -209,7 +208,7 @@ billing.observePurchaseUpdates().collect { event ->
 }
 ```
 
-`Live` and `Recovered` are intentionally separate variants so you can branch your UX (don't show "thanks for your purchase!" on a sweep that ran when the user opened the app). The handle/grant code is identical for one-time products.
+`Live` and `Recovered` are separate variants so you can branch your UX — don't show "thanks for your purchase!" on a sweep that ran when the user opened the app. The handle/grant code is identical for one-time products.
 
 **Subscription replacements need special handling (until v0.2.0).** Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. PBL's `Purchase` API doesn't expose a getter for `linkedPurchaseToken` (`AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`); the field is only present in `purchase.originalJson`. Until v0.2.0 ships the typed `SubscriptionReplacement` variant (see [`docs/ROADMAP.md`](docs/ROADMAP.md)), consumers using subscriptions need to parse it themselves:
 
@@ -355,7 +354,7 @@ catch (e: BillingException) {
 }
 ```
 
-The library deliberately doesn't ship localized user-facing strings (tone, voice, and language coverage are app concerns).
+The library doesn't ship localized user-facing strings — tone, voice, and language coverage are app concerns.
 
 ### Handling `handlePurchase` failures correctly
 
@@ -437,18 +436,18 @@ Grace expiry is re-evaluated on every emission and on a periodic tick, so an ext
 
 Use `EntitlementCache` when you want a simple `is the user entitled right now?` flow off the side of your existing `observePurchaseUpdates()` integration. The cache is purely observational — it does **not** call `handlePurchase` for you. Acknowledge / consume + entitlement grant remain your collector's job; the cache just tracks the resulting confirmed observation.
 
-Skip it if you have your own state machine you're already happy with, or if you need behavior the cache deliberately doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
+Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
 
 The cache reacts to four event paths:
 - `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke — `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to the predicate, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
 - `FlowOutcome.Failure` triggers `InGrace` (or transitions straight to `Revoked` if the policy window is zero or has already elapsed since the last confirmation).
 - `PurchaseRevoked` matched against `lastConfirmedSnapshot.purchaseToken` transitions to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline (or whatever transport carries refund/chargeback signals); see "Server-driven revocation".
 
-The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are intentionally no-ops — they don't change owned-purchase state, and `Pending` explicitly must not grant entitlement (per Play's rules).
+The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are no-ops — they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
 
 ### Storage is your responsibility
 
-The library deliberately does not pick a persistence library. Implement `EntitlementStorage` against whatever your app already uses — DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key, etc. The interface is two suspend functions:
+The library doesn't pick a persistence library. Implement `EntitlementStorage` against whatever your app already uses — DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key, etc. The interface is two suspend functions:
 
 ```kotlin
 interface EntitlementStorage {
@@ -640,7 +639,7 @@ The sealed wrapper means PBL's `InAppMessageResult` shape doesn't leak into your
 
 ## Connection grace window
 
-`connectToBilling()` is shared via `SharingStarted.WhileSubscribed(60_000)` — the connection stays alive for 60 seconds after the last subscriber unsubscribes. This is deliberate: it absorbs the typical configuration-change window (rotation, theme switch) without churning a fresh `BillingClient` connection on each transition.
+`connectToBilling()` is shared via `SharingStarted.WhileSubscribed(60_000)` — the connection stays alive for 60 seconds after the last subscriber unsubscribes. The 60-second window is what absorbs configuration changes (rotation, theme switch) without churning a fresh `BillingClient` connection on each transition.
 
 If you need different timing, you can wrap the API yourself; a configurable grace window may surface as a creator parameter in a future release if a real consumer asks (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
@@ -695,9 +694,7 @@ If your backend posts notifications back to the client (e.g., "subscription stat
 
 ## Server-driven revocation
 
-Refunds, chargebacks, and other server-driven entitlement reversals don't arrive through PBL's `PurchasesUpdatedListener` — they originate on Play's side and reach your app via RTDN→Cloud Pub/Sub→your backend→(FCM push, polling, deeplink, whatever transport you've wired). Without a first-class hook, consumers end up maintaining a parallel revocation pipeline alongside `observePurchaseUpdates()`.
-
-The library exposes a single transport-agnostic emit API on `BillingRepository`:
+Refunds, chargebacks, and other server-driven entitlement reversals don't come through PBL's `PurchasesUpdatedListener`. They originate on Play's side, hit your backend through RTDN → Cloud Pub/Sub, and reach the app over whatever transport you've wired (FCM push, polling, deeplink). `BillingRepository` exposes one entry point for that:
 
 ```kotlin
 public suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason)
@@ -742,7 +739,7 @@ class FcmRevocationReceiver : FirebaseMessagingService() {
 
 ### Other emit triggers
 
-RTDN→FCM is the canonical transport, but `emitExternalRevocation` is the right hook anywhere the consumer has authoritative evidence that ownership flipped. `EntitlementCache` treats `OwnedPurchases.Live`/`Recovered` as grant-only (see "Sealed-when handling"), so an empty owned-purchases result alone never transitions the cache to `Revoked` — you have to push the event yourself. Two common cases beyond FCM:
+RTDN→FCM is the canonical transport, but `emitExternalRevocation` is the right hook anywhere you have authoritative evidence that ownership flipped. `EntitlementCache` treats `OwnedPurchases.Live`/`Recovered` as grant-only (see "Sealed-when handling"), so an empty owned-purchases result alone never transitions the cache to `Revoked` — you have to push the event yourself. Two common cases beyond FCM:
 
 - **Authoritative-empty `queryPurchases` after a refresh.** If your refresh path observes a successful `queryPurchases` that returns no entitling purchases *and* your persisted cache snapshot is `Granted`, that's a refund landing without an FCM (still common — RTDN→FCM pipelines aren't always wired). Emit `PurchaseRevoked` for the cached token with `RevocationReason.Other` (or `Refunded` if your refresh path can disambiguate). Gate on the raw `queryPurchases` output, not the signature-verified subset — a verification miss means "still owned, but rejected by your verifier", not "revoked."
 - **Debug `consumePurchase` flows.** A debug "consume the test purchase" button (or any test path that consumes a non-consumable) succeeds at the Play layer but leaves the cache `Granted` forever, because the cache has no signal that ownership flipped. Emit `PurchaseRevoked` for the cached token after the consume loop so the debug path exercises the same revocation transition production would see, and the cache persists as `Revoked` across cold start.
@@ -757,7 +754,7 @@ In both cases the helper is small — read your `EntitlementStorage` snapshot, n
 - `SubscriptionExpired` — subscription has fully expired (auto-renew off **and** the paid-through period elapsed). PBL distinguishes this from `SUBSCRIPTION_CANCELED` which means auto-renew was disabled but the user still has entitlement until the period ends. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
 - `Other` — none of the above (manual revocation by support, fraud-detection action, etc.).
 
-The library is intentionally agnostic to the *contents* of the reason — it neither validates the mapping nor reads it for any internal decision. The enum exists so downstream collectors get a typed switch for differentiated UX (chargeback may flag the account; a plain refund probably just shows a neutral notice).
+The library doesn't validate or inspect the reason — pick whichever bucket fits your backend's payload. The enum is there so downstream collectors get a typed switch for differentiated UX: chargeback may flag the account, a plain refund probably just shows a neutral notice.
 
 ## Testing
 
@@ -807,7 +804,7 @@ class PremiumManager @Inject constructor(/* ... */) {
 }
 ```
 
-A first-class `:billing-testing` artifact with a `FakeBillingRepository` (in-memory, scriptable) is planned for v0.2.0 — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+A `:billing-testing` artifact with a `FakeBillingRepository` (in-memory, scriptable) is planned for v0.2.0 — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Hilt DI snippet
 
@@ -835,7 +832,7 @@ For Koin, the same shape works with `single { BillingRepositoryCreator.create(..
 
 ## Limitations
 
-The following are intentionally out of scope for v0.1.0 — see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's planned:
+Out of scope for v0.1.0 — see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's planned:
 
 - **Subscription-specific helpers, samples, and docs** — protocol-level pass-through works; rich helpers come in v0.2.0.
 - **External offers / alternative billing** — apps that need
