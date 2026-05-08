@@ -62,15 +62,19 @@ android {
     }
 }
 
-// Dokka 2.x's AndroidExtensionWrapper cannot read AGP 9's LibraryExtension
-// (it still probes the removed BaseExtension API), and AGP's implicit
-// kotlin-android application happens too late for Dokka's Kotlin source-set
-// adapter, so no source sets are auto-registered and the generated docs come
-// out blank. Register the main source set by hand. Drop this block once Dokka
-// ships an AGP 9 adapter.
+// Dokka 2.2.0 added the AGP 9 adapter that earlier versions lacked, so manual
+// source-set registration is no longer needed — but the new auto-discovery
+// double-registers: both a `jvm` source set (Kotlin/JVM probe) and a
+// `release` source set (published AGP variant) get registered against the
+// same src/main/kotlin tree, and Dokka's pre-generation validity check
+// fails because every Kotlin file would be claimed by two source sets at
+// once. Suppress `jvm` and let `release` win — `release` is the variant that
+// ships in the published AAR, which is what consumers see anyway.
 dokka {
-    dokkaSourceSets.register("main") {
-        sourceRoots.from(file("src/main/kotlin"))
+    dokkaSourceSets.configureEach {
+        if (name == "jvm") {
+            suppress.set(true)
+        }
     }
 }
 
