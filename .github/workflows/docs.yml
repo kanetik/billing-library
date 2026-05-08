@@ -4,13 +4,15 @@ name: Publish docs site
 # on push-to-main pushes the result to the gh-pages branch. GitHub Pages
 # serves that branch at https://kanetik.github.io/billing-library/.
 #
-# Two trigger modes:
-#   - push to main:  full build + `mkdocs gh-deploy --force` (publishes)
-#   - pull_request:  full build with `mkdocs build --strict` only — no
-#                    deploy. Catches Dokka failures, broken nav links,
-#                    and missing pages before the PR merges to main.
-#   - workflow_dispatch: manual run, also publishes (useful after a
-#                        Pages settings change).
+# Trigger modes:
+#   - push to main:  build (validates) + deploy (publishes)
+#   - pull_request:  build only (no deploy, runs without contents:write)
+#   - workflow_dispatch: manual run, also deploys (useful after a Pages
+#                        settings change).
+#
+# Job structure follows least-privilege: the `build` job has
+# contents:read and runs on every trigger; the `deploy` job has
+# contents:write and is gated on `github.event_name != 'pull_request'`.
 #
 # One-time setup after the first successful run of this workflow:
 #   Repo Settings -> Pages -> Source: "Deploy from a branch" -> Branch: gh-pages
@@ -44,12 +46,14 @@ concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
 
+# Default to read-only at workflow scope. The deploy job opts up to
+# contents:write; the build job runs with the default.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  publish-docs:
-    name: Build and deploy docs
+  build:
+    name: Build docs (validate)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -97,19 +101,60 @@ jobs:
           pip install mkdocs-material
 
       - name: Build site (strict — fails on warnings)
-        # Always run on every trigger. Strict mode catches broken nav
-        # links, missing referenced pages, and other footguns before
-        # they reach gh-pages. On pull_request this is the only build
-        # step that runs (no deploy); on push to main / dispatch the
-        # gh-deploy step runs after.
+        # Strict mode catches broken nav links, missing referenced pages,
+        # and other footguns. On pull_request this is the only build that
+        # runs (the deploy job is skipped); on push to main / dispatch
+        # the deploy job runs after.
         run: mkdocs build --strict
 
+  deploy:
+    name: Deploy to gh-pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17 (for Gradle / Dokka)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Dokka HTML
+        run: ./gradlew :billing:dokkaGeneratePublicationHtml --no-configuration-cache
+
+      - name: Mount Dokka output under docs/api/
+        run: |
+          rm -rf docs/api
+          mkdir -p docs/api
+          cp -r billing/build/dokka/html/. docs/api/
+          test -f docs/api/index.html || (echo "Dokka output missing index.html" && ls -la billing/build/dokka/html/ && exit 1)
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs-material
+
       - name: Configure git for gh-deploy
-        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Deploy to gh-pages
-        if: github.event_name != 'pull_request'
         run: mkdocs gh-deploy --force
