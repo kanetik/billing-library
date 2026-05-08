@@ -1,6 +1,6 @@
 # IFTTT setup for the automated update Routine
 
-One-time configuration for the Android-device notification step in the [automated update playbook](AUTOMATED_UPDATE_PLAYBOOK.md). The playbook's daily Routine fires this applet whenever it opens a PR or an issue.
+One-time configuration for the Android-device notification step in the [automated update playbook](automated-update-playbook.md). The playbook's daily Routine fires this applet whenever it opens a PR or an issue.
 
 If you skip this section, the playbook still works — GitHub's built-in PR/issue email becomes the notification path. The IFTTT layer is a convenience, not a dependency.
 

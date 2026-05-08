@@ -2,7 +2,7 @@
 
 The Kanetik Billing Library is a thin wrapper over Play Billing — your tests are mostly about exercising the *flow*, not the library. This guide covers the realistic options for testing a billing integration, from cheap automated checks to the full real-Play-dialog round trip.
 
-The README has a short "Testing" section pointing here. This doc goes deeper.
+The README points readers here for anything beyond install + quick start. Everything you need to test a billing integration end-to-end is below.
 
 ---
 
@@ -159,7 +159,7 @@ Sub-specific test states that are hard to engineer organically:
 
 Dashboard → **Subscription settings → Manage**, select the subscription you've already configured in Play Console, set the state.
 
-(Note: v0.1.0 of this library ships subscription support at the protocol level only; full subs helpers come in v0.2.0 — see [`ROADMAP.md`](ROADMAP.md). You can still test subs flows at this level today using the raw `BillingFlowParams` builder.)
+(Note: v0.1.0 of this library ships subscription support at the protocol level only; full subs helpers come in v0.2.0 — see the [Roadmap](roadmap.md). You can still test subs flows at this level today using the raw `BillingFlowParams` builder.)
 
 ---
 
@@ -203,7 +203,7 @@ v0.2.0 plans a published `com.kanetik.billing:billing-testing` artifact with:
 - Test-control API: `setConnectionResult`, `emitPurchaseUpdate`, `setProducts`, `throwOnNext(BillingException)`, `simulateLaunchFlowResult`
 - Robolectric included so the four classes deferred from v0.1.0's test suite (PurchaseVerifier, toOneTimeFlowParams, DefaultBillingRepository orchestration, showInAppMessages) get coverage
 
-See [`ROADMAP.md`](ROADMAP.md) for the full v0.2.0 plan.
+See the [Roadmap](roadmap.md) for the full v0.2.0 plan.
 
 ---
 

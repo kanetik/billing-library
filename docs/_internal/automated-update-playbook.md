@@ -366,7 +366,7 @@ After opening any PR or issue, the agent notifies the maintainer's Android devic
 
 ### Setup (one-time)
 
-See [`IFTTT_SETUP.md`](IFTTT_SETUP.md) for the full step-by-step (applet creation, Webhooks trigger event name, Notifications action, phone-side test). At a glance:
+See [`ifttt-setup.md`](ifttt-setup.md) for the full step-by-step (applet creation, Webhooks trigger event name, Notifications action, phone-side test). At a glance:
 
 - **Applet name:** `Kanetik PBL Update Notification` (case-sensitive — the playbook looks up by this exact name)
 - **Trigger:** Webhooks → "Receive a web request with a JSON payload" → event name `kanetik_pbl_update`
