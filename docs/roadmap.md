@@ -99,7 +99,7 @@ This makes the wrong code not type-check: you literally can't unpack the variant
 
 #### Sweep impact
 
-The v0.1.0 recovery sweep (`PurchasesUpdate.Recovered`) already covers stranded subscription purchases — `queryPurchasesAsync(SUBS)` returns them and the same `PURCHASED && !isAcknowledged` filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with `linkedPurchaseToken`) into `SubscriptionReplacement` rather than the generic `Recovered` variant, for the same reason the live-purchase path does.
+The v0.1.x recovery sweep (`PurchasesUpdate.Recovered`) already covers stranded subscription purchases — `queryPurchasesAsync(SUBS)` returns them and the same `PURCHASED && !isAcknowledged` filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with `linkedPurchaseToken`) into `SubscriptionReplacement` rather than the generic `Recovered` variant, for the same reason the live-purchase path does.
 
 ### `:billing-testing` artifact — *planned*
 

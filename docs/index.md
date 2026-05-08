@@ -30,7 +30,7 @@ A coroutine-first wrapper around [Google Play Billing Library 8.x](https://devel
 - [API overview](reference/api-overview.md) — top-level types and package layout. The full per-class KDoc is in the [Dokka API reference](api/index.html).
 - [Replay semantics](reference/replay-semantics.md) — the three-channel structure of `observePurchaseUpdates()`, plus the connection grace window.
 - [Extensions](reference/extensions.md) — the `com.kanetik.billing.ext` helpers (`validatePurchaseActivity`, `toOneTimeFlowParams`, `PurchaseFlowCoordinator`).
-- [Limitations](reference/limitations.md) — what's out of scope for v0.1.0.
+- [Limitations](reference/limitations.md) — what's out of scope for the v0.1.x series.
 
 ### Other
 

@@ -159,7 +159,7 @@ Sub-specific test states that are hard to engineer organically:
 
 Dashboard → **Subscription settings → Manage**, select the subscription you've already configured in Play Console, set the state.
 
-(Note: v0.1.0 of this library ships subscription support at the protocol level only; full subs helpers come in v0.2.0 — see the [Roadmap](roadmap.md). You can still test subs flows at this level today using the raw `BillingFlowParams` builder.)
+(Note: the v0.1.x series ships subscription support at the protocol level only; full subs helpers come in v0.2.0 — see the [Roadmap](roadmap.md). You can still test subs flows at this level today using the raw `BillingFlowParams` builder.)
 
 ---
 
