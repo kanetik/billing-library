@@ -1,0 +1,1951 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 8.x.">
+      
+      
+      
+        <link rel="canonical" href="https://kanetik.github.io/billing-library/design-notes/">
+      
+      
+        <link rel="prev" href="../roadmap/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
+    
+    
+      
+        <title>Design notes - Kanetik Billing Library</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6f8fc17f.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-notes-v010" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Kanetik Billing Library" class="md-header__button md-logo" aria-label="Kanetik Billing Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Kanetik Billing Library
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design notes
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/kanetik/billing-library" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kanetik/billing-library
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quick-start/" class="md-tabs__link">
+        
+  
+    
+  
+  Quick start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/purchase-recovery/" class="md-tabs__link">
+          
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/api-overview/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../testing/" class="md-tabs__link">
+        
+  
+    
+  
+  Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../roadmap/" class="md-tabs__link">
+        
+  
+    
+  
+  Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+    
+  
+  Design notes
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+    
+  
+  API (Dokka)
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Kanetik Billing Library" class="md-nav__button md-logo" aria-label="Kanetik Billing Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Kanetik Billing Library
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/kanetik/billing-library" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kanetik/billing-library
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick-start/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quick start
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Guides
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Guides
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/purchase-recovery/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Purchase recovery
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/error-handling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Error handling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/entitlement-cache/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    EntitlementCache
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/signature-verification/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Signature verification
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/server-driven-revocation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Server-driven revocation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/lifecycle/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Lifecycle integration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/logging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Logging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/dependency-injection/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dependency injection
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/multi-quantity/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multi-quantity purchases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/multi-offer-products/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multi-offer products
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/product-details-caching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Product-details caching
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/in-app-messaging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    In-app messaging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/subscriptions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Subscriptions (v0.1.x)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api-overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/replay-semantics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Replay semantics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/extensions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Extensions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/limitations/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Limitations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Testing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Roadmap
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Design notes
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Design notes
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#origins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Origins
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#locked-in-v010-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Locked-in v0.1.0 decisions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#public-surface-v010" class="md-nav__link">
+    <span class="md-ellipsis">
+      Public surface (v0.1.0)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Public surface (v0.1.0)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entry point
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repository-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repository interface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      Connection contract
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#purchase-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      Purchase updates
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Actions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Errors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ext
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logging
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal-only
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internal-correctness-invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal correctness invariants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-design-is-shaped-this-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why the design is shaped this way
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why the design is shaped this way">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-single-billing-artifact-not-split-into-billing-core-billing-ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a single :billing artifact (not split into :billing-core + :billing-ext)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-subs-arent-in-v010" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why subs aren't in v0.1.0
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why SharedFlow (not Flow) on the public connection / purchase-update API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why connectionResultFlow.Success is a data object (not data class(client: BillingClient))
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-exceptions-not-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why exceptions, not Result
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-pluggable-billinglogger-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a pluggable BillingLogger interface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-ext-helpers-ship-inside-the-core-jar" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why ext helpers ship inside the core JAR
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-do-not-cache-productdetails" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why we do NOT cache ProductDetails
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions-explicitly-considered-and-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decisions explicitly considered and rejected
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test strategy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Test strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deferred-to-v020s-billing-testing-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deferred to v0.2.0's :billing-testing artifact
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trademark-license-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trademark / license guardrails
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API (Dokka)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#origins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Origins
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#locked-in-v010-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Locked-in v0.1.0 decisions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#public-surface-v010" class="md-nav__link">
+    <span class="md-ellipsis">
+      Public surface (v0.1.0)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Public surface (v0.1.0)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entry point
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repository-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repository interface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      Connection contract
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#purchase-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      Purchase updates
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Actions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Errors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ext
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logging
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal-only
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internal-correctness-invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal correctness invariants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-design-is-shaped-this-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why the design is shaped this way
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why the design is shaped this way">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-single-billing-artifact-not-split-into-billing-core-billing-ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a single :billing artifact (not split into :billing-core + :billing-ext)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-subs-arent-in-v010" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why subs aren't in v0.1.0
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why SharedFlow (not Flow) on the public connection / purchase-update API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why connectionResultFlow.Success is a data object (not data class(client: BillingClient))
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-exceptions-not-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why exceptions, not Result
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-pluggable-billinglogger-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a pluggable BillingLogger interface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-ext-helpers-ship-inside-the-core-jar" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why ext helpers ship inside the core JAR
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-do-not-cache-productdetails" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why we do NOT cache ProductDetails
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions-explicitly-considered-and-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decisions explicitly considered and rejected
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test strategy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Test strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deferred-to-v020s-billing-testing-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deferred to v0.2.0's :billing-testing artifact
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trademark-license-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trademark / license guardrails
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="design-notes-v010">Design notes — v0.1.0<a class="headerlink" href="#design-notes-v010" title="Permanent link">&para;</a></h1>
+<p>The intent and design rationale behind what shipped in v0.1.0. Distinct from <code>CHANGELOG.md</code> (which lists user-visible changes per release) and the <a href="../roadmap/">Roadmap</a> (which tracks what's next). This doc captures <em>why the library is shaped the way it is</em> — useful for contributors landing in the repo months later, or future-Jeremy when reopening this project after a long pause.</p>
+<h2 id="origins">Origins<a class="headerlink" href="#origins" title="Permanent link">&para;</a></h2>
+<p>The library started as a fork of <a href="https://github.com/michal-luszczuk/MakeBillingEasy"><code>michal-luszczuk/MakeBillingEasy</code></a> (Apache-2.0, last updated December 2022) and has been substantially rewritten:</p>
+<ul>
+<li>Google Play Billing Library 8.x baseline (was 4.x in upstream)</li>
+<li>PBL 8 features wired through: <code>enableAutoServiceReconnection</code>, sub-response codes, <code>enableOneTimeProducts</code></li>
+<li>Typed exception hierarchy with retry-type classification</li>
+<li>Lifecycle-aware connection sharing via <code>WhileSubscribed</code></li>
+<li>Per-call exponential backoff</li>
+<li>Hardened <code>launchFlow</code> error mapping</li>
+<li>Pluggable logger interface (was hardcoded <code>Log.d</code> in upstream)</li>
+</ul>
+<p>Upstream's prefix was <code>com.luszczuk.makebillingeasy</code>; we renamed to <code>com.kanetik.billing</code> for the new artifact. Apache-2.0 obligations are met via <code>LICENSE</code> and <code>NOTICE</code> (which credits the upstream author and states the library is a substantial rewrite). Consider opening a courtesy issue on the upstream repo pointing here as a maintained continuation.</p>
+<h2 id="locked-in-v010-decisions">Locked-in v0.1.0 decisions<a class="headerlink" href="#locked-in-v010-decisions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Library name</td>
+<td>Kanetik Billing Library</td>
+</tr>
+<tr>
+<td>GitHub repo</td>
+<td><code>github.com/kanetik/billing-library</code></td>
+</tr>
+<tr>
+<td>Maven coordinate</td>
+<td><code>com.kanetik.billing:billing</code></td>
+</tr>
+<tr>
+<td>License</td>
+<td>Apache-2.0 (preserved from upstream)</td>
+</tr>
+<tr>
+<td>v0.1.0 scope</td>
+<td>One-time IAP, single artifact, ext package shipped inside core JAR</td>
+</tr>
+<tr>
+<td>Logger API</td>
+<td><code>BillingLogger</code> interface with <code>d/w/e</code>; <code>Noop</code> (silent) default + built-in <code>Android</code> impl; consumer wires Crashlytics via custom adapter</td>
+</tr>
+<tr>
+<td>Beta tag format</td>
+<td><code>vX.Y.Z-betaN</code> (e.g. <code>v0.1.0-beta1</code>)</td>
+</tr>
+<tr>
+<td>GA tag format</td>
+<td><code>vX.Y.Z</code></td>
+</tr>
+<tr>
+<td>POM developer</td>
+<td><code>Kanetik &lt;billinglibrary@kanetik.com&gt;</code></td>
+</tr>
+<tr>
+<td>Minimum SDK</td>
+<td>23 (PBL 8.1 raised the floor — was originally 21 before architectural review caught it)</td>
+</tr>
+<tr>
+<td>JVM target</td>
+<td>11 (no JDK 17+ language features used; max consumer compatibility)</td>
+</tr>
+<tr>
+<td>Subscriptions</td>
+<td>Protocol-level pass-through only in v0.1.0; full helpers + sample in v0.2.0</td>
+</tr>
+<tr>
+<td>Java interop</td>
+<td>Kotlin-first; no <code>@Jvm*</code> annotations unless something is genuinely unusable from Java</td>
+</tr>
+<tr>
+<td>ABI stability for 0.x</td>
+<td>Loose — 0.x can break between minors per semver</td>
+</tr>
+</tbody>
+</table>
+<h2 id="public-surface-v010">Public surface (v0.1.0)<a class="headerlink" href="#public-surface-v010" title="Permanent link">&para;</a></h2>
+<h3 id="entry-point">Entry point<a class="headerlink" href="#entry-point" title="Permanent link">&para;</a></h3>
+<p><code>BillingRepositoryCreator.create(context, logger?, billingClientFactory?, scope?, ioDispatcher?, uiDispatcher?)</code> returns a <code>BillingRepository</code>. <code>BillingClientFactory</code> (interface) and <code>DefaultBillingClientFactory</code> (default impl) are public — this IS the test seam consumers want for swapping the underlying <code>BillingClient</code> builder.</p>
+<h3 id="repository-interface">Repository interface<a class="headerlink" href="#repository-interface" title="Permanent link">&para;</a></h3>
+<p><code>BillingRepository : BillingActions, BillingPurchaseUpdatesOwner, BillingConnector</code>. Concrete impl <code>DefaultBillingRepository</code> is internal. The narrower interfaces let consumers depend on only the parts they use (e.g., a UI layer that just observes purchase updates can take <code>BillingPurchaseUpdatesOwner</code> instead of the full repository).</p>
+<h3 id="connection-contract">Connection contract<a class="headerlink" href="#connection-contract" title="Permanent link">&para;</a></h3>
+<p><code>BillingConnector.connectToBilling()</code> returns <code>SharedFlow&lt;BillingConnectionResult&gt;</code>. <code>Success</code> is a <code>data object</code> (no <code>BillingClient</code> leak — keeps the live PBL client out of public API). The library's internal use of the live <code>BillingClient</code> flows through an internal <code>InternalConnectionState</code> sealed type — consumers never see it.</p>
+<h3 id="purchase-updates">Purchase updates<a class="headerlink" href="#purchase-updates" title="Permanent link">&para;</a></h3>
+<p><code>BillingPurchaseUpdatesOwner.observePurchaseUpdates()</code> returns <code>Flow&lt;PurchaseEvent&gt;</code>. Returns the underlying flow directly (no <code>flatMapConcat</code>-induced re-subscription window). <code>PurchaseEvent</code> is a marker interface with two sealed roots — <code>OwnedPurchases</code> (variants <code>Live</code>, <code>Recovered</code>) for owned-state updates and <code>FlowOutcome</code> (variants <code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>Failure</code>, <code>UnknownResponse</code>) for purchase-flow attempt outcomes — plus a standalone <code>PurchaseRevoked</code> event for server-driven revocation. <code>FlowOutcome.Pending</code> carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single <code>PurchasesUpdate</code> sealed class with flat variants <code>Success</code>/<code>Pending</code>/<code>Canceled</code>/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)</p>
+<h3 id="actions">Actions<a class="headerlink" href="#actions" title="Permanent link">&para;</a></h3>
+<p><code>BillingActions</code> exposes <code>isFeatureSupported</code>, <code>queryPurchases</code>, <code>queryProductDetails</code> + <code>queryProductDetailsWithUnfetched</code> (returns <code>ProductDetailsQuery</code> wrapper), <code>consumePurchase(params)</code> + <code>consumePurchase(purchase)</code> overload, <code>acknowledgePurchase(params)</code> + <code>acknowledgePurchase(purchase)</code> overload (with <code>isAcknowledged</code> short-circuit), <code>handlePurchase(purchase, consume: Boolean)</code> helper, <code>launchFlow</code>, <code>showInAppMessages(activity, params)</code> returning <code>BillingInAppMessageResult</code> sealed type.</p>
+<h3 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h3>
+<p><code>BillingException</code> (sealed) with 12 subtypes, each with a <code>RetryType</code> hint. <code>fromResult(...)</code> is internal; subtype constructors are public for consumers providing custom factories. <code>message</code> is lazy; <code>toString()</code> is class-aware for log readability.</p>
+<h3 id="ext">Ext<a class="headerlink" href="#ext" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>validatePurchaseActivity(activity)</code> — RESUMED gate (not just STARTED, per architectural review J2)</li>
+<li><code>ProductDetails.toOneTimeFlowParams(obfuscatedAccountId?, offerSelector?)</code> — multi-offer one-time products supported via the lambda</li>
+<li><code>PurchaseFlowCoordinator</code> — in-flight guard with <code>compareAndSet</code> watchdog + correlation-id logging, sealed <code>PurchaseFlowResult</code> with <code>data object</code> variants</li>
+</ul>
+<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
+<p><code>com.kanetik.billing.security.PurchaseVerifier</code> — RSA signature verification with pluggable <code>signatureAlgorithm</code>, defaults to PBL-current <code>SHA1withRSA</code>.</p>
+<h3 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h3>
+<p><code>BillingConnectionLifecycleManager</code> overrides <code>onStart</code>/<code>onStop</code>/<code>onDestroy</code> (the last for full job cancellation on activity finish).</p>
+<h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
+<p><code>BillingLogger</code> interface; <code>Noop</code> (silent default) + <code>Android</code> (logcat opt-in) shipped. Consumer-rules.pro keeps both impls so R8 can't strip them.</p>
+<h3 id="internal-only">Internal-only<a class="headerlink" href="#internal-only" title="Permanent link">&para;</a></h3>
+<p><code>DefaultBillingRepository</code>, <code>BillingClientStorage</code>, <code>FlowPurchasesUpdatedListener</code>, <code>CoroutinesBillingConnectionFactory</code>, <code>BillingConnectionFactory</code> interface, <code>InternalConnectionState</code>, <code>BillingLoggingUtils</code>, <code>NoopBillingLogger</code>, <code>AndroidLogLogger</code>.</p>
+<h2 id="internal-correctness-invariants">Internal correctness invariants<a class="headerlink" href="#internal-correctness-invariants" title="Permanent link">&para;</a></h2>
+<p>These behaviors should be preserved through any refactor — they each fix a specific class of bug or design concern:</p>
+<ul>
+<li><code>connectToClientAndCall</code> wraps <code>connectionFlow.first()</code> in <code>withTimeout(30_000)</code> — guards against scope-cancellation paths that skip the upstream <code>.catch</code> handler. Timeout surfaces as <code>ServiceUnavailableException</code>.</li>
+<li><code>launchFlow</code> passes <code>maxAttempts = 1</code> to <code>executeBillingOperation</code> — UI-initiated flows shouldn't silently retry behind the user's back. Single attempt; user can tap Buy again if it failed.</li>
+<li>Dispatcher split: <code>ioDispatcher</code> (default <code>Dispatchers.IO</code>) for queries / consume / acknowledge / retry loop; <code>uiDispatcher</code> (default <code>Dispatchers.Main</code>) only for <code>launchFlow</code> and <code>showInAppMessages</code>. Consumers can override either independently.</li>
+<li><code>BillingClientStorage.connectionFlow</code> and <code>connectionResultFlow</code> both use <code>WhileSubscribed(60_000)</code> grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.</li>
+<li><code>PurchaseFlowCoordinator</code> watchdog uses <code>compareAndSet(true, false)</code> — atomic check-and-clear.</li>
+</ul>
+<h2 id="why-the-design-is-shaped-this-way">Why the design is shaped this way<a class="headerlink" href="#why-the-design-is-shaped-this-way" title="Permanent link">&para;</a></h2>
+<h3 id="why-a-single-billing-artifact-not-split-into-billing-core-billing-ext">Why a single <code>:billing</code> artifact (not split into <code>:billing-core</code> + <code>:billing-ext</code>)<a class="headerlink" href="#why-a-single-billing-artifact-not-split-into-billing-core-billing-ext" title="Permanent link">&para;</a></h3>
+<p>Single artifact + package separation is enough. Ext is ~400 LOC of clean Kotlin; R8 strips unused. v0.2.0 brings <code>:billing-testing</code> which already adds artifact count — three artifacts is worse than two. Revisit only if a consumer's R8 config can't strip ext (very unlikely).</p>
+<h3 id="why-subs-arent-in-v010">Why subs aren't in v0.1.0<a class="headerlink" href="#why-subs-arent-in-v010" title="Permanent link">&para;</a></h3>
+<p>Designing subs helpers without a real-app driver tends to produce bad ergonomics. Wakey is one-time-IAP only; we'll know what subs ergonomics should look like once Wakey or app-revenue-tracker wires subs into a real app. Pass-through API works in the meantime — consumers can build subs flows with raw <code>QueryPurchasesParams</code> / <code>BillingFlowParams</code>.</p>
+<h3 id="why-sharedflow-not-flow-on-the-public-connection-purchase-update-api">Why <code>SharedFlow</code> (not <code>Flow</code>) on the public connection / purchase-update API<a class="headerlink" href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" title="Permanent link">&para;</a></h3>
+<p>SharedFlow communicates the "always hot + shared" contract through the type system; lets consumers peek <code>replayCache</code> without observing the flow. The only downside (more specific type complicates fakes) is solved by <code>:billing-testing</code>'s upcoming fake — consumers can lean on that artifact rather than rolling their own.</p>
+<h3 id="why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient">Why <code>connectionResultFlow.Success</code> is a <code>data object</code> (not <code>data class(client: BillingClient)</code>)<a class="headerlink" href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" title="Permanent link">&para;</a></h3>
+<p>Exposing the live <code>BillingClient</code> would leak a non-versioned PBL implementation type into our public ABI, and would tempt consumers into bypassing the library's retry/timeout/error-mapping logic. Internal coordination uses an internal <code>InternalConnectionState</code> sealed type that does carry the client; the public flow projects to the safe shape.</p>
+<h3 id="why-exceptions-not-result">Why exceptions, not <code>Result</code><a class="headerlink" href="#why-exceptions-not-result" title="Permanent link">&para;</a></h3>
+<p><code>BillingException</code> subtypes carry a <code>RetryType</code> hint that consumers branch on to decide retry vs. surface-to-user. A <code>Result&lt;T, BillingException&gt;</code> API would be slightly nicer at call sites, but Kotlin's coroutines + <code>runCatching</code> already provide that ergonomics on top, and the throw API is more familiar to most Android consumers. We may revisit around 1.0.</p>
+<h3 id="why-a-pluggable-billinglogger-interface">Why a pluggable <code>BillingLogger</code> interface<a class="headerlink" href="#why-a-pluggable-billinglogger-interface" title="Permanent link">&para;</a></h3>
+<p>The library has ~17 log sites (timing, errors, billing-result decoding) that production apps want routed to Crashlytics or similar. Hardcoding logcat means consumers have to patch the lib or duplicate every log site at the call boundary. The interface gives <code>Noop</code> for silent default, <code>Android</code> for one-line logcat opt-in, and <code>Crashlytics</code> (or whatever) via a small consumer-side adapter. Adapter examples are in the README.</p>
+<h3 id="why-ext-helpers-ship-inside-the-core-jar">Why ext helpers ship inside the core JAR<a class="headerlink" href="#why-ext-helpers-ship-inside-the-core-jar" title="Permanent link">&para;</a></h3>
+<p><code>validatePurchaseActivity</code>, <code>toOneTimeFlowParams</code>, <code>PurchaseFlowCoordinator</code>, <code>PurchaseVerifier</code> are "would-have-pasted-them-anyway" patterns lifted from Wakey's <code>BasePremiumManager</code>. Splitting them into <code>:billing-ext</code> adds artifact count for ~400 LOC. R8 strips unused, so apps that don't use ext don't pay for it.</p>
+<h3 id="why-we-do-not-cache-productdetails">Why we do NOT cache <code>ProductDetails</code><a class="headerlink" href="#why-we-do-not-cache-productdetails" title="Permanent link">&para;</a></h3>
+<p>Consumers wrap <code>queryProductDetails</code> in a <code>StateFlow</code> if they want session-level caching. Caching at the library boundary is a tax for consumers who already have their own cache (most production apps), and makes invalidation semantics murky (when does a price change land?). Documented in README as the recommended pattern.</p>
+<h2 id="decisions-explicitly-considered-and-rejected">Decisions explicitly considered and rejected<a class="headerlink" href="#decisions-explicitly-considered-and-rejected" title="Permanent link">&para;</a></h2>
+<p>These were considered during the architectural review and PBL research; documented here so they don't get reopened in future sessions. Each has reasoning that should still hold; revisit only if the underlying assumption changes.</p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Rejection reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ConnectionTimeoutException</code> as a separate <code>BillingException</code> subtype</td>
+<td>The 30s <code>withTimeout</code> already throws <code>ServiceUnavailableException</code> (via <code>fromResult</code> mapping a synthetic <code>SERVICE_UNAVAILABLE</code> result). "Connection didn't establish in time" is semantically a service-unavailable condition. A new subtype would make the hierarchy more granular without giving consumers a meaningful new branching opportunity.</td>
+</tr>
+<tr>
+<td>Splitting <code>:billing</code> into <code>:billing-core</code> + <code>:billing-ext</code> for v0.1.0</td>
+<td>See "single artifact" above.</td>
+</tr>
+<tr>
+<td>Pinning Kotlin version explicitly in <code>libs.versions.toml</code></td>
+<td>AGP 9.2 bundles its own Kotlin and explicitly recommends <em>not</em> applying <code>kotlin-android</code> separately. Doing so risks version-conflict issues without a clear benefit for a v0.1.0 library. Documented the pin path in <code>libs.versions.toml</code> for future override.</td>
+</tr>
+<tr>
+<td><code>@Jvm*</code> annotations for Java interop</td>
+<td>Locked-in decision: Kotlin-first. 2026 Android lib ecosystem is Kotlin-dominant; @Jvm* noise isn't worth the source-clutter cost unless Java consumers actually appear and complain.</td>
+</tr>
+<tr>
+<td>Server-side / RTDN integration in the library</td>
+<td>Out of scope for a client library. RTDN is fundamentally a Cloud Pub/Sub server concern. README documents the boundary and points to Google's RTDN docs.</td>
+</tr>
+<tr>
+<td><code>BillingException</code> subtypes as <code>data class</code></td>
+<td>PBL's <code>BillingResult</code> lacks content-based equality, so data-class <code>equals</code> would still be identity-based on the result field — no consumer benefit. The toString improvement (which was the real readability win) was achieved via an <code>override fun toString()</code> on the sealed superclass instead.</td>
+</tr>
+<tr>
+<td><code>getConnectionState()</code> direct accessor for v0.1.0</td>
+<td><code>SharedFlow&lt;BillingConnectionResult&gt;</code> + <code>replay = 1</code> already lets consumers do <code>flow.replayCache.firstOrNull()</code> to peek at the current state. Adding a separate API for the same info is bloat. (Listed in the <a href="../roadmap/">Roadmap</a> as a future-if-demanded enhancement.)</td>
+</tr>
+<tr>
+<td><code>getBillingConfigAsync</code> exposure for v0.1.0</td>
+<td>Niche feature for region-specific UX. Defer until requested.</td>
+</tr>
+<tr>
+<td><code>BillingActions.handlePurchase(purchase, isConsumable: (Purchase) -&gt; Boolean)</code> predicate-lambda variant</td>
+<td>We <em>did</em> add <code>handlePurchase(purchase, consume: Boolean)</code>. Rejected the <em>predicate-lambda</em> form — devs already know the consume/acknowledge decision at the call site; passing a <code>Boolean</code> is clearer than passing a function. Predicate would only be useful for batch processing, which the consumer can do with their own loop.</td>
+</tr>
+<tr>
+<td>Consumer-rules.pro keep for full library package</td>
+<td>Kept only the two <code>BillingLogger</code> impl objects. Other types are reachable via consumer code (typed exception subtypes, sealed variants) so R8 follows them naturally. PBL and kotlinx-coroutines ship their own consumer-rules already.</td>
+</tr>
+<tr>
+<td>Returning <code>Flow</code> (not <code>SharedFlow</code>) from <code>connectToBilling</code> / <code>observePurchaseUpdates</code></td>
+<td>See "why SharedFlow" above.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="test-strategy">Test strategy<a class="headerlink" href="#test-strategy" title="Permanent link">&para;</a></h2>
+<p>58 unit tests across 8 files in <code>billing/src/test/kotlin/com/kanetik/billing/</code>, using <code>junit</code>, <code>mockk</code>, <code>truth</code>, <code>kotlinx-coroutines-test</code>. Pure-JVM with <code>testOptions.unitTests.isReturnDefaultValues = true</code> to handle Android-stubbed methods (<code>TextUtils</code>, <code>Looper</code>, <code>JSONObject</code>) without dragging in Robolectric.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Tests</th>
+<th>Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BillingExceptionTest</code></td>
+<td>15</td>
+<td>Every <code>BillingResponseCode</code> → typed subtype + <code>RetryType</code>; null-result survival; lazy message; class-aware toString</td>
+</tr>
+<tr>
+<td><code>BillingLoggingUtilsTest</code></td>
+<td>9</td>
+<td>Detail-context builder paths, null debug-message safety, logBillingFailure routing, logBillingFlowFailure</td>
+</tr>
+<tr>
+<td><code>BillingLoggerTest</code></td>
+<td>2</td>
+<td><code>Noop</code> discards; singleton stability</td>
+</tr>
+<tr>
+<td><code>ActivityValidatorTest</code></td>
+<td>8</td>
+<td>Every lifecycle state vs RESUMED gate; finishing/destroyed combinations; non-LifecycleOwner activity</td>
+</tr>
+<tr>
+<td><code>HandlePurchaseTest</code></td>
+<td>4</td>
+<td>PURCHASED+consume dispatch matrix; PENDING/UNSPECIFIED no-op</td>
+</tr>
+<tr>
+<td><code>FlowPurchasesUpdatedListenerTest</code></td>
+<td>9</td>
+<td>Pending/settled partition incl. mixed-state, null purchases callback, every response-code branch</td>
+</tr>
+<tr>
+<td><code>PurchaseFlowCoordinatorTest</code></td>
+<td>8</td>
+<td>State machine (Success/InvalidActivityState/AlreadyInProgress/BillingUnavailable/Error/Cancellation/markComplete/Watchdog)</td>
+</tr>
+<tr>
+<td><code>BillingConnectionLifecycleManagerTest</code></td>
+<td>3</td>
+<td>onStart/onStop/onDestroy job discipline</td>
+</tr>
+</tbody>
+</table>
+<p>The test suite caught a real production bug — <code>BillingLoggingUtils.createDetailedBillingContext</code> was NPEing on null <code>debugMessage</code> (which <code>BillingResult()</code>'s no-arg constructor produces, used in the connection-factory error fallback). Fixed before any publish.</p>
+<h3 id="deferred-to-v020s-billing-testing-artifact">Deferred to v0.2.0's <code>:billing-testing</code> artifact<a class="headerlink" href="#deferred-to-v020s-billing-testing-artifact" title="Permanent link">&para;</a></h3>
+<p>These need Robolectric (or instrumented tests) and are better served once that artifact lands:</p>
+<ul>
+<li><code>PurchaseVerifier</code> — uses <code>android.util.Base64</code>, requires Robolectric for JVM unit tests.</li>
+<li><code>ProductDetails.toOneTimeFlowParams</code> — PBL's <code>BillingFlowParams.ProductDetailsParams.build()</code> does strict internal validation that conflicts with partial mockk-relaxed <code>ProductDetails</code>; selector logic is small + covered by <code>:sample</code> integration use until the artifact lands.</li>
+<li><code>DefaultBillingRepository</code> orchestration tests — retry loop, <code>connectToClientAndCall</code> <code>withTimeout</code> behavior, <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping. Mocking the billing-ktx suspend extensions (<code>client.queryPurchasesAsync(...)</code> etc.) via <code>mockkStatic</code> is brittle against PBL version bumps. The orchestration is small (~30 lines) and every piece it orchestrates is independently tested in v0.1.0 (exception mapping, listener partition, lifecycle, ext helpers). Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.</li>
+<li><code>showInAppMessages</code> — <code>InAppMessageResult</code> is final + has no easily-buildable test fixture. Cover via <code>:sample</code> integration use until the artifact arrives.</li>
+</ul>
+<h2 id="trademark-license-guardrails">Trademark / license guardrails<a class="headerlink" href="#trademark-license-guardrails" title="Permanent link">&para;</a></h2>
+<ul>
+<li>"Kanetik Billing" is functional/descriptive — fine. Don't put "Google", "Play", or "Android" in the library name. README "wrapper around Google Play Billing Library" is allowed nominative use.</li>
+<li>Avoid endorsement language ("official", "endorsed by", "Google's billing made easy").</li>
+<li>Apache-2.0 §4 obligations: keep <code>LICENSE</code>, attribute upstream in <code>NOTICE</code>, state the work is a substantial rewrite of <code>michal-luszczuk/MakeBillingEasy</code> in the README. Optional courtesy: open an upstream issue noting the continuation.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.sections", "navigation.tabs", "navigation.top", "content.code.copy", "content.code.annotate", "search.suggest", "search.highlight"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      
+    
+  </body>
+</html>

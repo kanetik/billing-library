@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>PurchaseEvent</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing/PurchaseEvent///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><span class="current">PurchaseEvent</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Purchase</span><wbr></wbr><span><span>Event</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">sealed </span><span class="token keyword">interface </span><a href="index.html">PurchaseEvent</a></div><p class="paragraph">A single purchase event emitted by <a href="../-billing-purchase-updates-owner/observe-purchase-updates.html">BillingPurchaseUpdatesOwner.observePurchaseUpdates</a>.</p><h1 class="">⚠️ NEVER TREAT <code class="lang-kotlin">event.purchases</code> FROM A <a href="../-flow-outcome/index.html">FlowOutcome</a> AS OWNED STATE</h1><p class="paragraph"><code class="lang-kotlin">PurchaseEvent</code> is intentionally a marker interface with <strong>no </strong><code class="strong lang-kotlin"><strong>purchases</strong></code><strong> property</strong>. Reading purchases requires narrowing to one of the two sealed roots — <a href="../-owned-purchases/index.html">OwnedPurchases</a> or <a href="../-flow-outcome/index.html">FlowOutcome</a> — first (or to the standalone <a href="../-purchase-revoked/index.html">PurchaseRevoked</a> event, which carries no <code class="lang-kotlin">Purchase</code> objects at all). This split exists because the categories carry semantically different payloads, and treating them uniformly is the most common silent footgun in entitlement code:</p><ul><li><p class="paragraph"><a href="../-owned-purchases/index.html"><strong>OwnedPurchases</strong></a> — owned-state updates. Variants (<a href="../-owned-purchases/-live/index.html">OwnedPurchases.Live</a>,     <a href="../-owned-purchases/-recovered/index.html">OwnedPurchases.Recovered</a>) report purchases the user owns that need     acknowledgement / consume / entitlement grant. Hand each to     <a href="../-billing-actions/handle-purchase.html">com.kanetik.billing.BillingActions.handlePurchase</a> and merge into your     own entitlement state — these events are <strong>incremental updates, not     authoritative owned-state snapshots</strong> (see each variant's KDoc for the     specific shape). For managed entitlement state, use     <a href="../../com.kanetik.billing.entitlement/-entitlement-cache/index.html">com.kanetik.billing.entitlement.EntitlementCache</a>.</p></li><li><p class="paragraph"><a href="../-flow-outcome/index.html"><strong>FlowOutcome</strong></a> — purchase-flow attempt outcomes. Variants     (<a href="../-flow-outcome/-pending/index.html">FlowOutcome.Pending</a>, <a href="../-flow-outcome/-canceled/index.html">FlowOutcome.Canceled</a>,     <a href="../-flow-outcome/-item-already-owned/index.html">FlowOutcome.ItemAlreadyOwned</a>, <a href="../-flow-outcome/-item-unavailable/index.html">FlowOutcome.ItemUnavailable</a>,     <a href="../-flow-outcome/-failure/index.html">FlowOutcome.Failure</a>, <a href="../-flow-outcome/-unknown-response/index.html">FlowOutcome.UnknownResponse</a>) report what     <i>happened</i> on a single launch attempt. The <code class="lang-kotlin">purchases</code> lists are     typically empty (or, for <code class="lang-kotlin">Pending</code>, purchases that haven't completed     yet) and <strong>must not</strong> be written to an entitlement cache — doing so     silently corrupts state.</p></li><li><p class="paragraph"><a href="../-purchase-revoked/index.html"><strong>PurchaseRevoked</strong></a> — external revocation signal pushed in by the     consumer via <a href="../-billing-repository/emit-external-revocation.html">com.kanetik.billing.BillingRepository.emitExternalRevocation</a>.     Carries a <code class="lang-kotlin">purchaseToken</code> + <a href="../-revocation-reason/index.html">RevocationReason</a> rather than a <code class="lang-kotlin">Purchase</code>;     the library is transport-agnostic, so the consumer decodes RTDN /     Pub/Sub / FCM (or polling, deeplinks, etc.) and emits the typed event     here so revocations flow alongside normal purchase outcomes.</p></li></ul><p class="paragraph">The marker-interface design forces every consumer to narrow to a root (or to <a href="../-purchase-revoked/index.html">PurchaseRevoked</a>) before reading purchases, which makes the FlowOutcome-isn't-owned-state rule a compile-time concern rather than a runtime convention.</p><h2 class="">Branch shape</h2><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">billing.observePurchaseUpdates().collect { event -&gt;<br>    when (event) {<br>        is OwnedPurchases.Live -&gt; event.purchases.forEach { handleAndGrant(it) }<br>        is OwnedPurchases.Recovered -&gt; event.purchases.forEach { handleAndGrant(it) }<br>        is FlowOutcome.Pending -&gt; showPendingNotice() // do NOT grant<br>        is FlowOutcome.Canceled -&gt; {}<br>        is FlowOutcome.ItemAlreadyOwned -&gt; restoreEntitlement()<br>        is FlowOutcome.ItemUnavailable -&gt; showSoldOut()<br>        is FlowOutcome.Failure -&gt; showError(event.exception.userFacingCategory)<br>        is FlowOutcome.UnknownResponse -&gt; reportFailure(event.code)<br>        is PurchaseRevoked -&gt; revokeEntitlement(event.purchaseToken, event.reason)<br>    }<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><p class="paragraph">Or, when the owned-state arms are identical:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">when (event) {<br>    is OwnedPurchases -&gt; event.purchases.forEach { handleAndGrant(it) }<br>    is FlowOutcome -&gt; { /* surface UX per sub-variant */}<br>    is PurchaseRevoked -&gt; revokeEntitlement(event.purchaseToken, event.reason)<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><h2 class="">Granting entitlement (multi-quantity)</h2><p class="paragraph">For consumables, always grant <code class="lang-kotlin">purchase.quantity</code> units, not 1. Play supports multi-quantity purchases (the Play Console flag must be enabled, and you can cap via <code class="lang-kotlin">BillingFlowParams</code>). The field defaults to 1 so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants.</p><h2 class="">Replay semantics</h2><p class="paragraph"><a href="../-flow-outcome/index.html">FlowOutcome</a> events and <a href="../-owned-purchases/-live/index.html">OwnedPurchases.Live</a> events <strong>do not replay</strong> to re-attached subscribers — a <code class="lang-kotlin">repeatOnLifecycle</code> collector that comes back after a configuration change does not see the previous live event again. This is the right semantic for purchase-flow outcomes and live owned-state updates: the entitlement grant and any one-shot UX (confetti, toasts, analytics) fired exactly once when the event arrived; replaying them on rotation would be a bug.</p><p class="paragraph"><a href="../-owned-purchases/-recovered/index.html">OwnedPurchases.Recovered</a> events <strong>do replay</strong> to a late subscriber via a separate recovery channel with <code class="lang-kotlin">replay = 1</code>. The auto-sweep can fire on connect before the consumer's collector attaches; the replay ensures the recovered purchase isn't lost. <code class="lang-kotlin">observePurchaseUpdates()</code>'s <code class="lang-kotlin">map</code> reads the library's internal acked-token set on each delivery and filters the cached snapshot against it, so a re-attached subscriber that has already handled the recovered purchase receives the cache re-filtered against the current acked set — not the stale pre-ack snapshot. See the <a href="../-owned-purchases/-recovered/index.html">OwnedPurchases.Recovered</a> KDoc.</p><p class="paragraph"><a href="../-purchase-revoked/index.html">PurchaseRevoked</a> events flow through their own dedicated <code class="lang-kotlin">replay = 16</code> channel: revocations arriving before a subscriber attaches (the FCM listener decoded the RTDN payload and called <a href="../-billing-repository/emit-external-revocation.html">com.kanetik.billing.BillingRepository.emitExternalRevocation</a> before the UI was ready to observe) must not be lost — and a small burst of revocations (multi-product chargebacks, several payloads at process start) shouldn't collapse to one. A re-attached collector replays its share of the cache; gate by <code class="lang-kotlin">purchaseToken</code> if your handler isn't idempotent.</p><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-owned-purchases/index.html">OwnedPurchases</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-flow-outcome/index.html">FlowOutcome</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-purchase-revoked/index.html">PurchaseRevoked</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"></div>
+    <div class="tabs-section-body"></div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

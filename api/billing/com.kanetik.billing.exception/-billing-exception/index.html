@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>BillingException</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing.exception/BillingException///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.exception</a><span class="delimiter">/</span><span class="current">BillingException</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Billing</span><wbr></wbr><span><span>Exception</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">sealed </span><span class="token keyword">class </span><a href="index.html">BillingException</a> : <a href="https://developer.android.com/reference/kotlin/java/lang/Exception.html">Exception</a></div><p class="paragraph">Typed wrapper for a Play Billing failure.</p><p class="paragraph">Most <a href="../../com.kanetik.billing/-billing-actions/index.html">com.kanetik.billing.BillingActions</a> methods that fail throw a concrete subtype of <a href="index.html">BillingException</a> — <a href="../../com.kanetik.billing/-billing-actions/query-purchases.html">com.kanetik.billing.BillingActions.queryPurchases</a>, <a href="../../com.kanetik.billing/-billing-actions/query-product-details.html">com.kanetik.billing.BillingActions.queryProductDetails</a>, <a href="../../com.kanetik.billing/-billing-actions/query-product-details-with-unfetched.html">com.kanetik.billing.BillingActions.queryProductDetailsWithUnfetched</a>, <a href="../../com.kanetik.billing/-billing-actions/consume-purchase.html">com.kanetik.billing.BillingActions.consumePurchase</a>, <a href="../../com.kanetik.billing/-billing-actions/acknowledge-purchase.html">com.kanetik.billing.BillingActions.acknowledgePurchase</a>, <a href="../../com.kanetik.billing/-billing-actions/launch-flow.html">com.kanetik.billing.BillingActions.launchFlow</a>, <a href="../../com.kanetik.billing/-billing-actions/show-in-app-messages.html">com.kanetik.billing.BillingActions.showInAppMessages</a>, <a href="../../com.kanetik.billing/-billing-actions/is-feature-supported.html">com.kanetik.billing.BillingActions.isFeatureSupported</a>. The high-level <a href="../../com.kanetik.billing/-billing-actions/handle-purchase.html">com.kanetik.billing.BillingActions.handlePurchase</a> helper is the exception: it returns a sealed <a href="../../com.kanetik.billing/-handle-purchase-result/index.html">com.kanetik.billing.HandlePurchaseResult</a> with a <code class="lang-kotlin">Failure(BillingException)</code> variant instead, so consumers can't accidentally grant entitlement on a swallowed exception.</p><p class="paragraph">Each subtype carries:</p><ul><li><p class="paragraph">the original <span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span> in <span data-unresolved-link="com.kanetik.billing.exception/BillingException//#com.android.billingclient.api.BillingResult?#com.kanetik.billing.RetryType/PointingToCallableParameters(0)/">result</span> (response code, sub-response code,     debug message),</p></li><li><p class="paragraph">a <span data-unresolved-link="com.kanetik.billing.exception/BillingException//#com.android.billingclient.api.BillingResult?#com.kanetik.billing.RetryType/PointingToCallableParameters(1)/">retryType</span> hint indicating whether the library will retry the call.</p></li></ul><p class="paragraph">Branch on the subtype (or check <span data-unresolved-link="com.kanetik.billing.exception/BillingException//#com.android.billingclient.api.BillingResult?#com.kanetik.billing.RetryType/PointingToCallableParameters(1)/">retryType</span> / <a href="user-facing-category.html">userFacingCategory</a>) to decide UX: show a &quot;no connection, try again&quot; toast for <a href="-network-error-exception/index.html">NetworkErrorException</a>, a &quot;this purchase is already yours&quot; message for <a href="-item-already-owned-exception/index.html">ItemAlreadyOwnedException</a>, etc.</p><p class="paragraph">The library applies <span data-unresolved-link="com.kanetik.billing.exception/BillingException//#com.android.billingclient.api.BillingResult?#com.kanetik.billing.RetryType/PointingToCallableParameters(1)/">retryType</span> internally inside its retry loop; you'll only see an exception thrown when the retry budget is exhausted or the error is terminal.</p><h2 class="">⚠️ Never display <a href="message.html">message</a> to end users</h2><p class="paragraph"><a href="message.html">message</a> is a <strong>debug-context dump</strong> — class name, response code, sub-response code, debug message. Useful for logs, Crashlytics, and developer dashboards. <strong>Awful for user-facing dialogs</strong> (leaks <code class="lang-kotlin">ServiceDisconnectedException</code>, <code class="lang-kotlin">BILLING_RESPONSE_CODE_3</code>, internal Play debug strings into your UI).</p><p class="paragraph">For UI: branch on the subtype directly, or call <a href="user-facing-category.html">userFacingCategory</a> to collapse the 13 subtypes into <a href="../-billing-error-category/index.html">BillingErrorCategory</a>'s 7 buckets and localize per bucket from your own string resources. Example:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">catch (e: BillingException) {<br>    when (e.userFacingCategory) {<br>        BillingErrorCategory.UserCanceled -&gt; return  // not really an error<br>        BillingErrorCategory.AlreadyOwned -&gt; restoreEntitlement()  // restore, don't error<br>        BillingErrorCategory.Network -&gt; showError(getString(R.string.purchase_error_network))<br>        BillingErrorCategory.BillingUnavailable -&gt; showError(getString(R.string.purchase_error_billing_unavailable))<br>        BillingErrorCategory.ProductUnavailable -&gt; showError(getString(R.string.purchase_error_product_unavailable))<br>        BillingErrorCategory.DeveloperError,<br>        BillingErrorCategory.Other -&gt; showError(getString(R.string.purchase_error_generic))<br>    }<br>    log.e(&quot;Billing failure&quot;, e)  // .message is fine here — it's a log<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-network-error-exception/index.html">NetworkErrorException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-feature-not-supported-exception/index.html">FeatureNotSupportedException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-service-disconnected-exception/index.html">ServiceDisconnectedException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-user-canceled-exception/index.html">UserCanceledException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-service-unavailable-exception/index.html">ServiceUnavailableException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-billing-unavailable-exception/index.html">BillingUnavailableException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-item-unavailable-exception/index.html">ItemUnavailableException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-developer-error-exception/index.html">DeveloperErrorException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-fatal-error-exception/index.html">FatalErrorException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-item-already-owned-exception/index.html">ItemAlreadyOwnedException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-item-not-owned-exception/index.html">ItemNotOwnedException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-unknown-exception/index.html">UnknownException</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-wrapped-exception/index.html">WrappedException</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="1990570348%2FClasslikes%2F-593106385" anchor-label="BillingUnavailableException" id="1990570348%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-billing-unavailable-exception/index.html"><span>Billing</span><wbr></wbr><span>Unavailable</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1990570348%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-billing-unavailable-exception/index.html">BillingUnavailableException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Billing API itself is unavailable on this device — different from <a href="-service-unavailable-exception/index.html">ServiceUnavailableException</a> in that this means &quot;this device/install can never use billing&quot;, not &quot;service is busy&quot;.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1633130790%2FClasslikes%2F-593106385" anchor-label="Companion" id="-1633130790%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-companion/index.html"><span><span>Companion</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1633130790%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">object </span><a href="-companion/index.html">Companion</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1505458379%2FClasslikes%2F-593106385" anchor-label="DeveloperErrorException" id="-1505458379%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-developer-error-exception/index.html"><span>Developer</span><wbr></wbr><span>Error</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1505458379%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-developer-error-exception/index.html">DeveloperErrorException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">The library or app called a Play Billing API with malformed arguments. <strong>This is a bug in your code, not a runtime condition</strong> — the exception carries a debug message in <span data-unresolved-link="com.kanetik.billing.exception/BillingException.DeveloperErrorException//#com.android.billingclient.api.BillingResult/PointingToCallableParameters(0)/">result</span> explaining what was wrong.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-640078021%2FClasslikes%2F-593106385" anchor-label="FatalErrorException" id="-640078021%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-fatal-error-exception/index.html"><span>Fatal</span><wbr></wbr><span>Error</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-640078021%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-fatal-error-exception/index.html">FatalErrorException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Internal Play Billing error with no specific cause. The catch-all for anything Play didn't classify. Retrying with backoff sometimes works because Play's internals can self-heal.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2028935810%2FClasslikes%2F-593106385" anchor-label="FeatureNotSupportedException" id="-2028935810%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-feature-not-supported-exception/index.html"><span>Feature</span><wbr></wbr><span>Not</span><wbr></wbr><span>Supported</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2028935810%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-feature-not-supported-exception/index.html">FeatureNotSupportedException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">The Play Store on this device doesn't support the requested feature (e.g. subscriptions on a region/install that doesn't allow them). Terminal — the user's device or Play Store install can't fulfill this request.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2024609545%2FClasslikes%2F-593106385" anchor-label="ItemAlreadyOwnedException" id="-2024609545%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-item-already-owned-exception/index.html"><span>Item</span><wbr></wbr><span>Already</span><wbr></wbr><span>Owned</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2024609545%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-item-already-owned-exception/index.html">ItemAlreadyOwnedException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Tried to purchase a non-consumable product the user already owns. Often caused by stale local state — the library re-queries owned purchases and retries, which usually surfaces the existing purchase rather than failing.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="57916956%2FClasslikes%2F-593106385" anchor-label="ItemNotOwnedException" id="57916956%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-item-not-owned-exception/index.html"><span>Item</span><wbr></wbr><span>Not</span><wbr></wbr><span>Owned</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="57916956%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-item-not-owned-exception/index.html">ItemNotOwnedException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Tried to consume a purchase the user doesn't own. Mirror of <a href="-item-already-owned-exception/index.html">ItemAlreadyOwnedException</a>; same recovery strategy.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1094223370%2FClasslikes%2F-593106385" anchor-label="ItemUnavailableException" id="1094223370%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-item-unavailable-exception/index.html"><span>Item</span><wbr></wbr><span>Unavailable</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1094223370%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-item-unavailable-exception/index.html">ItemUnavailableException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">The product ID isn't available for purchase on this account / region / Play Store. Common causes: typo in the product ID, product not yet activated in Play Console, geo-restriction.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="904971665%2FClasslikes%2F-593106385" anchor-label="NetworkErrorException" id="904971665%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-network-error-exception/index.html"><span>Network</span><wbr></wbr><span>Error</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="904971665%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-network-error-exception/index.html">NetworkErrorException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Network connectivity issue talking to Play Store. Transient — the library retries with exponential backoff. After the retry budget is spent, surface to the user as &quot;no connection&quot;.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-431515107%2FClasslikes%2F-593106385" anchor-label="ServiceDisconnectedException" id="-431515107%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-service-disconnected-exception/index.html"><span>Service</span><wbr></wbr><span>Disconnected</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-431515107%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-service-disconnected-exception/index.html">ServiceDisconnectedException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">The internal <code class="lang-kotlin">BillingClient</code> ↔ Play Store IPC connection dropped.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1710840974%2FClasslikes%2F-593106385" anchor-label="ServiceUnavailableException" id="-1710840974%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-service-unavailable-exception/index.html"><span>Service</span><wbr></wbr><span>Unavailable</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1710840974%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-service-unavailable-exception/index.html">ServiceUnavailableException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Play Store service is unreachable (overloaded, restarting, broken on this device). Often transient.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-642081065%2FClasslikes%2F-593106385" anchor-label="UnknownException" id="-642081065%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-unknown-exception/index.html"><span>Unknown</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-642081065%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-unknown-exception/index.html">UnknownException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">Response code that PBL doesn't document. Should be vanishingly rare; the library wraps it so callers always have a typed channel.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1020930075%2FClasslikes%2F-593106385" anchor-label="UserCanceledException" id="1020930075%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-user-canceled-exception/index.html"><span>User</span><wbr></wbr><span>Canceled</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1020930075%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-user-canceled-exception/index.html">UserCanceledException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">User dismissed the purchase flow (back button, X tap). Not really an error from the app's perspective — but it's thrown so the library can unify all non-success outcomes through one channel.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="449620050%2FClasslikes%2F-593106385" anchor-label="WrappedException" id="449620050%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-wrapped-exception/index.html"><span>Wrapped</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="449620050%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="-wrapped-exception/index.html">WrappedException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>originalCause<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-throwable/index.html">Throwable</a></span></span><span class="token punctuation">)</span> : <a href="index.html">BillingException</a></div><div class="brief "><p class="paragraph">A non-Play-Billing throwable surfaced by a custom <a href="../../com.kanetik.billing/-billing-actions/index.html">com.kanetik.billing.BillingActions</a> implementation (or a fake / test double) and wrapped to honor the <a href="../../com.kanetik.billing/-handle-purchase-result/index.html">com.kanetik.billing.HandlePurchaseResult</a> sealed-result contract.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="-654012527%2FProperties%2F-593106385" anchor-label="cause" id="-654012527%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-wrapped-exception/index.html#-654012527%2FProperties%2F-593106385"><span><span>cause</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-654012527%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">val </span><a href="-wrapped-exception/index.html#-654012527%2FProperties%2F-593106385">cause</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-throwable/index.html">Throwable</a><span class="token operator">?</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="997218540%2FProperties%2F-593106385" anchor-label="message" id="997218540%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="message.html"><span><span>message</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="997218540%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">val </span><a href="message.html">message</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph"><strong>Debug-context dump for logs only — never display to end users.</strong> See the class-level KDoc for the user-facing UX pattern (use <a href="user-facing-category.html">userFacingCategory</a>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-663710678%2FProperties%2F-593106385" anchor-label="result" id="-663710678%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="result.html"><span><span>result</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-663710678%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="result.html">result</a><span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span><span class="token operator">?</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="2060052945%2FProperties%2F-593106385" anchor-label="retryType" id="2060052945%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="retry-type.html"><span>retry</span><wbr></wbr><span><span>Type</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2060052945%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="retry-type.html">retryType</a><span class="token operator">: </span><a href="../../com.kanetik.billing/-retry-type/index.html">RetryType</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="837681252%2FProperties%2F-593106385" anchor-label="userFacingCategory" id="837681252%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="user-facing-category.html"><span>user</span><wbr></wbr><span>Facing</span><wbr></wbr><span><span>Category</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="837681252%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="user-facing-category.html">userFacingCategory</a><span class="token operator">: </span><a href="../-billing-error-category/index.html">BillingErrorCategory</a></div><div class="brief "><p class="paragraph">UI bucket for this exception. Collapses the 13 sealed subtypes into <a href="../-billing-error-category/index.html">BillingErrorCategory</a>'s 7 user-facing categories so callers can localize from a small string-resource map instead of branching on every PBL response code. See the class-level KDoc for the recommended pattern.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="1139547707%2FFunctions%2F-593106385" anchor-label="toString" id="1139547707%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="to-string.html"><span>to</span><wbr></wbr><span><span>String</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1139547707%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="to-string.html"><span class="token function">toString</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></div><div class="brief "><p class="paragraph">Class-aware <a href="to-string.html">toString</a> so logs show the concrete subtype name plus the full context string (response code, sub-response, debug message, retryType). PBL's <span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span> lacks content-based equality, so <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/equals.html">equals</a> / <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/hash-code.html">hashCode</a> stay identity-based — comparing two instances by value is rarely useful for exceptions anyway.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

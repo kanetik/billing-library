@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>SignedEntitlementStorage</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing.entitlement.signed/SignedEntitlementStorage///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.entitlement.signed</a><span class="delimiter">/</span><span class="current">SignedEntitlementStorage</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Signed</span><wbr></wbr><span>Entitlement</span><wbr></wbr><span><span>Storage</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">SignedEntitlementStorage</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">delegate<span class="token operator">: </span><a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a><span class="token punctuation">, </span></span><span class="parameter ">keyProvider<span class="token operator">: </span><a href="../-hmac-key-provider/index.html">HmacKeyProvider</a><span class="token punctuation">, </span></span><span class="parameter ">signatureStore<span class="token operator">: </span><a href="../-signature-store/index.html">SignatureStore</a><span class="token punctuation">, </span></span><span class="parameter ">onTamperDetected<span class="token operator">: </span><span class="token punctuation">(</span><a href="../-tamper-event/index.html">TamperEvent</a><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a><span class="token operator"> = </span>{}</span></span><span class="token punctuation">)</span> : <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a></div><p class="paragraph"><a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a> decorator that signs the snapshot on write and verifies the signature on read, providing tamper resistance for the cache's persisted state.</p><p class="paragraph">Wraps any other <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a> implementation (DataStore, Room, SharedPreferences, etc.). The library remains neutral on the persistence choice; only the signing is centralised. The wrapped <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(0)/">delegate</span> continues to own the snapshot bytes; the signature blob lives separately in <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(2)/">signatureStore</span>.</p><h1 class="">Wire format</h1><p class="paragraph">The signature blob is <code class="lang-kotlin">4 bytes version (BE int) || 32 bytes HMAC-SHA256</code>. The version is included both in the blob (so verification knows how to canonical-encode the snapshot) and inside the HMAC input (so it's authenticated and an attacker can't downgrade the version). The per-version snapshot canonical encoding is internal; the wire format is stable and versioned so future field additions to <a href="../../com.kanetik.billing.entitlement/-entitlement-snapshot/index.html">EntitlementSnapshot</a> don't invalidate signatures written by older library versions.</p><h1 class="">Read path</h1><p class="paragraph">The decorator returns <code class="lang-kotlin">null</code> (the cache reads it as &quot;no prior state&quot;) in any of these cases, firing <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(3)/">onTamperDetected</span> with a typed <a href="../-tamper-event/index.html">TamperEvent</a>:</p><ul><li><p class="paragraph"><a href="../-tamper-event/-missing-signature/index.html"><strong>TamperEvent.MissingSignature</strong></a> — delegate returned a snapshot but     <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(2)/">signatureStore</span> is empty. Most likely benign: a one-time read after     upgrading from an unsigned configuration. Route this differently from     <a href="../-tamper-event/-invalid-signature/index.html">TamperEvent.InvalidSignature</a> in your telemetry. See     <a href="-companion/migrate-unsigned-snapshot.html">migrateUnsignedSnapshot</a> if you want to avoid the cold-start.</p></li><li><p class="paragraph"><a href="../-tamper-event/-invalid-signature/index.html"><strong>TamperEvent.InvalidSignature</strong></a> — both pieces present, HMAC failed     to verify (or the blob was truncated). Strong tamper indicator; this     is the event your alerting should pay attention to.</p></li><li><p class="paragraph"><a href="../-tamper-event/-unsupported-version/index.html"><strong>TamperEvent.UnsupportedVersion</strong></a> — blob declares a version this     build of the library doesn't know how to verify. Implies forgery, a     forward-incompatible blob written by a newer library version, or     storage corruption.</p></li></ul><p class="paragraph">If the delegate returns <code class="lang-kotlin">null</code> (no prior snapshot at all), the decorator also returns <code class="lang-kotlin">null</code> but does NOT fire <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(3)/">onTamperDetected</span> — that's the legitimate first-run case.</p><h1 class="">Write path</h1><p class="paragraph"><code class="lang-kotlin">write</code> computes the signature blob first (no side effects), then persists the snapshot via <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(0)/">delegate</span>, then persists the signature via <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(2)/">signatureStore</span>. Ordering signing first means a <span data-unresolved-link="com.kanetik.billing.entitlement.signed/SignedEntitlementStorage//#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.signed.HmacKeyProvider#com.kanetik.billing.entitlement.signed.SignatureStore#kotlin.Function1[com.kanetik.billing.entitlement.signed.TamperEvent,kotlin.Unit]/PointingToCallableParameters(1)/">keyProvider</span> failure (e.g., transient Keystore key generation error) leaves both stores untouched — the next write retries from a consistent state. If the signature write fails <i>after</i> the snapshot write succeeded, the next read sees a snapshot/signature mismatch (or no signature on first ever write) and falls back to the cold-start path; the next <code class="lang-kotlin">OwnedPurchases.Live</code> or <code class="lang-kotlin">OwnedPurchases.Recovered</code> re-confirms truth (often within the same launch, once the billing connection establishes).</p><h1 class="">Threat-model caveats</h1><p class="paragraph">See <a href="../-hmac-key-provider/index.html">HmacKeyProvider</a> for the full set. Briefly:</p><ul><li><p class="paragraph">The library cannot enforce key non-extractability. Use     <a href="../-keystore-backed-key-provider/index.html">KeystoreBackedKeyProvider</a> (the easy default) unless you know what you're     doing.</p></li><li><p class="paragraph">Not a replacement for server-side validation. The Voided Purchases API     and RTDN remain the right fit for stronger threat models.</p></li><li><p class="paragraph">Not a replacement for Tink. This helper is scoped to <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a>.</p></li></ul><h1 class="">Example</h1><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">val storage: EntitlementStorage = SignedEntitlementStorage(<br>    delegate = MyDataStoreEntitlementStorage(context),<br>    keyProvider = KeystoreBackedKeyProvider.create(),<br>    signatureStore = SharedPreferencesSignatureStore(context),<br>    onTamperDetected = { event -&gt;<br>        when (event) {<br>            TamperEvent.MissingSignature -&gt; logger.info(&quot;First read after upgrade&quot;)<br>            TamperEvent.InvalidSignature -&gt; logger.warn(&quot;Possible tampering detected&quot;)<br>            is TamperEvent.UnsupportedVersion -&gt;<br>                logger.warn(&quot;Unknown signature version ${event.version}&quot;)<br>        }<br>    },<br>)<br>val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productPredicate)</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><h4 class="tableheader">Parameters</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span><span>delegate</span></span></u></div></span></div><div><div class="title"><p class="paragraph">the underlying <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a> that holds the snapshot bytes. Owns serialization; the decorator does not touch the snapshot format the delegate uses.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>key</span><wbr></wbr><span><span>Provider</span></span></u></div></span></div><div><div class="title"><p class="paragraph">source of the HMAC key. See <a href="../-hmac-key-provider/index.html">HmacKeyProvider</a>.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>signature</span><wbr></wbr><span><span>Store</span></span></u></div></span></div><div><div class="title"><p class="paragraph">persistence for the signature blob. See <a href="../-signature-store/index.html">SignatureStore</a>.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>on</span><wbr></wbr><span>Tamper</span><wbr></wbr><span><span>Detected</span></span></u></div></span></div><div><div class="title"><p class="paragraph">invoked from <a href="read.html">read</a> when verification fails. Runs on whatever dispatcher the read is invoked from. Intended for logging / telemetry; do not throw.</p></div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="CONSTRUCTOR">
+        <h2 class="tableheader">Constructors</h2>
+        <div class="table"><a data-name="623538526%2FConstructors%2F-593106385" anchor-label="SignedEntitlementStorage" id="623538526%2FConstructors%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-togglable="CONSTRUCTOR" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-signed-entitlement-storage.html"><span>Signed</span><wbr></wbr><span>Entitlement</span><wbr></wbr><span><span>Storage</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="623538526%2FConstructors%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">delegate<span class="token operator">: </span><a href="../../com.kanetik.billing.entitlement/-entitlement-storage/index.html">EntitlementStorage</a><span class="token punctuation">, </span></span><span class="parameter ">keyProvider<span class="token operator">: </span><a href="../-hmac-key-provider/index.html">HmacKeyProvider</a><span class="token punctuation">, </span></span><span class="parameter ">signatureStore<span class="token operator">: </span><a href="../-signature-store/index.html">SignatureStore</a><span class="token punctuation">, </span></span><span class="parameter ">onTamperDetected<span class="token operator">: </span><span class="token punctuation">(</span><a href="../-tamper-event/index.html">TamperEvent</a><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a><span class="token operator"> = </span>{}</span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-1188369988%2FClasslikes%2F-593106385" anchor-label="Companion" id="-1188369988%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-companion/index.html"><span><span>Companion</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1188369988%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">object </span><a href="-companion/index.html">Companion</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="581998383%2FFunctions%2F-593106385" anchor-label="read" id="581998383%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="read.html"><span><span>read</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="581998383%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">suspend override </span><span class="token keyword">fun </span><a href="read.html"><span class="token function">read</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../../com.kanetik.billing.entitlement/-entitlement-snapshot/index.html">EntitlementSnapshot</a><span class="token operator">?</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="218212705%2FFunctions%2F-593106385" anchor-label="write" id="218212705%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="write.html"><span><span>write</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="218212705%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">suspend override </span><span class="token keyword">fun </span><a href="write.html"><span class="token function">write</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">snapshot<span class="token operator">: </span><a href="../../com.kanetik.billing.entitlement/-entitlement-snapshot/index.html">EntitlementSnapshot</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Persists <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/write.html">snapshot</a>. Should be atomic with respect to a subsequent <a href="../../com.kanetik.billing.entitlement/-entitlement-storage/read.html">read</a> call; see the interface-level KDoc for the full contract.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

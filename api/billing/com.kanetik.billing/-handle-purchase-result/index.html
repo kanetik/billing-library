@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>HandlePurchaseResult</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing/HandlePurchaseResult///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><span class="current">HandlePurchaseResult</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Handle</span><wbr></wbr><span>Purchase</span><wbr></wbr><span><span>Result</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">sealed </span><span class="token keyword">class </span><a href="index.html">HandlePurchaseResult</a></div><p class="paragraph">Outcome of <a href="../-billing-actions/handle-purchase.html">com.kanetik.billing.BillingActions.handlePurchase</a>.</p><p class="paragraph">Sealed and exhaustive — branching on it forces the caller to acknowledge the failure case explicitly, which prevents the most common Play Billing bug: granting entitlement before acknowledgement succeeds, then watching Play auto-refund the unacknowledged purchase ~3 days later. That is, by design, <strong>the whole point of returning a typed result instead of throwing</strong>:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">when (val r = billing.handlePurchase(purchase, consume = false)) {<br>    HandlePurchaseResult.Success -&gt; grantPremium()              // safe: ack landed<br>    HandlePurchaseResult.AlreadyAcknowledged -&gt; grantPremium()    // safe: ack already in place<br>    HandlePurchaseResult.NotPurchased -&gt; {}                     // pending — wait for terminal state<br>    HandlePurchaseResult.NotOwned -&gt; {}                          // stale snapshot — defer to grace/revoke<br>    is HandlePurchaseResult.Failure -&gt; {<br>        // do NOT grant — auto-recovery sweep retries on next connect<br>        showError(r.exception.userFacingCategory)<br>    }<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><p class="paragraph">The five variants:</p><ul><li><p class="paragraph"><a href="-success/index.html">Success</a> — the acknowledge / consume call landed. Safe to grant.</p></li><li><p class="paragraph"><a href="-already-acknowledged/index.html">AlreadyAcknowledged</a> — for <code class="lang-kotlin">consume = false</code>, the library detected     <span data-unresolved-link="com.android.billingclient.api/Purchase/isAcknowledged/#/PointingToDeclaration/">Purchase.isAcknowledged</span> was already <code class="lang-kotlin">true</code> and short-circuited     before reaching out to Play. Safe to grant; useful to distinguish     from <a href="-success/index.html">Success</a> for logging / telemetry (no PBL call was made).</p></li><li><p class="paragraph"><a href="-not-purchased/index.html">NotPurchased</a> — the purchase wasn't in     <span data-unresolved-link="com.android.billingclient.api/Purchase.PurchaseState/PURCHASED/#/PointingToDeclaration/">Purchase.PurchaseState.PURCHASED</span> state. Don't grant.</p></li><li><p class="paragraph"><a href="-not-owned/index.html">NotOwned</a> — Play replied <code class="lang-kotlin">ITEM_NOT_OWNED</code> from acknowledge / consume:     ownership disagrees with the input. The caller passed in a stale     <code class="lang-kotlin">Purchase</code> (typically from a cached <code class="lang-kotlin">queryPurchases</code> snapshot) whose     Play-side ownership has since flipped. Don't grant; defer to your     grace / revoke logic and consider re-querying owned purchases.</p></li><li><p class="paragraph"><a href="-failure/index.html">Failure</a> — the acknowledge / consume call failed after the library's     internal retry budget. Don't grant. Now unambiguously means a     transient or terminal ack failure worth retrying — the previous     overlap with <code class="lang-kotlin">Failure(DeveloperErrorException)</code> for already-acked     purchases is gone for <i>fresh</i> <code class="lang-kotlin">Purchase</code> objects (the short-circuit     inspects <span data-unresolved-link="com.android.billingclient.api/Purchase/isAcknowledged/#/PointingToDeclaration/">Purchase.isAcknowledged</span> before reaching out to PBL), and     the previous overlap with <code class="lang-kotlin">Failure(ItemNotOwnedException)</code> for     ownership-mismatch cases is gone — that case now surfaces as     <a href="-not-owned/index.html">NotOwned</a> instead. The     stale-snapshot case is the one remaining caveat: a <code class="lang-kotlin">Purchase</code>     cached locally with <code class="lang-kotlin">isAcknowledged = false</code> whose Play-side state     has flipped to <code class="lang-kotlin">true</code> (e.g., a <code class="lang-kotlin">Recovered</code> snapshot that was already     acked successfully but is being replayed) will still surface as     <code class="lang-kotlin">Failure(DeveloperErrorException)</code> on re-handle. The recovery sweep     won't re-emit such a purchase as a fresh acknowledged object — it     filters <code class="lang-kotlin">PURCHASED &amp;&amp; !isAcknowledged</code>, so once Play marks the     purchase acknowledged it drops out of the sweep entirely. The stale     snapshot persists in the recovery channel's replay slot until a     later sweep emits a different result, or until the consumer queries     fresh purchases via <span data-unresolved-link="com.android.billingclient.api/BillingClient/queryPurchasesAsync/#com.android.billingclient.api.QueryPurchasesParams#com.android.billingclient.api.PurchasesResponseListener/PointingToDeclaration/">com.android.billingclient.api.BillingClient.queryPurchasesAsync</span>.     <code class="lang-kotlin">BillingClientStorage</code>'s acknowledged-token filter narrows this to the     rare case where the cached <code class="lang-kotlin">Purchase</code> was passed back into     <code class="lang-kotlin">handlePurchase</code> from the consumer's own state rather than via     <code class="lang-kotlin">Recovered</code> (the recovery delivery already filters replayed snapshots     against handled tokens before emitting).</p></li></ul><p class="paragraph">Lower-level <a href="../-billing-actions/consume-purchase.html">com.kanetik.billing.BillingActions.consumePurchase</a> and <a href="../-billing-actions/acknowledge-purchase.html">com.kanetik.billing.BillingActions.acknowledgePurchase</a> still throw <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> directly — callers at that layer are already in the weeds and a thrown exception is appropriate. handlePurchase is the high-level helper most apps use, which is why it gets the typed-result treatment.</p><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-success/index.html">Success</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-already-acknowledged/index.html">AlreadyAcknowledged</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-not-purchased/index.html">NotPurchased</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-not-owned/index.html">NotOwned</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-failure/index.html">Failure</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="2144177939%2FClasslikes%2F-593106385" anchor-label="AlreadyAcknowledged" id="2144177939%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-already-acknowledged/index.html"><span>Already</span><wbr></wbr><span><span>Acknowledged</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2144177939%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">object </span><a href="-already-acknowledged/index.html">AlreadyAcknowledged</a> : <a href="index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">The purchase was already in the requested terminal state — no Play Billing call was made. The library detected <span data-unresolved-link="com.android.billingclient.api/Purchase/isAcknowledged/#/PointingToDeclaration/">Purchase.isAcknowledged</span> was already <code class="lang-kotlin">true</code> (for <code class="lang-kotlin">consume = false</code>) before reaching out to PBL.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="869198217%2FClasslikes%2F-593106385" anchor-label="Failure" id="869198217%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-failure/index.html"><span><span>Failure</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="869198217%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-failure/index.html">Failure</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>exception<span class="token operator">: </span><a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a></span></span><span class="token punctuation">)</span> : <a href="index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">The acknowledge / consume call failed after the library's internal retry budget was exhausted. <strong>Do not grant entitlement.</strong></p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-391456387%2FClasslikes%2F-593106385" anchor-label="NotOwned" id="-391456387%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-not-owned/index.html"><span>Not</span><wbr></wbr><span><span>Owned</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-391456387%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">object </span><a href="-not-owned/index.html">NotOwned</a> : <a href="index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">Play reported the purchase isn't owned anymore — the underlying acknowledge / consume call returned <span data-unresolved-link="com.android.billingclient.api/BillingClient.BillingResponseCode/ITEM_NOT_OWNED/#/PointingToDeclaration/">com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED</span> after the library's internal <a href="../-retry-type/-r-e-q-u-e-r-y_-p-u-r-c-h-a-s-e_-r-e-t-r-y/index.html">RetryType.REQUERY_PURCHASE_RETRY</a> budget was exhausted. <strong>Do not grant entitlement.</strong></p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="687781343%2FClasslikes%2F-593106385" anchor-label="NotPurchased" id="687781343%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-not-purchased/index.html"><span>Not</span><wbr></wbr><span><span>Purchased</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="687781343%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">object </span><a href="-not-purchased/index.html">NotPurchased</a> : <a href="index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">The purchase wasn't in <span data-unresolved-link="com.android.billingclient.api/Purchase.PurchaseState/PURCHASED/#/PointingToDeclaration/">Purchase.PurchaseState.PURCHASED</span> state. Two cases produce this, with different consumer expectations:</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1900419792%2FClasslikes%2F-593106385" anchor-label="Success" id="-1900419792%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-success/index.html"><span><span>Success</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1900419792%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">object </span><a href="-success/index.html">Success</a> : <a href="index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">The acknowledge / consume call landed successfully. <strong>Safe to grant entitlement now.</strong></p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

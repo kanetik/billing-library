@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>launchFlow</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing/BillingActions/launchFlow/#android.app.Activity#com.android.billingclient.api.BillingFlowParams/PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><a href="index.html">BillingActions</a><span class="delimiter">/</span><span class="current">launchFlow</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>launch</span><wbr></wbr><span><span>Flow</span></span></h1>
+  </div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/MainThread.html"><span class="token annotation builtin">MainThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="launch-flow.html"><span class="token function">launchFlow</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">activity<span class="token operator">: </span><a href="https://developer.android.com/reference/kotlin/android/app/Activity.html">Activity</a><span class="token punctuation">, </span></span><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingFlowParams///PointingToDeclaration/">BillingFlowParams</span></span></span><span class="token punctuation">)</span></div><p class="paragraph">Launches the Play Billing purchase flow.</p><p class="paragraph">Must be called on the main thread. The returned coroutine completes once <code class="lang-kotlin">BillingClient.launchBillingFlow</code> has returned — i.e., once the launch request has been submitted to Play. PBL does not surface a &quot;UI has rendered&quot; signal, so completion of this call is <strong>not</strong> a guarantee that the purchase sheet is (or ever will be) on screen; it is only a guarantee that no synchronous error was raised during submission. The actual purchase outcome arrives separately via <a href="../-billing-purchase-updates-owner/observe-purchase-updates.html">BillingPurchaseUpdatesOwner.observePurchaseUpdates</a> (and may take seconds to minutes — pending purchases can sit unresolved indefinitely).</p><p class="paragraph">For one-time products, prefer <a href="../../com.kanetik.billing.ext/to-one-time-flow-params.html">com.kanetik.billing.ext.toOneTimeFlowParams</a> to build <a href="launch-flow.html">params</a> correctly under PBL 8's offer-token rules. For higher-level orchestration (in-flight guard, watchdog, typed result), see <a href="../../com.kanetik.billing.ext/-purchase-flow-coordinator/index.html">com.kanetik.billing.ext.PurchaseFlowCoordinator</a>.</p><h2 class="">Dual throw-vs-event contract</h2><p class="paragraph"><code class="lang-kotlin">launchFlow</code> has two outcome channels and consumers must wire up both:</p><h3 class="">Synchronous-throw path</h3><p class="paragraph">Errors PBL knows about <i>before</i> showing the purchase sheet are surfaced as thrown <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtypes from this call:</p><ul><li><p class="paragraph"><a href="../../com.kanetik.billing.exception/-billing-exception/-developer-error-exception/index.html">BillingException.DeveloperErrorException</a>     — <a href="launch-flow.html">activity</a> is finishing or destroyed when the flow is launched.     The library checks <code class="lang-kotlin">activity.isFinishing || activity.isDestroyed</code>     and short-circuits with a synthesized <code class="lang-kotlin">DEVELOPER_ERROR</code> rather than     calling into PBL against an invalid window.</p></li><li><p class="paragraph"><a href="../../com.kanetik.billing.exception/-billing-exception/-service-unavailable-exception/index.html">BillingException.ServiceUnavailableException</a>     — wrapped from a <code class="lang-kotlin">NullPointerException</code> thrown by     <code class="lang-kotlin">BillingClient.launchBillingFlow</code> itself (typically the     <code class="lang-kotlin">ProxyBillingActivity</code> null-<code class="lang-kotlin">PendingIntent</code> crash).</p></li><li><p class="paragraph"><a href="../../com.kanetik.billing.exception/-billing-exception/-fatal-error-exception/index.html">BillingException.FatalErrorException</a>     — wrapped from any other unexpected <code class="lang-kotlin">Exception</code> raised inside the     underlying call (synthesizes <code class="lang-kotlin">BillingResponseCode.ERROR</code>).</p></li><li><p class="paragraph">Any other <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtype mapped from the     com.android.billingclient.api.BillingResponseCode returned     synchronously by <code class="lang-kotlin">client.launchBillingFlow</code> itself — most notably     <a href="../../com.kanetik.billing.exception/-billing-exception/-item-already-owned-exception/index.html">BillingException.ItemAlreadyOwnedException</a>     when PBL knows the user owns the SKU without needing to render UI.</p></li></ul><h3 class="">Asynchronous-event path</h3><p class="paragraph">Outcomes that require Play to show UI (or wait for the user) arrive on <a href="../-billing-purchase-updates-owner/observe-purchase-updates.html">BillingPurchaseUpdatesOwner.observePurchaseUpdates</a> as <a href="../-flow-outcome/index.html">com.kanetik.billing.FlowOutcome</a> variants:</p><ul><li><p class="paragraph"><a href="../-flow-outcome/-pending/index.html">FlowOutcome.Pending</a></p></li><li><p class="paragraph"><a href="../-flow-outcome/-canceled/index.html">FlowOutcome.Canceled</a></p></li><li><p class="paragraph"><a href="../-flow-outcome/-item-already-owned/index.html">FlowOutcome.ItemAlreadyOwned</a></p></li><li><p class="paragraph"><a href="../-flow-outcome/-item-unavailable/index.html">FlowOutcome.ItemUnavailable</a></p></li><li><p class="paragraph"><a href="../-flow-outcome/-failure/index.html">FlowOutcome.Failure</a></p></li><li><p class="paragraph"><a href="../-flow-outcome/-unknown-response/index.html">FlowOutcome.UnknownResponse</a></p></li></ul><p class="paragraph">Successful purchases arrive as <a href="../-owned-purchases/-live/index.html">com.kanetik.billing.OwnedPurchases.Live</a> on the same stream.</p><h3 class="">⚠️ ITEM_ALREADY_OWNED is dual-path</h3><p class="paragraph"><code class="lang-kotlin">ITEM_ALREADY_OWNED</code> can land on <strong>either</strong> channel depending on whether Play knows synchronously (no UI shown — thrown <a href="../../com.kanetik.billing.exception/-billing-exception/-item-already-owned-exception/index.html">ItemAlreadyOwnedException</a> here) or detects it asynchronously through <code class="lang-kotlin">PurchasesUpdatedListener</code> (UI shown — emitted as <a href="../-flow-outcome/-item-already-owned/index.html">FlowOutcome.ItemAlreadyOwned</a>). Handle the same restore-entitlement flow in both places, e.g.:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">// Throw site (around the launchFlow call):<br>try {<br>    billing.launchFlow(activity, params)<br>} catch (e: BillingException.ItemAlreadyOwnedException) {<br>    restoreEntitlement()<br>} catch (e: BillingException) {<br>    showError(e.userFacingCategory)<br>}<br><br>// Event site (in your observePurchaseUpdates collector):<br>when (event) {<br>    is FlowOutcome.ItemAlreadyOwned -&gt; restoreEntitlement()<br>    // ...other branches<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><p class="paragraph">Missing either branch leaves &quot;user already owns this&quot; cases silently unhandled depending on Play's timing.</p><h4 class="tableheader">Throws</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../../com.kanetik.billing.exception/-billing-exception/index.html"><span>Billing</span><wbr></wbr><span><span>Exception</span></span></a></div></span></div><div><div class="title"><p class="paragraph">any synchronous failure as described above. Parent-scope <span data-unresolved-link="kotlinx.coroutines/CancellationException///PointingToDeclaration/">kotlinx.coroutines.CancellationException</span> propagates through unchanged; see the class-level KDoc for the resilience-wrapping rule (and the <code class="lang-kotlin">TimeoutCancellationException</code> carve-out for internal connection timeouts).</p></div></div></div></div></div></div></div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

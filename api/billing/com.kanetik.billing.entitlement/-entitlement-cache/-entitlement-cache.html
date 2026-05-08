@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>EntitlementCache</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing.entitlement/EntitlementCache/EntitlementCache/#kotlinx.coroutines.flow.Flow[com.kanetik.billing.PurchaseEvent]#com.kanetik.billing.entitlement.EntitlementStorage#com.kanetik.billing.entitlement.GracePolicy#kotlin.Function1[com.android.billingclient.api.Purchase,kotlin.Boolean]#kotlin.Function0[kotlin.Long]#kotlin.Long#com.kanetik.billing.logging.BillingLogger/PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.entitlement</a><span class="delimiter">/</span><a href="index.html">EntitlementCache</a><span class="delimiter">/</span><span class="current">EntitlementCache</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Entitlement</span><wbr></wbr><span><span>Cache</span></span></h1>
+  </div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">purchasesUpdates<span class="token operator">: </span><span data-unresolved-link="kotlinx.coroutines.flow/Flow///PointingToDeclaration/">Flow</span><span class="token operator">&lt;</span><a href="../../com.kanetik.billing/-purchase-event/index.html">PurchaseEvent</a><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">storage<span class="token operator">: </span><a href="../-entitlement-storage/index.html">EntitlementStorage</a><span class="token punctuation">, </span></span><span class="parameter ">gracePolicy<span class="token operator">: </span><a href="../-grace-policy/index.html">GracePolicy</a><span class="token punctuation">, </span></span><span class="parameter ">productPredicate<span class="token operator">: </span><span class="token punctuation">(</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token punctuation">, </span></span><span class="parameter ">clock<span class="token operator">: </span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>System::currentTimeMillis<span class="token punctuation">, </span></span><span class="parameter ">graceTickIntervalMs<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>DEFAULT_GRACE_TICK_INTERVAL_MS<span class="token punctuation">, </span></span><span class="parameter ">logger<span class="token operator">: </span><a href="../../com.kanetik.billing.logging/-billing-logger/index.html">BillingLogger</a><span class="token operator"> = </span>BillingLogger.Noop</span></span><span class="token punctuation">)</span></div><h4 class="tableheader">Parameters</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>purchases</span><wbr></wbr><span><span>Updates</span></span></u></div></span></div><div><div class="title"><p class="paragraph">The hot purchase-update stream — typically <a href="../../com.kanetik.billing/-billing-purchase-updates-owner/observe-purchase-updates.html">com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates</a>. The cache subscribes inside <a href="start.html">start</a>.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span><span>storage</span></span></u></div></span></div><div><div class="title"><p class="paragraph">Persistence layer. See <a href="../-entitlement-storage/index.html">EntitlementStorage</a> for the contract.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>grace</span><wbr></wbr><span><span>Policy</span></span></u></div></span></div><div><div class="title"><p class="paragraph">How long to keep treating the user as entitled after a <a href="../../com.kanetik.billing/-flow-outcome/-failure/index.html">FlowOutcome.Failure</a>. Pass <a href="../-grace-policy/-companion/-none.html">GracePolicy.None</a> to disable grace.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>product</span><wbr></wbr><span><span>Predicate</span></span></u></div></span></div><div><div class="title"><p class="paragraph">Filter applied to each <span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span> in an <a href="../../com.kanetik.billing/-owned-purchases/-live/index.html">OwnedPurchases.Live</a> / <a href="../../com.kanetik.billing/-owned-purchases/-recovered/index.html">OwnedPurchases.Recovered</a> event to decide whether it grants entitlement. Typical shapes: <code class="lang-kotlin">{ it.products.contains(&quot;premium_lifetime&quot;) }</code> for a single SKU, <code class="lang-kotlin">{ it.products.any { id -&gt; id in premiumIds } }</code> for a SKU set.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span><span>clock</span></span></u></div></span></div><div><div class="title"><p class="paragraph">Time source. Defaults to <code class="lang-kotlin">System.currentTimeMillis</code>. Inject a deterministic source in tests so grace-window assertions don't depend on real time.</p></div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>grace</span><wbr></wbr><span>Tick</span><wbr></wbr><span>Interval</span><wbr></wbr><span><span>Ms</span></span></u></div></span></div><div><div class="title"><p class="paragraph">How often the periodic tick re-evaluates an active <a href="../-entitlement-state/-in-grace/index.html">EntitlementState.InGrace</a> state to detect grace expiry. Defaults to 60 seconds — fine-grained enough that grace never overstays by more than a minute, coarse enough to be free of cost. Set lower in tests driving a virtual clock.</p></div></div></div></div></div></div></div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

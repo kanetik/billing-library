@@ -1,0 +1,1825 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 8.x.">
+      
+      
+      
+        <link rel="canonical" href="https://kanetik.github.io/billing-library/roadmap/">
+      
+      
+        <link rel="prev" href="../testing/">
+      
+      
+        <link rel="next" href="../design-notes/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
+    
+    
+      
+        <title>Roadmap - Kanetik Billing Library</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6f8fc17f.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#roadmap" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Kanetik Billing Library" class="md-header__button md-logo" aria-label="Kanetik Billing Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Kanetik Billing Library
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Roadmap
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/kanetik/billing-library" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kanetik/billing-library
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quick-start/" class="md-tabs__link">
+        
+  
+    
+  
+  Quick start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/purchase-recovery/" class="md-tabs__link">
+          
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/api-overview/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../testing/" class="md-tabs__link">
+        
+  
+    
+  
+  Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+    
+  
+  Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../design-notes/" class="md-tabs__link">
+        
+  
+    
+  
+  Design notes
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+    
+  
+  API (Dokka)
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Kanetik Billing Library" class="md-nav__button md-logo" aria-label="Kanetik Billing Library" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Kanetik Billing Library
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/kanetik/billing-library" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    kanetik/billing-library
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick-start/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quick start
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Guides
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Guides
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/purchase-recovery/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Purchase recovery
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/error-handling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Error handling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/entitlement-cache/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    EntitlementCache
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/signature-verification/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Signature verification
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/server-driven-revocation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Server-driven revocation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/lifecycle/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Lifecycle integration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/logging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Logging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/dependency-injection/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dependency injection
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/multi-quantity/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multi-quantity purchases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/multi-offer-products/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multi-offer products
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/product-details-caching/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Product-details caching
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/in-app-messaging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    In-app messaging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/subscriptions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Subscriptions (v0.1.x)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api-overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/replay-semantics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Replay semantics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/extensions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Extensions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/limitations/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Limitations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Testing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Roadmap
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Roadmap
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#versioning-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioning policy
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v020-subscriptions-testing-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.2.0 — Subscriptions + testing artifact
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.2.0 — Subscriptions + testing artifact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscription-helpers-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      Subscription helpers — planned
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Subscription helpers — planned">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replacement-mode-api-name-the-intent-not-the-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Replacement-mode API: name the intent, not the mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linkedpurchasetoken-surface-as-a-typed-sealed-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      linkedPurchaseToken: surface as a typed sealed variant
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sweep-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sweep impact
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#billing-testing-artifact-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      :billing-testing artifact — planned
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#app-revenue-tracker-adoption-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      app-revenue-tracker adoption — planned
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v020-docs-additions-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.2.0 docs additions — planned
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v030-candidate-structured-telemetry-events-design-sketched-no-consumer-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Surface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-separate-interface-not-billinglogger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a separate interface, not BillingLogger
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#privacy-data-handling-rules-baked-into-the-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      Privacy / data-handling rules baked into the design
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#default-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default behavior
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wire-up-example-readme-addition" class="md-nav__link">
+    <span class="md-ellipsis">
+      Wire-up example (README addition)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-scope-for-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Out of scope for v1
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-isnt-v020" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why this isn't v0.2.0
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-post-v020-demand-driven" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future (post-v0.2.0) — demand-driven
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-items-get-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      How items get added
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-notes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Design notes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API (Dokka)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#versioning-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioning policy
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v020-subscriptions-testing-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.2.0 — Subscriptions + testing artifact
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.2.0 — Subscriptions + testing artifact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscription-helpers-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      Subscription helpers — planned
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Subscription helpers — planned">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replacement-mode-api-name-the-intent-not-the-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Replacement-mode API: name the intent, not the mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linkedpurchasetoken-surface-as-a-typed-sealed-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      linkedPurchaseToken: surface as a typed sealed variant
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sweep-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sweep impact
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#billing-testing-artifact-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      :billing-testing artifact — planned
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#app-revenue-tracker-adoption-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      app-revenue-tracker adoption — planned
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v020-docs-additions-planned" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.2.0 docs additions — planned
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v030-candidate-structured-telemetry-events-design-sketched-no-consumer-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      Surface
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-separate-interface-not-billinglogger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why a separate interface, not BillingLogger
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#privacy-data-handling-rules-baked-into-the-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      Privacy / data-handling rules baked into the design
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#default-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default behavior
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wire-up-example-readme-addition" class="md-nav__link">
+    <span class="md-ellipsis">
+      Wire-up example (README addition)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-scope-for-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Out of scope for v1
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-isnt-v020" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why this isn't v0.2.0
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-post-v020-demand-driven" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future (post-v0.2.0) — demand-driven
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-items-get-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      How items get added
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h1>
+<p>What's next for the Kanetik Billing Library. Items here are demand-driven — most aren't committed to until a real consumer asks. Status reflects intent at the time of last update; dates are absolute (not relative).</p>
+<p>For what already shipped in v0.1.0, see <a href="../design-notes/">Design notes</a>.</p>
+<hr />
+<h2 id="versioning-policy">Versioning policy<a class="headerlink" href="#versioning-policy" title="Permanent link">&para;</a></h2>
+<p>Scope of each release tier:</p>
+<ul>
+<li><strong>v0.x patch / minor releases</strong>: improvements to APIs that already exist —
+  bug fixes, doc clarifications, ergonomics fixes, and small additive helpers.
+  Breaking changes to fix existing API mistakes ship here too (pre-1.0 SemVer
+  permits this; the alternative — sitting on a known footgun until the next
+  feature cycle — is worse). Anything that makes <em>what's already shipped</em>
+  better or more correct belongs in a patch / minor.</li>
+<li><strong>v0.2.0+</strong>: net-new capability. Subscription handling. Testing artifact.
+  Anything that adds a feature the library didn't previously have. The
+  v0.2.0 plan below is scoped to additions, not improvements to existing
+  surface.</li>
+</ul>
+<p>If you're triaging an issue: "does this add a capability we didn't have?"
+→ minor release. "Does this fix or improve something we already shipped?"
+→ patch release.</p>
+<hr />
+<h2 id="v020-subscriptions-testing-artifact">v0.2.0 — Subscriptions + testing artifact<a class="headerlink" href="#v020-subscriptions-testing-artifact" title="Permanent link">&para;</a></h2>
+<p>Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.</p>
+<p><strong>Scope discipline:</strong> v0.2.0 is for <em>new capabilities only</em>. If a quality-of-life
+or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.</p>
+<h3 id="subscription-helpers-planned">Subscription helpers — <em>planned</em><a class="headerlink" href="#subscription-helpers-planned" title="Permanent link">&para;</a></h3>
+<p>PBL 8.x specifics the helpers must respect:</p>
+<ul>
+<li><strong>Replacement modes</strong> use <code>SubscriptionProductReplacementParams.setReplacementMode</code> per-line-item. The older <code>SubscriptionUpdateParams.setSubscriptionReplacementMode</code> was deprecated in PBL 8.1.</li>
+<li><strong>DEFERRED replacement</strong> delivers the new purchase token <em>immediately</em> (PBL 6+ behavior change), not at renewal. Helpers must process the new token right away rather than waiting.</li>
+<li><strong>Multi-product / add-on subscriptions</strong> — PBL 8 supports replacing multiple line items in one flow via per-line-item <code>SubscriptionProductReplacementParams</code>. Worth a dedicated helper.</li>
+<li><strong>Subscription offer-token selection</strong> walks <code>subscriptionOfferDetails</code> (base plans + offers); pick by <code>offerId</code>, base-plan-id, or a custom selector. Different shape from one-time products.</li>
+<li><strong>Pending purchases for prepaid plans (PBL 7+)</strong>: order ID isn't generated until pending payment confirms. Don't rely on order-ID presence for state-machine logic.</li>
+<li><strong>Six replacement modes</strong> — <code>CHARGE_FULL_PRICE</code>, <code>CHARGE_PRORATED_PRICE</code>, <code>WITH_TIME_PRORATION</code>, <code>WITHOUT_PRORATION</code>, <code>DEFERRED</code>, <code>KEEP_EXISTING</code> (last is for add-ons / partial replacement).</li>
+</ul>
+<p>Helpers to design:</p>
+<ul>
+<li><code>ProductDetails.selectDefaultBasePlan()</code> extension</li>
+<li><code>ProductDetails.selectOffer(offerId)</code> / <code>(predicate: (SubscriptionOfferDetails) -&gt; Boolean)</code> extensions</li>
+<li><code>ProductDetails.toSubscriptionFlowParams(offerToken, obfuscatedAccountId?, replacement?)</code> extension</li>
+<li><code>SubscriptionLineItemUpdate(oldProductId, newProductDetails, offerToken, replacementMode)</code> for multi-line-item flows</li>
+<li>Subs sample variant in <code>/sample</code></li>
+<li>Subscription upgrade/downgrade docs page in <code>/docs/</code></li>
+<li>README subs note loses the "not yet" disclaimer</li>
+</ul>
+<h4 id="replacement-mode-api-name-the-intent-not-the-mode">Replacement-mode API: name the intent, not the mode<a class="headerlink" href="#replacement-mode-api-name-the-intent-not-the-mode" title="Permanent link">&para;</a></h4>
+<p>Don't expose PBL's six raw replacement-mode integers directly — the names tell you <em>what proration math runs</em>, not <em>what plan change you're making</em>. Wrap intent in a sealed type so callers say what they mean and the helper picks the right PBL mode internally:</p>
+<p><code>kotlin
+public sealed class SubscriptionChange {
+    public data class Upgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class Downgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class CrossGrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
+    public data class AddOn(val existing: Purchase, val addition: ProductDetails, val offerToken: String) : SubscriptionChange()
+}</code></p>
+<p>Mapping the helper applies internally:</p>
+<table>
+<thead>
+<tr>
+<th>Intent</th>
+<th>PBL mode</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Upgrade</code></td>
+<td><code>CHARGE_PRORATED_PRICE</code></td>
+<td>Charges immediately for the upgrade delta; new tier active right away.</td>
+</tr>
+<tr>
+<td><code>Downgrade</code></td>
+<td><code>DEFERRED</code></td>
+<td>New tier activates at next renewal; user keeps current benefits through the paid period.</td>
+</tr>
+<tr>
+<td><code>CrossGrade</code></td>
+<td><code>WITHOUT_PRORATION</code></td>
+<td>Same price tier, no money math; instantaneous swap.</td>
+</tr>
+<tr>
+<td><code>AddOn</code></td>
+<td><code>KEEP_EXISTING</code></td>
+<td>Adds a line item without disturbing the existing one.</td>
+</tr>
+</tbody>
+</table>
+<p>Consumers who genuinely need a non-default mode can drop down to a lower-level <code>toSubscriptionFlowParams(replacementMode = ...)</code> overload. The sealed-type API is the front door; the raw mode is the escape hatch.</p>
+<h4 id="linkedpurchasetoken-surface-as-a-typed-sealed-variant">linkedPurchaseToken: surface as a typed sealed variant<a class="headerlink" href="#linkedpurchasetoken-surface-as-a-typed-sealed-variant" title="Permanent link">&para;</a></h4>
+<p>When a subscription replacement completes, the new <code>Purchase</code> carries a <code>linkedPurchaseToken</code> field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's <code>Purchase</code> API doesn't expose a getter for it — <code>Purchase.AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>; <code>linkedPurchaseToken</code> is only present in <code>purchase.originalJson</code>. Right now the library would emit a replacement purchase as <code>OwnedPurchases.Live</code> / <code>OwnedPurchases.Recovered</code>, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.</p>
+<p>Fix: add a dedicated <code>OwnedPurchases</code> variant emitted <em>instead of</em> <code>Live</code> (or <code>Recovered</code>) whenever <code>linkedPurchaseToken</code> is non-null:</p>
+<p><code>kotlin
+// Sealed-extends OwnedPurchases so it shares the existing branch
+// position in `when (event)` collectors — consumers handling
+// owned-state today can opt into replacement-aware logic by adding
+// the new arm without rewriting their existing OwnedPurchases.Live /
+// OwnedPurchases.Recovered handling.
+public data class SubscriptionReplacement(
+    val newPurchase: Purchase,
+    val linkedPurchaseToken: String,
+    override val purchases: List&lt;Purchase&gt; = listOf(newPurchase),
+) : OwnedPurchases()</code></p>
+<p>Detection lives in <code>FlowPurchasesUpdatedListener.computeUpdates</code>: when <code>responseCode == OK</code> and any settled purchase has a non-empty <code>linkedPurchaseToken</code> field in <code>originalJson</code>, emit <code>OwnedPurchases.SubscriptionReplacement</code> for that one (still partition the rest into <code>OwnedPurchases.Live</code> for completed-and-acknowledged-or-pending-ack purchases and <code>FlowOutcome.Pending</code> for <code>PURCHASE_STATE_PENDING</code> purchases, as today). Also emit <code>OwnedPurchases.SubscriptionReplacement</code> from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed — same JSON parsing, same conditions. Detection requires JSON-parsing <code>purchase.originalJson</code> and reading the <code>linkedPurchaseToken</code> field; PBL doesn't expose a getter (<code>Purchase.AccountIdentifiers</code> only carries the obfuscated IDs).</p>
+<p>This makes the wrong code not type-check: you literally can't unpack the variant without seeing both tokens. The consumer's correct response is "process the new token, invalidate the old."</p>
+<h4 id="sweep-impact">Sweep impact<a class="headerlink" href="#sweep-impact" title="Permanent link">&para;</a></h4>
+<p>The v0.1.x recovery sweep (which today emits <code>OwnedPurchases.Recovered</code>) already covers stranded subscription purchases — <code>queryPurchasesAsync(SUBS)</code> returns them and the same <code>PURCHASED &amp;&amp; !isAcknowledged</code> filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with <code>linkedPurchaseToken</code>) into <code>OwnedPurchases.SubscriptionReplacement</code> rather than the generic <code>OwnedPurchases.Recovered</code> variant, for the same reason the live-purchase path does.</p>
+<h3 id="billing-testing-artifact-planned"><code>:billing-testing</code> artifact — <em>planned</em><a class="headerlink" href="#billing-testing-artifact-planned" title="Permanent link">&para;</a></h3>
+<p>New Gradle module published as <code>com.kanetik.billing:billing-testing:0.2.0</code>:</p>
+<ul>
+<li><code>FakeBillingRepository</code> — in-memory <code>BillingRepository</code> for unit tests + debug-flavor DI overrides</li>
+<li>Test-control API: <code>setConnectionResult</code>, <code>emitPurchaseUpdate</code>, <code>setProducts</code>, <code>setPurchases</code>, <code>throwOnNext(BillingException)</code>, <code>simulateLaunchFlowResult</code></li>
+<li>Robolectric included → unblocks the four classes deferred from v0.1.0's test suite:</li>
+<li><code>PurchaseVerifier</code> (needs <code>android.util.Base64</code>)</li>
+<li><code>ProductDetails.toOneTimeFlowParams</code> (needs real PBL <code>BillingFlowParams.Builder</code> to satisfy validation)</li>
+<li><code>DefaultBillingRepository</code> orchestration (retry loop, <code>withTimeout</code>, <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)</li>
+<li><code>showInAppMessages</code> (needs the real <code>InAppMessageResult</code> shape)</li>
+<li>Unit tests covering every state transition the fake claims to support</li>
+<li>README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example</li>
+<li>Adopt in Wakey's debug flavor where <code>DebugConfig.mockUserType</code> currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds</li>
+</ul>
+<h3 id="app-revenue-tracker-adoption-planned">app-revenue-tracker adoption — <em>planned</em><a class="headerlink" href="#app-revenue-tracker-adoption-planned" title="Permanent link">&para;</a></h3>
+<p>Second real consumer once that app goes freemium. Almost certainly surfaces design issues that Wakey didn't, since the use cases differ (tracker is metric-driven; Wakey is feature-gating).</p>
+<h3 id="v020-docs-additions-planned">v0.2.0 docs additions — <em>planned</em><a class="headerlink" href="#v020-docs-additions-planned" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Pending-purchase docs: order-ID timing for prepaid plans (no order ID until completion)</li>
+<li>Subscription replacement-mode quick-reference table</li>
+<li><code>:billing-testing</code> integration patterns</li>
+<li>Pre-order full-flow example (PBL 8.1+ <code>OneTimePurchaseOfferDetails.preorderDetails</code>)</li>
+</ul>
+<hr />
+<h2 id="v030-candidate-structured-telemetry-events-design-sketched-no-consumer-yet">v0.3.0 candidate — Structured telemetry events (design sketched, no consumer yet)<a class="headerlink" href="#v030-candidate-structured-telemetry-events-design-sketched-no-consumer-yet" title="Permanent link">&para;</a></h2>
+<p><strong>Status:</strong> designed but uncommitted. No consumer has asked for this — captured here so the design isn't lost when one does, and so we don't accidentally bolt analytics onto the wrong place (e.g. the <code>BillingLogger</code> interface) in the meantime.</p>
+<p><strong>Premise:</strong> the library should never dial out. But consumers reasonably want to instrument their integration — track recovery-sweep counts in Firebase, alert on high failure rates in Crashlytics, A/B test acknowledgement timing. The right shape is <em>structured events the library emits, the consumer routes wherever</em>. Library never touches a network; consumer owns the destination, the privacy story, and the regulatory surface.</p>
+<h3 id="surface">Surface<a class="headerlink" href="#surface" title="Permanent link">&para;</a></h3>
+<p>```kotlin
+public sealed class BillingTelemetryEvent {
+    public data object ConnectionEstablished : BillingTelemetryEvent()
+    public data class ConnectionFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()</p>
+<pre><code>public data class RecoverySweepRan(val unacknowledgedCount: Int) : BillingTelemetryEvent()
+public data class RecoverySweepFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()
+
+public data class RetryAttempted(
+    val operation: String,         // "queryProductDetails", "consume", etc.
+    val attempt: Int,              // 1-indexed
+    val category: BillingErrorCategory
+) : BillingTelemetryEvent()
+
+public data class HandlePurchaseSucceeded(
+    val productIds: List&lt;String&gt;,
+    val consume: Boolean,
+    val recovered: Boolean         // true if from a Recovered emission, false from Success
+) : BillingTelemetryEvent()
+public data class HandlePurchaseFailed(
+    val productIds: List&lt;String&gt;,
+    val consume: Boolean,
+    val category: BillingErrorCategory
+) : BillingTelemetryEvent()
+public data object AcknowledgeShortCircuited : BillingTelemetryEvent()  // already-acked path
+
+public data class PurchaseFlowLaunched(val productId: String) : BillingTelemetryEvent()
+public data object PurchaseFlowAlreadyInProgress : BillingTelemetryEvent()
+public data object PurchaseFlowWatchdogTriggered : BillingTelemetryEvent()
+</code></pre>
+<p>}</p>
+<p>public interface BillingTelemetryOwner {
+    public fun observeTelemetry(): SharedFlow<BillingTelemetryEvent>
+}
+```</p>
+<p><code>BillingRepository</code> extends <code>BillingTelemetryOwner</code> alongside the existing <code>BillingActions</code> / <code>BillingConnector</code> / <code>BillingPurchaseUpdatesOwner</code>.</p>
+<h3 id="why-a-separate-interface-not-billinglogger">Why a separate interface, not <code>BillingLogger</code><a class="headerlink" href="#why-a-separate-interface-not-billinglogger" title="Permanent link">&para;</a></h3>
+<p><code>BillingLogger</code> is human-readable strings for logcat / Crashlytics breadcrumbs. Telemetry events are structured records for analytics pipelines. Same destination occasionally; different data shape, different consumers, different contracts. Mixing them on one interface bloats both with concerns that don't belong together.</p>
+<h3 id="privacy-data-handling-rules-baked-into-the-design">Privacy / data-handling rules baked into the design<a class="headerlink" href="#privacy-data-handling-rules-baked-into-the-design" title="Permanent link">&para;</a></h3>
+<ul>
+<li>No purchase tokens — they're sensitive identifiers; the consumer can correlate via <code>productIds</code> if needed.</li>
+<li>No signatures or <code>originalJson</code> — same reason.</li>
+<li>No raw user identifiers — no <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code> in events; the consumer already knows what it set.</li>
+<li>Categories, not raw response codes — emit <a href="https://github.com/kanetik/billing-library/blob/main/billing/src/main/kotlin/com/kanetik/billing/exception/BillingErrorCategory.kt"><code>BillingErrorCategory</code></a> (the same enum the UI uses), so events line up with the rest of the library's error model.</li>
+<li>Product IDs are fine — developer-controlled, not PII.</li>
+</ul>
+<h3 id="default-behavior">Default behavior<a class="headerlink" href="#default-behavior" title="Permanent link">&para;</a></h3>
+<p><code>MutableSharedFlow&lt;BillingTelemetryEvent&gt;(extraBufferCapacity = 32)</code>. Always emitting; cost is one struct allocation per event plus a small buffer (~3KB worst case). Consumer subscribes via <code>observeTelemetry()</code> when they want them; otherwise events flow into the buffer and roll off. No opt-in toggle in v1 — the cost is too small to justify a configuration knob.</p>
+<h3 id="wire-up-example-readme-addition">Wire-up example (README addition)<a class="headerlink" href="#wire-up-example-readme-addition" title="Permanent link">&para;</a></h3>
+<p><code>kotlin
+lifecycleScope.launch {
+    billing.observeTelemetry().collect { event -&gt;
+        when (event) {
+            is BillingTelemetryEvent.HandlePurchaseFailed -&gt; {
+                Firebase.analytics.logEvent("billing_handle_failed") {
+                    param("category", event.category.name)
+                    param("consume", event.consume.toString())
+                    // do NOT log productIds verbatim if they're SKU-named with PII
+                }
+            }
+            is BillingTelemetryEvent.RecoverySweepRan -&gt;
+                Firebase.analytics.logEvent("billing_recovery") {
+                    param("count", event.unacknowledgedCount.toLong())
+                }
+            else -&gt; {}  // no-op for events you don't care about
+        }
+    }
+}</code></p>
+<h3 id="out-of-scope-for-v1">Out of scope for v1<a class="headerlink" href="#out-of-scope-for-v1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>No event-type filtering at the library level — consumer does its own <code>filterIsInstance</code> / <code>when</code>.</li>
+<li>No timestamps in events — consumer adds them at the egress layer with its own clock.</li>
+<li>No sequence numbers — events are naturally ordered through the SharedFlow.</li>
+<li>No replay window — the recovery flow already covers "important state on connect"; telemetry is for instrumentation, not state recovery.</li>
+</ul>
+<h3 id="why-this-isnt-v020">Why this isn't v0.2.0<a class="headerlink" href="#why-this-isnt-v020" title="Permanent link">&para;</a></h3>
+<p>v0.2.0 is scoped to subscription handling + testing artifact (per the policy above). Telemetry doesn't fit that scope and shouldn't be jammed in. It's also worth waiting for a real consumer ask — the variant set above is my best guess at what's useful, but a consumer with a real Firebase/Mixpanel pipeline will surface gaps and excesses better than I can speculate to.</p>
+<p>If the design above looks roughly right when a consumer asks, the implementation is small (sealed type + interface + ~10 emission sites) — under a day of work plus tests.</p>
+<hr />
+<h2 id="future-post-v020-demand-driven">Future (post-v0.2.0) — demand-driven<a class="headerlink" href="#future-post-v020-demand-driven" title="Permanent link">&para;</a></h2>
+<p>Tracked but not committed. Most are build-when-asked.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>External offers / alternative billing / user-choice billing</td>
+<td>demand-driven</td>
+<td>PBL 8 added external-billing programs. Requires extending <code>BillingClientFactory</code> (or adding a parallel factory) to call <code>enableUserChoiceBilling</code> / <code>enableBillingProgram</code>. Region-gated (EEA + others); only worth it if a consumer needs it.</td>
+</tr>
+<tr>
+<td>Real-Time Developer Notifications (RTDN) helpers</td>
+<td>likely out of scope</td>
+<td>RTDN is server-side (Cloud Pub/Sub from Play). If we add server-side helpers, they ship as a separate artifact (<code>com.kanetik.billing:billing-server</code> or similar), not folded into the client lib. README v0.1.0 documents the boundary.</td>
+</tr>
+<tr>
+<td>Virtual installment subscription support</td>
+<td>demand-driven</td>
+<td>PBL 7+ feature, regional (Brazil, France, Italy, Spain). Niche but exists; build only on request.</td>
+</tr>
+<tr>
+<td>Subscription pause / resume / migrate APIs</td>
+<td>demand-driven</td>
+<td>PBL exposes these; we can layer helpers when a consumer needs them.</td>
+</tr>
+<tr>
+<td>Promo code redemption flow helpers</td>
+<td>demand-driven</td>
+<td>Play handles redemption; library could surface redemption events more cleanly. Niche.</td>
+</tr>
+<tr>
+<td>Pre-order full lifecycle helpers</td>
+<td>demand-driven</td>
+<td>PBL 8.1+ <code>OneTimePurchaseOfferDetails.preorderDetails</code>. v0.2.0 docs cover the manual path; helpers are post-v0.2.0.</td>
+</tr>
+<tr>
+<td><code>getBillingConfigAsync</code> exposure</td>
+<td>demand-driven</td>
+<td>Region-specific UX customization. Niche; defer until requested.</td>
+</tr>
+<tr>
+<td>Connection grace-window tunable</td>
+<td>demand-driven</td>
+<td>The 60s <code>WhileSubscribed</code> is currently hardcoded. Could surface as a creator parameter if a consumer needs different timing.</td>
+</tr>
+<tr>
+<td><code>getConnectionState()</code> direct accessor</td>
+<td>demand-driven</td>
+<td>PBL exposes <code>ConnectionState</code> (OK / CONNECTING / DISCONNECTED / DISCONNECTING). Our <code>SharedFlow&lt;BillingConnectionResult&gt;</code> collapses to Success/Error. If consumers want to render "connecting…" UI, expose the finer state.</td>
+</tr>
+<tr>
+<td>Java consumer interop pass (<code>@JvmStatic</code>, <code>@JvmOverloads</code>, etc.)</td>
+<td>rejected for now</td>
+<td>Skipped per Kotlin-first decision; revisit only if Java consumers complain.</td>
+</tr>
+<tr>
+<td>ABI stability tooling (binary-compatibility-validator)</td>
+<td>scheduled for ~1.0</td>
+<td>Approaching 1.0: integrate the plugin to track public-ABI changes between versions.</td>
+</tr>
+<tr>
+<td>Compose-aware lifecycle helpers</td>
+<td>demand-driven</td>
+<td>If a consumer wants <code>rememberBillingRepository(...)</code> Compose-side affordances, build then.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="how-items-get-added">How items get added<a class="headerlink" href="#how-items-get-added" title="Permanent link">&para;</a></h2>
+<p>Open an issue at <a href="https://github.com/kanetik/billing-library/issues">https://github.com/kanetik/billing-library/issues</a> with:</p>
+<ol>
+<li><strong>Use case</strong> — what app are you building, and what's the friction with the current API?</li>
+<li><strong>Concrete proposal</strong> — API shape you'd want, even if rough. Code samples beat prose.</li>
+<li><strong>Willingness to test</strong> — first consumer of a new feature gets weight in the design.</li>
+</ol>
+<p>Issues with a clear use case + a real consumer almost always make it onto this roadmap. Pure speculation without a consumer typically doesn't.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.sections", "navigation.tabs", "navigation.top", "content.code.copy", "content.code.annotate", "search.suggest", "search.highlight"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      
+    
+  </body>
+</html>

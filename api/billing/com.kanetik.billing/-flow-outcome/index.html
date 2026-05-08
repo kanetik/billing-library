@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>FlowOutcome</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing/FlowOutcome///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><span class="current">FlowOutcome</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Flow</span><wbr></wbr><span><span>Outcome</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">sealed </span><span class="token keyword">class </span><a href="index.html">FlowOutcome</a> : <a href="../-purchase-event/index.html">PurchaseEvent</a></div><p class="paragraph">Purchase-flow attempt outcomes. These describe what <i>happened</i> on a single launch attempt, not what the user owns. <strong>Do not write </strong><code class="strong lang-kotlin"><strong>purchases</strong></code><strong> from a </strong><a href="index.html"><strong>FlowOutcome</strong></a><strong> to your entitlement cache</strong> — for <a href="-pending/index.html">Pending</a> those purchases haven't completed yet, and for the rest the list is typically empty.</p><p class="paragraph">The variants:</p><ul><li><p class="paragraph"><a href="-pending/index.html">Pending</a> — purchases that completed at the protocol level but await     confirmation. Wait for a matching <a href="../-owned-purchases/-live/index.html">OwnedPurchases.Live</a> before granting.</p></li><li><p class="paragraph"><a href="-canceled/index.html">Canceled</a> — user dismissed the flow.</p></li><li><p class="paragraph"><a href="-item-already-owned/index.html">ItemAlreadyOwned</a> — non-consumable already owned; treat as already-granted     (restore entitlement from your own records).</p></li><li><p class="paragraph"><a href="-item-unavailable/index.html">ItemUnavailable</a> — product not available (region, country, etc.).</p></li><li><p class="paragraph"><a href="-failure/index.html">Failure</a> — Play returned a typed-failure response code (network error,     billing-unavailable, service unavailable, etc.). Carries the matching     <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">com.kanetik.billing.exception.BillingException</a> subtype so consumers can     branch on <code class="lang-kotlin">userFacingCategory</code> / <code class="lang-kotlin">retryType</code> without re-deriving.</p></li><li><p class="paragraph"><a href="-unknown-response/index.html">UnknownResponse</a> — anything else (raw response code in <a href="-unknown-response/code.html">UnknownResponse.code</a>).</p></li></ul><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-pending/index.html">Pending</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-canceled/index.html">Canceled</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-item-already-owned/index.html">ItemAlreadyOwned</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-item-unavailable/index.html">ItemUnavailable</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-failure/index.html">Failure</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="-unknown-response/index.html">UnknownResponse</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="133666248%2FClasslikes%2F-593106385" anchor-label="Canceled" id="133666248%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-canceled/index.html"><span><span>Canceled</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="133666248%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-canceled/index.html">Canceled</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">User dismissed the purchase flow. <code class="lang-kotlin">purchases</code> is typically empty.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1458275369%2FClasslikes%2F-593106385" anchor-label="Failure" id="-1458275369%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-failure/index.html"><span><span>Failure</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1458275369%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-failure/index.html">Failure</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>exception<span class="token operator">: </span><a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">A purchase-flow callback that surfaced a typed <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtype Play Billing classifies as a failure (network errors, billing-unavailable, service unavailable, etc.). Carries the original exception so consumers can branch on subtype, <a href="../../com.kanetik.billing.exception/-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>, or <a href="../../com.kanetik.billing.exception/-billing-exception/retry-type.html">BillingException.retryType</a> without re-deriving from response codes.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="622093409%2FClasslikes%2F-593106385" anchor-label="ItemAlreadyOwned" id="622093409%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-item-already-owned/index.html"><span>Item</span><wbr></wbr><span>Already</span><wbr></wbr><span><span>Owned</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="622093409%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-item-already-owned/index.html">ItemAlreadyOwned</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">Non-consumable already owned. Treat as already-granted: restore entitlement from your own records rather than surfacing an error. <code class="lang-kotlin">purchases</code> is typically empty.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2033806972%2FClasslikes%2F-593106385" anchor-label="ItemUnavailable" id="-2033806972%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-item-unavailable/index.html"><span>Item</span><wbr></wbr><span><span>Unavailable</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2033806972%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-item-unavailable/index.html">ItemUnavailable</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">Product not available for this user (region, country, configuration). <code class="lang-kotlin">purchases</code> is typically empty.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-602121110%2FClasslikes%2F-593106385" anchor-label="Pending" id="-602121110%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-pending/index.html"><span><span>Pending</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-602121110%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-pending/index.html">Pending</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">Purchases that completed at the protocol level but await confirmation (cash payments, deferred billing, prepaid plans on PBL 7+).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="670980566%2FClasslikes%2F-593106385" anchor-label="UnknownResponse" id="670980566%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-unknown-response/index.html"><span>Unknown</span><wbr></wbr><span><span>Response</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="670980566%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-unknown-response/index.html">UnknownResponse</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>code<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="index.html">FlowOutcome</a></div><div class="brief "><p class="paragraph">Any response code outside the documented set above. Raw integer code preserved in <span data-unresolved-link="com.kanetik.billing/FlowOutcome.UnknownResponse//#kotlin.Int#kotlin.collections.List[com.android.billingclient.api.Purchase]/PointingToCallableParameters(0)/">code</span> for diagnostics; <code class="lang-kotlin">purchases</code> is typically empty.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="-579649540%2FProperties%2F-593106385" anchor-label="purchases" id="-579649540%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="purchases.html"><span><span>purchases</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-579649540%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">val </span><a href="purchases.html">purchases</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>BillingActions</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.1-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing/BillingActions///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><span class="current">BillingActions</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Billing</span><wbr></wbr><span><span>Actions</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">interface </span><a href="index.html">BillingActions</a></div><p class="paragraph">Suspend-style operations against Google Play Billing.</p><p class="paragraph">Every method waits for the underlying <span data-unresolved-link="com.android.billingclient.api/BillingClient///PointingToDeclaration/">com.android.billingclient.api.BillingClient</span> connection (see <a href="../-billing-connector/index.html">BillingConnector</a>), runs with internal retry / backoff for transient failures, and surfaces hard failures as a typed <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtype so consumers can branch by <a href="../-retry-type/index.html">com.kanetik.billing.RetryType</a> without parsing strings.</p><h2 class="">Wrapping suspend members for resilience</h2><p class="paragraph">Suspend members propagate <strong>structured cancellation</strong> correctly: a <span data-unresolved-link="kotlinx.coroutines/CancellationException///PointingToDeclaration/">kotlinx.coroutines.CancellationException</span> raised by the surrounding scope being torn down is rethrown so cancellation cascades. Internal <code class="lang-kotlin">withTimeout</code> timeouts — which surface as <span data-unresolved-link="kotlinx.coroutines/TimeoutCancellationException///PointingToDeclaration/">kotlinx.coroutines.TimeoutCancellationException</span>, a <code class="lang-kotlin">CancellationException</code> subclass — are intentionally converted into a <a href="../../com.kanetik.billing.exception/-billing-exception/index.html">com.kanetik.billing.exception.BillingException</a> instead, since they represent a billing-layer failure rather than a scope teardown.</p><p class="paragraph">If you wrap a call to absorb non-billing failures (e.g. inside a long-lived collector that should not die on a transient billing error), use an explicit <code class="lang-kotlin">try/catch</code> that <strong>rethrows</strong> <code class="lang-kotlin">CancellationException</code> rather than <code class="lang-kotlin">runCatching { ... }</code> — the standard <code class="lang-kotlin">runCatching</code> catches every <code class="lang-kotlin">Throwable</code>, including <code class="lang-kotlin">CancellationException</code>, and silently swallows scope cancellation:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">try {<br>    billing.queryPurchases(params)<br>} catch (e: kotlinx.coroutines.CancellationException) {<br>    throw e<br>} catch (e: Exception) {<br>    // log / handle non-cancellation failures<br>}</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div><p class="paragraph"><code class="lang-kotlin">Exception</code> (not <code class="lang-kotlin">Throwable</code>) so JVM <code class="lang-kotlin">Error</code>s — <code class="lang-kotlin">OutOfMemoryError</code>, <code class="lang-kotlin">LinkageError</code>, etc. — propagate. (The library's own catch chains in <a href="handle-purchase.html">handlePurchase</a> go further: they catch <code class="lang-kotlin">Throwable</code> for typed-result completeness, but rethrow <code class="lang-kotlin">VirtualMachineError</code>, <code class="lang-kotlin">LinkageError</code>, and <code class="lang-kotlin">ThreadDeath</code> explicitly before any broad catch — same end result.)</p><p class="paragraph">This is general kotlinx-coroutines hygiene (not billing-specific) but worth calling out because long-lived collectors of <a href="../-billing-purchase-updates-owner/observe-purchase-updates.html">BillingPurchaseUpdatesOwner.observePurchaseUpdates</a> and resilience-wrapped <code class="lang-kotlin">BillingActions</code> calls are the two most common sites where this footgun bites.</p><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-billing-repository/index.html">BillingRepository</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="814757962%2FFunctions%2F-593106385" anchor-label="acknowledgePurchase" id="814757962%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="acknowledge-purchase.html"><span>acknowledge</span><wbr></wbr><span><span>Purchase</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="814757962%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="acknowledge-purchase.html"><span class="token function">acknowledgePurchase</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/AcknowledgePurchaseParams///PointingToDeclaration/">AcknowledgePurchaseParams</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Acknowledges a non-consumable purchase. Play requires acknowledgement within 3 days of purchase or the transaction is auto-refunded.</p></div><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">open </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="acknowledge-purchase.html"><span class="token function">acknowledgePurchase</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">purchase<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Convenience overload that acknowledges <a href="acknowledge-purchase.html">purchase</a> only if it isn't already acknowledged.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-426070583%2FFunctions%2F-593106385" anchor-label="consumePurchase" id="-426070583%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="consume-purchase.html"><span>consume</span><wbr></wbr><span><span>Purchase</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-426070583%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="consume-purchase.html"><span class="token function">consumePurchase</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/ConsumeParams///PointingToDeclaration/">ConsumeParams</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></div><div class="brief "><p class="paragraph">Consumes a one-time consumable purchase, allowing the user to buy it again.</p></div><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">open </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="consume-purchase.html"><span class="token function">consumePurchase</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">purchase<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></div><div class="brief "><p class="paragraph">Convenience overload that consumes <a href="consume-purchase.html">purchase</a> using its purchase token.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1226330752%2FFunctions%2F-593106385" anchor-label="handlePurchase" id="1226330752%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="handle-purchase.html"><span>handle</span><wbr></wbr><span><span>Purchase</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1226330752%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/CheckResult.html"><span class="token annotation builtin">CheckResult</span></a><span class="token punctuation">(</span><span>suggest<span class="token operator"> = </span><span class="breakable-word"><span class="token string">&quot;branch on all HandlePurchaseResult variants (Success / AlreadyAcknowledged / NotPurchased / NotOwned / Failure) to gate entitlement grant — ignoring this return value re-introduces the grant-on-failure bug the typed result is meant to prevent&quot;</span></span></span><wbr></wbr><span class="token punctuation">)</span></div></div><span class="token keyword">open </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="handle-purchase.html"><span class="token function">handlePurchase</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">purchase<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token punctuation">, </span></span><span class="parameter ">consume<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-handle-purchase-result/index.html">HandlePurchaseResult</a></div><div class="brief "><p class="paragraph">High-level helper: post-process a <a href="handle-purchase.html">purchase</a> by either consuming it (for consumables) or acknowledging it (for non-consumables), based on <a href="handle-purchase.html">consume</a>. Returns a typed <a href="../-handle-purchase-result/index.html">HandlePurchaseResult</a> — branch on it; <strong>don't ignore the return value</strong>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="655626448%2FFunctions%2F-593106385" anchor-label="isFeatureSupported" id="655626448%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="is-feature-supported.html"><span>is</span><wbr></wbr><span>Feature</span><wbr></wbr><span><span>Supported</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="655626448%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="is-feature-supported.html"><span class="token function">isFeatureSupported</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">feature<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="36865398%2FFunctions%2F-593106385" anchor-label="launchFlow" id="36865398%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="launch-flow.html"><span>launch</span><wbr></wbr><span><span>Flow</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="36865398%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/MainThread.html"><span class="token annotation builtin">MainThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="launch-flow.html"><span class="token function">launchFlow</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">activity<span class="token operator">: </span><a href="https://developer.android.com/reference/kotlin/android/app/Activity.html">Activity</a><span class="token punctuation">, </span></span><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingFlowParams///PointingToDeclaration/">BillingFlowParams</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Launches the Play Billing purchase flow.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-841977728%2FFunctions%2F-593106385" anchor-label="queryProductDetails" id="-841977728%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="query-product-details.html"><span>query</span><wbr></wbr><span>Product</span><wbr></wbr><span><span>Details</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-841977728%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="query-product-details.html"><span class="token function">queryProductDetails</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/QueryProductDetailsParams///PointingToDeclaration/">QueryProductDetailsParams</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/ProductDetails///PointingToDeclaration/">ProductDetails</span><span class="token operator">&gt;</span></div><div class="brief "><p class="paragraph">Resolves <a href="query-product-details.html">params</a> to product details. Products that Play could not fetch (typo'd IDs, geo-restricted, etc.) are silently dropped from the returned list — use <a href="query-product-details-with-unfetched.html">queryProductDetailsWithUnfetched</a> to diagnose them.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1422446002%2FFunctions%2F-593106385" anchor-label="queryProductDetailsWithUnfetched" id="1422446002%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="query-product-details-with-unfetched.html"><span>query</span><wbr></wbr><span>Product</span><wbr></wbr><span>Details</span><wbr></wbr><span>With</span><wbr></wbr><span><span>Unfetched</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1422446002%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="query-product-details-with-unfetched.html"><span class="token function">queryProductDetailsWithUnfetched</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/QueryProductDetailsParams///PointingToDeclaration/">QueryProductDetailsParams</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-product-details-query/index.html">ProductDetailsQuery</a></div><div class="brief "><p class="paragraph">Same as <a href="query-product-details.html">queryProductDetails</a> but also exposes the list of products Play Billing could not fetch. The Kotlin coroutine extension shipped by <code class="lang-kotlin">billing-ktx</code> 8.x returns the legacy <code class="lang-kotlin">ProductDetailsResult</code>, which discards this information — use this overload when you need diagnostics on missing products.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="740315604%2FFunctions%2F-593106385" anchor-label="queryPurchases" id="740315604%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="query-purchases.html"><span>query</span><wbr></wbr><span><span>Purchases</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="740315604%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/AnyThread.html"><span class="token annotation builtin">AnyThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="query-purchases.html"><span class="token function">queryPurchases</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/QueryPurchasesParams///PointingToDeclaration/">QueryPurchasesParams</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></div><div class="brief "><p class="paragraph">Returns the user's currently-owned purchases for the <a href="query-purchases.html">params</a>-specified product type. Pass <span data-unresolved-link="com.android.billingclient.api/BillingClient.ProductType/INAPP/#/PointingToDeclaration/">BillingClient.ProductType.INAPP</span> for one-time products, <span data-unresolved-link="com.android.billingclient.api/BillingClient.ProductType/SUBS/#/PointingToDeclaration/">BillingClient.ProductType.SUBS</span> for subscriptions.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1456048552%2FFunctions%2F-593106385" anchor-label="showInAppMessages" id="1456048552%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="show-in-app-messages.html"><span>show</span><wbr></wbr><span>In</span><wbr></wbr><span>App</span><wbr></wbr><span><span>Messages</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1456048552%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://developer.android.com/reference/kotlin/androidx/annotation/MainThread.html"><span class="token annotation builtin">MainThread</span></a></div></div><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="show-in-app-messages.html"><span class="token function">showInAppMessages</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">activity<span class="token operator">: </span><a href="https://developer.android.com/reference/kotlin/android/app/Activity.html">Activity</a><span class="token punctuation">, </span></span><span class="parameter ">params<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/InAppMessageParams///PointingToDeclaration/">InAppMessageParams</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-billing-in-app-message-result/index.html">BillingInAppMessageResult</a></div><div class="brief "><p class="paragraph">Shows Google Play's transactional in-app messages overlaid on <a href="show-in-app-messages.html">activity</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
