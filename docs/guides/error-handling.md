@@ -1,5 +1,12 @@
 # Error handling
 
+PBL hands you back errors as integer response codes on a `BillingResult` — `BILLING_RESPONSE_CODE_3`, `7`, `8`, etc. The codes have very different stakes: a `NETWORK_ERROR` is a "try again in a moment," `BILLING_UNAVAILABLE` means hide the in-app-purchase UI entirely (Play Store missing, account ineligible, region restriction), `ITEM_ALREADY_OWNED` is closer to a success-with-restore than an error, and `DEVELOPER_ERROR` means you wrote the API call wrong and retrying won't help. The naive integration treats them all the same and either hammers Play with retries or shows a generic "something went wrong" dialog for everything.
+
+The library does two things to make this tractable:
+
+1. Maps each response code to a typed `BillingException` subtype with a `RetryType` hint, and runs the retries that should happen automatically (network errors back off exponentially, transient disconnects retry quickly, ownership-mismatches re-query owned state and try once more). What reaches your `catch` is what didn't recover.
+2. Categorizes every exception into a `BillingErrorCategory` enum (seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) so your UI can localize per bucket without you having to memorize twelve response codes.
+
 Most `BillingActions` methods that fail throw a typed `BillingException` subtype — `queryPurchases`, `queryProductDetails`, `queryProductDetailsWithUnfetched`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see [Handling `handlePurchase` failures correctly](#handling-handlepurchase-failures-correctly) below). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing — what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
 
 For UI handling, branch on `userFacingCategory` (see [Showing errors to users](#showing-errors-to-users) below). For lower-level branching, use the sealed subtype directly:

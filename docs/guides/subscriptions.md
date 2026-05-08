@@ -1,6 +1,10 @@
 # Subscriptions (v0.1.x)
 
-The v0.1.x series supports subscriptions at the *protocol* level — `queryPurchases`, `queryProductDetails`, `launchFlow` all accept `BillingClient.ProductType.SUBS`. What's missing in v0.1.x:
+Subscriptions are a deeper rabbit hole than one-time purchases. PBL adds offer-token selection (a single product can have multiple base plans, each with multiple offers — free trials, intro pricing, regional discounts), multi-line-item replacements (upgrades / downgrades / add-ons in a single flow), deferred billing for prepaid plans, and a `linkedPurchaseToken` field that — if you miss it — double-grants entitlement on every plan change because the new purchase looks identical to a fresh buy. Most apps that ship subs and skip these end up either over-granting (free upgrades for everyone who taps the wrong button) or stranding users on stale plans.
+
+The v0.1.x series supports subscriptions at the *protocol* level — `queryPurchases`, `queryProductDetails`, `launchFlow` all accept `BillingClient.ProductType.SUBS`. What that means in practice: you can buy / observe / acknowledge subscriptions today, but the offer-selection and replacement-mode helpers that make the dev ergonomics tolerable are still on you. Typed helpers land in v0.2.0; this guide documents the manual path until then.
+
+What's missing in v0.1.x:
 
 - Subscription offer-token selection helpers.
 - Multi-line-item replacement helpers (`SubscriptionProductReplacementParams`).
