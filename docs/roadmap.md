@@ -2,7 +2,7 @@
 
 What's next for the Kanetik Billing Library. Items here are demand-driven — most aren't committed to until a real consumer asks. Status reflects intent at the time of last update; dates are absolute (not relative).
 
-For what already shipped in v0.1.0, see [`BUILD_HISTORY.md`](BUILD_HISTORY.md).
+For what already shipped in v0.1.0, see [Design notes](design-notes.md).
 
 ---
 

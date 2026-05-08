@@ -1,0 +1,71 @@
+site_name: Kanetik Billing Library
+site_description: A coroutine-first wrapper around Google Play Billing Library 8.x.
+site_url: https://kanetik.github.io/billing-library/
+repo_url: https://github.com/kanetik/billing-library
+repo_name: kanetik/billing-library
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quick start: quick-start.md
+  - Guides:
+      - Purchase recovery: guides/purchase-recovery.md
+      - Error handling: guides/error-handling.md
+      - EntitlementCache: guides/entitlement-cache.md
+      - Signature verification: guides/signature-verification.md
+      - Server-driven revocation: guides/server-driven-revocation.md
+      - Lifecycle integration: guides/lifecycle.md
+      - Logging: guides/logging.md
+      - Dependency injection: guides/dependency-injection.md
+      - Multi-quantity purchases: guides/multi-quantity.md
+      - Multi-offer products: guides/multi-offer-products.md
+      - Product-details caching: guides/product-details-caching.md
+      - In-app messaging: guides/in-app-messaging.md
+      - Subscriptions (v0.1.x): guides/subscriptions.md
+  - Reference:
+      - API overview: reference/api-overview.md
+      - Replay semantics: reference/replay-semantics.md
+      - Extensions: reference/extensions.md
+      - Limitations: reference/limitations.md
+  - Testing: testing.md
+  - Roadmap: roadmap.md
+  - Design notes: design-notes.md

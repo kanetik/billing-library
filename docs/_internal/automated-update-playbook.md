@@ -412,7 +412,7 @@ stable release, while protecting consumers from breaking changes.
    no issue, no notification. Done.
 
 4. If the wrapper is behind: clone the repo, then read the playbook at
-   docs/AUTOMATED_UPDATE_PLAYBOOK.md and follow it end-to-end. The playbook
+   docs/_internal/automated-update-playbook.md and follow it end-to-end. The playbook
    covers:
    - Categorizing the release as safe vs risky
    - Branching (main vs next, creating next if needed)

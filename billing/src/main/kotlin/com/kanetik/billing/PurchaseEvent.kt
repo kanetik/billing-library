@@ -190,7 +190,7 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * Subscription upgrade/downgrade/crossgrade purchases carry a non-null
      * `linkedPurchaseToken` pointing at the prior subscription. Treating them
      * as fresh grants double-grants entitlement on plan changes. Until v0.2.0
-     * ships the typed `SubscriptionReplacement` variant (see `docs/ROADMAP.md`),
+     * ships the typed `SubscriptionReplacement` variant (see the [Roadmap](https://kanetik.github.io/billing-library/roadmap/)),
      * consumers handling subscriptions need to parse `purchase.originalJson`
      * for the `linkedPurchaseToken` field — PBL's [Purchase] API doesn't
      * expose a getter for it (`Purchase.AccountIdentifiers` only carries

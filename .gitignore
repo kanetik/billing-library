@@ -54,5 +54,11 @@ secring.gpg
 .DS_Store
 Thumbs.db
 
+# MkDocs site build output (Pages workflow builds + deploys this)
+site/
+
+# Dokka HTML output mounted into docs/api/ at CI time (see docs.yml)
+docs/api/
+
 # Claude Code
 .claude/settings.local.json

@@ -102,7 +102,7 @@ If you change the action, the trigger and applet name stay the same — the play
 
 If `Kanetik PBL Update Notification` doesn't fit your naming convention:
 1. Rename the applet in IFTTT.
-2. Edit `docs/AUTOMATED_UPDATE_PLAYBOOK.md` section 10 and section 11 (the Routine prompt) to match.
+2. Edit `docs/_internal/automated-update-playbook.md` section 10 and section 11 (the Routine prompt) to match.
 3. Update both places — the rule and the prompt — to keep them in sync.
 
 ---

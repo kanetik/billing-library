@@ -617,8 +617,8 @@ arrive only when the consumer pushes them via
 - **Maven Central publishing infrastructure** — vanniktech maven-publish
   plugin wiring, Apache-2.0 + scm + developer POM metadata, GitHub Actions
   CI on PR/main and tag-driven publish to Sonatype Central Portal staging.
-- **Documentation** — `/docs/MANUAL_SETUP.md`, `/docs/BUILD_HISTORY.md`,
-  `/docs/ROADMAP.md`.
+- **Documentation** — `/docs/_internal/manual-setup.md`, `/docs/design-notes.md`,
+  `/docs/roadmap.md`.
 
 ### Attribution
 

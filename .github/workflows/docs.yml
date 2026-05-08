@@ -1,0 +1,55 @@
+name: Publish docs site
+
+# Builds the MkDocs Material site and pushes the result to the gh-pages
+# branch. GitHub Pages serves that branch at
+# https://kanetik.github.io/billing-library/.
+#
+# Triggers on push to main when docs sources change. Manual dispatch is
+# available too for forcing a rebuild after a Pages settings change.
+#
+# One-time setup after the first successful run of this workflow:
+#   Repo Settings -> Pages -> Source: "Deploy from a branch" -> Branch: gh-pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-docs:
+    name: Build and deploy docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs-material
+
+      - name: Configure git for gh-deploy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy to gh-pages
+        run: mkdocs gh-deploy --force
