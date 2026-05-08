@@ -28,6 +28,10 @@ on:
       - 'README.md'
       - 'billing/src/main/kotlin/**'
       - 'billing/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/**'
   pull_request:
     paths:
       - 'docs/**'
@@ -36,6 +40,10 @@ on:
       - 'README.md'
       - 'billing/src/main/kotlin/**'
       - 'billing/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/**'
   workflow_dispatch:
 
 # Single in-flight build per branch / PR. If a second commit lands on
