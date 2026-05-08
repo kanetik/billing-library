@@ -116,7 +116,7 @@ That's enough for a working one-time-IAP integration. Subscriptions work at the 
 >   than replacing your cache from `event.purchases`. For managed
 >   entitlement state with grace policy, use `EntitlementCache`.
 > - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
->   `ItemUnavailable`, `UnknownResponse`) — purchase-flow attempt outcomes.
+>   `ItemUnavailable`, `Failure`, `UnknownResponse`) — purchase-flow attempt outcomes.
 >   These describe what *happened* on a single launch attempt. The
 >   `purchases` list is typically empty (or, for `Pending`, purchases
 >   that haven't completed yet) and **must not** be written to an
