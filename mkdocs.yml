@@ -38,6 +38,12 @@ theme:
 exclude_docs: |
   _internal/
 
+# Trimmed to what the docs actually use. We don't reference snippet
+# includes (--8<--), so pymdownx.snippets came along just to crash on
+# filename=None. pymdownx.inlinehilite is for `:::lang` inline code
+# which we don't use either. pymdownx.highlight's anchor_linenums was
+# tripping the same html.escape(None) path; mkdocs-material's theme
+# handles syntax coloring on superfences blocks without it.
 markdown_extensions:
   - admonition
   - attr_list
@@ -47,10 +53,6 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.superfences
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
 
 nav:
   - Home: index.md
