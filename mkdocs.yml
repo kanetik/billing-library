@@ -29,6 +29,14 @@ theme:
         icon: material/weather-night
         name: Switch to light mode
 
+validation:
+  # docs/api/ is populated at CI time from Dokka HTML output (see
+  # .github/workflows/docs.yml). Locally it's gitignored and empty, so
+  # don't error on the api/index.html nav entry until mkdocs build runs
+  # in the workflow.
+  nav:
+    not_found: ignore
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -69,3 +77,4 @@ nav:
   - Testing: testing.md
   - Roadmap: roadmap.md
   - Design notes: design-notes.md
+  - API (Dokka): api/index.html

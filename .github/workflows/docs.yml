@@ -1,11 +1,13 @@
 name: Publish docs site
 
-# Builds the MkDocs Material site and pushes the result to the gh-pages
-# branch. GitHub Pages serves that branch at
-# https://kanetik.github.io/billing-library/.
+# Builds the MkDocs Material site (with Dokka HTML mounted at /api/) and
+# pushes the result to the gh-pages branch. GitHub Pages serves that
+# branch at https://kanetik.github.io/billing-library/.
 #
-# Triggers on push to main when docs sources change. Manual dispatch is
-# available too for forcing a rebuild after a Pages settings change.
+# Triggers on push to main when docs sources change, when the README
+# changes (the slim README links to the docs site), or when the source
+# KDoc that feeds Dokka changes. Manual dispatch is available too for
+# forcing a rebuild after a Pages settings change.
 #
 # One-time setup after the first successful run of this workflow:
 #   Repo Settings -> Pages -> Source: "Deploy from a branch" -> Branch: gh-pages
@@ -19,6 +21,8 @@ on:
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
       - 'README.md'
+      - 'billing/src/main/kotlin/**'
+      - 'billing/build.gradle.kts'
   workflow_dispatch:
 
 permissions:
@@ -28,13 +32,40 @@ jobs:
   publish-docs:
     name: Build and deploy docs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up JDK 17 (for Gradle / Dokka)
+        # Gradle 9.x requires JDK 17+ to run; Dokka 2.x runs in the same
+        # daemon. The produced AAR still targets JDK 11 via jvmToolchain(11).
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Dokka HTML
+        # `dokkaGeneratePublicationHtml` is the same task vanniktech's
+        # JavadocJar.Dokka(...) calls during Maven Central publish, so the
+        # output here matches what consumers see in the Maven Javadoc JAR.
+        run: ./gradlew :billing:dokkaGeneratePublicationHtml --no-configuration-cache
+
+      - name: Mount Dokka output under docs/api/
+        run: |
+          rm -rf docs/api
+          mkdir -p docs/api
+          # Dokka 2.x writes to billing/build/dokka/html. Copy the contents
+          # (not the directory itself) so docs/api/index.html is the entry
+          # point referenced from mkdocs.yml's nav.
+          cp -r billing/build/dokka/html/. docs/api/
+          test -f docs/api/index.html || (echo "Dokka output missing index.html" && ls -la billing/build/dokka/html/ && exit 1)
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
