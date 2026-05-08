@@ -10,6 +10,7 @@ import com.kanetik.billing.BillingRepositoryCreator
 import com.kanetik.billing.FlowOutcome
 import com.kanetik.billing.HandlePurchaseResult
 import com.kanetik.billing.OwnedPurchases
+import com.kanetik.billing.PurchaseRevoked
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
 import com.kanetik.billing.logging.BillingLogger
@@ -29,25 +30,15 @@ class CheckoutActivity : ComponentActivity() {
         // Keep the connection alive for the lifetime of this activity.
         lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
 
-        // Observe purchase events from the global PurchasesUpdatedListener.
-        // `Recovered` replays its most recent snapshot to re-subscribed
-        // collectors (configuration change, ViewModel recreation), so dedupe
-        // by purchaseToken in the Recovered branch — see "Purchase recovery"
-        // for the full pattern. Persist `handledRecoveredTokens` if the
-        // dedupe needs to survive process death.
-        val handledRecoveredTokens = MutableStateFlow<Set<String>>(emptySet())
+        // Observe purchase events. The library's BillingClientStorage tracks
+        // acknowledged tokens internally and filters them out of `Recovered`
+        // at delivery time, so already-handled recovered purchases aren't
+        // re-delivered on re-subscribe — no consumer-side dedupe needed.
         lifecycleScope.launch {
             billing.observePurchaseUpdates().collect { event ->
                 when (event) {
                     is OwnedPurchases.Live -> event.purchases.forEach { handle(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
-                        if (purchase.purchaseToken in handledRecoveredTokens.value) return@forEach
-                        // Only mark token as handled on Success — Failure leaves it for the
-                        // next sweep to retry, NotPurchased waits for the terminal state.
-                        if (handle(purchase)) {
-                            handledRecoveredTokens.update { it + purchase.purchaseToken }
-                        }
-                    }
+                    is OwnedPurchases.Recovered -> event.purchases.forEach { handle(it) }
                     is FlowOutcome.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is FlowOutcome.Canceled -> {}
                     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
@@ -75,27 +66,16 @@ class CheckoutActivity : ComponentActivity() {
         billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
     }
 
-    /**
-     * @return true iff this token's processing is terminal and should be marked
-     *   in the recovery-dedupe set — either the ack landed at Play (grant
-     *   entitlement) or Play says the purchase isn't owned (recovery can't
-     *   resolve ITEM_NOT_OWNED, so further retries are pointless). False means
-     *   the state is still pending OR the ack failure is retryable on the next
-     *   recovery sweep — leave it unmarked.
-     */
-    private suspend fun handle(purchase: Purchase): Boolean {
+    private suspend fun handle(purchase: Purchase) {
         // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
-        // See "Handling handlePurchase failures correctly" in Error handling
-        // for the full pattern.
-        return when (val r = billing.handlePurchase(purchase, consume = false)) {
-            HandlePurchaseResult.Success -> { grantPremium(); true }
-            HandlePurchaseResult.AlreadyAcknowledged -> { grantPremium(); true } // safe — no PBL call needed
-            HandlePurchaseResult.NotPurchased -> false // pending — wait for terminal state
-            HandlePurchaseResult.NotOwned -> true // terminal — recovery can't resolve ITEM_NOT_OWNED; dedupe to avoid infinite re-handle on every replay
-            is HandlePurchaseResult.Failure -> {
-                showError(r.exception.userFacingCategory)
-                false // recovery sweep retries on next clean connect; don't mark as handled
-            }
+        // See Error handling for the full pattern.
+        when (val r = billing.handlePurchase(purchase, consume = false)) {
+            HandlePurchaseResult.Success -> grantPremium()
+            HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // safe — no PBL call needed
+            HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
+            HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke logic
+            is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
+            // do NOT grant on Failure — recovery sweep retries on the next connection
         }
     }
 }
