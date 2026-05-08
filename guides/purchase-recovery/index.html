@@ -537,6 +537,17 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Purchase recovery
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -546,6 +557,79 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-purchaseevent-is-and-why-it-has-two-roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      What PurchaseEvent is, and why it has two roots
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-recovery-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      How recovery works
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handling-recovered-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Handling Recovered events
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-vs-recovered-when-the-ux-should-differ" class="md-nav__link">
+    <span class="md-ellipsis">
+      Live vs. Recovered: when the UX should differ
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subscription-replacements-need-extra-care-until-v020" class="md-nav__link">
+    <span class="md-ellipsis">
+      Subscription replacements need extra care (until v0.2.0)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opting-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      Opting out
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1042,6 +1126,68 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-purchaseevent-is-and-why-it-has-two-roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      What PurchaseEvent is, and why it has two roots
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-recovery-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      How recovery works
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handling-recovered-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Handling Recovered events
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-vs-recovered-when-the-ux-should-differ" class="md-nav__link">
+    <span class="md-ellipsis">
+      Live vs. Recovered: when the UX should differ
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subscription-replacements-need-extra-care-until-v020" class="md-nav__link">
+    <span class="md-ellipsis">
+      Subscription replacements need extra care (until v0.2.0)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opting-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      Opting out
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1059,10 +1205,33 @@
 
 
 <h1 id="purchase-recovery">Purchase recovery<a class="headerlink" href="#purchase-recovery" title="Permanent link">&para;</a></h1>
-<p>Play auto-refunds purchases that aren't acknowledged within 3 days. App crashes, network failures, or process death mid-acknowledge can strand a paid purchase — without recovery, the user pays, gets refunded, and never sees the entitlement.</p>
-<p>The library handles this for you. On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released — the underlying connection uses <code>WhileSubscribed(60s)</code> so a quick background round-trip <em>doesn't</em> reconnect), it queries owned <code>INAPP</code> + <code>SUBS</code> purchases, filters for <code>PURCHASED &amp;&amp; !isAcknowledged</code>, and emits any matches as <code>OwnedPurchases.Recovered</code>. Your existing <code>observePurchaseUpdates()</code> collector picks them up — no startup hook to wire, no scheduling code to write. (Exhaustive <code>when (event)</code> collectors do need a branch for <code>OwnedPurchases.Recovered</code> distinct from <code>OwnedPurchases.Live</code>; see the snippet below.)</p>
-<p>This requires that <em>something</em> is driving the connection. The standard pattern uses <code>BillingConnectionLifecycleManager</code> (see <a href="../lifecycle/">Lifecycle integration</a>), which collects <code>connectToBilling()</code> while a <code>LifecycleOwner</code> is started and triggers the recovery sweep automatically. Subscribing to <code>observePurchaseUpdates()</code> alone does <strong>not</strong> open the connection; pair it with the lifecycle manager (or your own <code>connectToBilling()</code> collector) so the sweep can fire. Internally the recovery channel uses <code>replay = 1</code> (see <a href="../../reference/replay-semantics/">Replay semantics</a>), so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases.</p>
-<p>The library handles <code>Recovered</code> dedupe for you. <code>BillingActions.handlePurchase</code> (and the lower-level <code>acknowledgePurchase</code> / <code>consumePurchase</code>) records the purchase token after the underlying acknowledge or consume call lands successfully against Play. The recovery channel still has <code>replay = 1</code> so the cache reflects current Play state, but <code>observePurchaseUpdates()</code> filters the cached snapshot against the acked-token set <em>at delivery time</em> (via a synchronous <code>map</code> that reads the current set per emission) — so even a late subscriber that attaches after you've already handled the purchase receives the cached sweep result re-filtered against the current acked set, not the stale pre-ack snapshot. Empty <code>Recovered</code> (intrinsic or filtered-to-empty) is dropped before delivery. There's nothing to dedupe in your collector:</p>
+<p>If you've never shipped a Play Billing integration before, this is probably the most surprising thing about it: <strong>a purchase isn't really yours until you acknowledge it, and Play auto-refunds anything you don't acknowledge within three days.</strong> Not a soft warning, not a flag in the console — Play actually reverses the charge and the user loses entitlement. Crashes mid-acknowledge, network failures, the user force-quitting before your code finishes — any of those leaves a paid purchase stranded, and seventy-two hours later it's gone.</p>
+<p>PBL doesn't help you with this. The acknowledge requirement is documented, but you're on the hook for noticing the failure and retrying. This guide is the most important read in the docs because it's the gotcha that costs real money — yours and the user's.</p>
+<h2 id="what-purchaseevent-is-and-why-it-has-two-roots">What <code>PurchaseEvent</code> is, and why it has two roots<a class="headerlink" href="#what-purchaseevent-is-and-why-it-has-two-roots" title="Permanent link">&para;</a></h2>
+<p>Before getting to the recovery sweep itself, a short conceptual detour. PBL gives you one callback — <code>PurchasesUpdatedListener</code> — that fires for two semantically different reasons that look identical at the API level:</p>
+<ul>
+<li><strong>The user actually owns a purchase</strong> — they just completed one via your active flow, or one was already in their account from a prior session that didn't finish processing.</li>
+<li><strong>A launch attempt produced an outcome that isn't a purchase</strong> — they canceled the dialog, the product wasn't available in their region, the network dropped, etc.</li>
+</ul>
+<p>Both arrive on the same listener with a <code>BillingResult</code> and a <code>List&lt;Purchase&gt;</code>. The naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app maintains. But a <code>USER_CANCELED</code> outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts your entitlement state. People have shipped real apps that revoke premium when the user opens the purchase dialog and clicks Back.</p>
+<p>The library splits the callback into two sealed roots so the type system makes the mistake harder to make:</p>
+<ul>
+<li><strong><code>OwnedPurchases</code></strong> — the user owns these. Acknowledge / consume / grant entitlement. Two variants:<ul>
+<li><code>Live</code> — completed via the active purchase flow (or carried in an <code>OK</code> callback).</li>
+<li><code>Recovered</code> — discovered by the auto-sweep on connect (this is what the rest of this guide is about).</li>
+</ul>
+</li>
+<li><strong><code>FlowOutcome</code></strong> — describes what <em>happened</em> on a single launch attempt. Variants: <code>Pending</code> (deferred payment, e.g. cash or family approval), <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>Failure(BillingException)</code>, <code>UnknownResponse</code>. The <code>purchases</code> list on these is empty or transient. <strong>Never write it to your entitlement cache.</strong></li>
+</ul>
+<p>There's also <code>PurchaseRevoked</code> (a third root, sibling to the two above) for server-driven revocation events — see <a href="../server-driven-revocation/">Server-driven revocation</a> for that story.</p>
+<p>The <code>PurchaseEvent</code> marker interface deliberately doesn't expose <code>purchases</code> directly, so a <code>when</code> branch that wants to read purchases has to narrow to <code>OwnedPurchases</code> or <code>FlowOutcome</code> first. The wrong code now fails to compile rather than silently corrupting state.</p>
+<h2 id="how-recovery-works">How recovery works<a class="headerlink" href="#how-recovery-works" title="Permanent link">&para;</a></h2>
+<p>On every fresh Play Billing connection — app start, post-disconnect reconnect, foregrounding after the connection released — the library queries owned <code>INAPP</code> + <code>SUBS</code> purchases from Play, filters to <code>PURCHASED &amp;&amp; !isAcknowledged</code>, and emits any matches as <code>OwnedPurchases.Recovered</code>. Your existing <code>observePurchaseUpdates()</code> collector picks them up. There's no startup hook to wire and no scheduling code to write.</p>
+<p>(About "fresh connection": the library's <code>connectToBilling()</code> is shared via <code>WhileSubscribed(60s)</code>, so a quick background round-trip — collapsed activity, brief task switch — <em>doesn't</em> tear down and recreate the connection, and therefore <em>doesn't</em> re-run the sweep on resume. The sweep fires when the connection actually transitions from disconnected to OK. See <a href="../../reference/replay-semantics/">Replay semantics</a> for the timing details.)</p>
+<p>This requires that <em>something</em> is driving the connection. The standard pattern uses <code>BillingConnectionLifecycleManager</code> (see <a href="../lifecycle/">Lifecycle integration</a>), which collects <code>connectToBilling()</code> while a <code>LifecycleOwner</code> is started and triggers the sweep automatically. Subscribing to <code>observePurchaseUpdates()</code> alone does <strong>not</strong> open the connection; pair it with the lifecycle manager (or your own <code>connectToBilling()</code> collector) so the sweep can fire.</p>
+<p>The recovery channel uses <code>replay = 1</code> internally, so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases. That's important: in many apps the collector is in a ViewModel that races the connection coming up.</p>
+<h2 id="handling-recovered-events">Handling <code>Recovered</code> events<a class="headerlink" href="#handling-recovered-events" title="Permanent link">&para;</a></h2>
+<p>Same code path as <code>Live</code>. Hand each purchase to <code>handlePurchase</code> — that's the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.</p>
 <p><code>kotlin
 is OwnedPurchases.Recovered -&gt; event.purchases.forEach { purchase -&gt;
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
@@ -1088,7 +1257,10 @@ is OwnedPurchases.Recovered -&gt; event.purchases.forEach { purchase -&gt;
         }
     }
 }</code></p>
-<p>You should still treat the <code>Recovered</code> branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — but the <code>Set&lt;String&gt;</code> dedupe consumers used to need against <code>replay = 1</code> re-emission is no longer required. Tracking lives for the singleton repository's lifetime (typically the process), bounded by purchase activity; a fresh sweep on reconnect re-queries Play and surfaces only genuinely-unacked tokens. (Live events on the <code>OwnedPurchases.Live</code> branch don't need this — see <a href="../../reference/replay-semantics/">Replay semantics</a>.)</p>
+<p>You don't need a consumer-side dedupe <code>Set&lt;String&gt;</code>. Earlier versions of the library required one because <code>replay = 1</code> would re-deliver the cached snapshot to a re-attached collector even after the consumer had already acknowledged the purchase. The library now tracks acknowledged tokens internally (in <code>BillingClientStorage.acknowledgedTokens</code>) and filters the cached snapshot against that set at delivery time — so re-attached subscribers don't see already-handled recovered purchases.</p>
+<p>You should still treat the <code>Recovered</code> branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — the library's dedupe is about not re-handling the <em>purchase</em>, not about coalescing your side-effects.</p>
+<h2 id="live-vs-recovered-when-the-ux-should-differ">Live vs. Recovered: when the UX should differ<a class="headerlink" href="#live-vs-recovered-when-the-ux-should-differ" title="Permanent link">&para;</a></h2>
+<p><code>Live</code> and <code>Recovered</code> are separate variants so you can branch your UX. Don't show "thanks for your purchase!" on a sweep that ran when the user opened the app. The handle/grant code is identical for one-time products; only the surrounding UX differs.</p>
 <p><code>kotlin
 billing.observePurchaseUpdates().collect { event -&gt;
     when (event) {
@@ -1097,30 +1269,31 @@ billing.observePurchaseUpdates().collect { event -&gt;
             fireConfetti() // user-initiated; celebrate
         }
         is OwnedPurchases.Recovered -&gt; {
-            // Same handle() call as Live — but no confetti. Background recovery,
-            // not a fresh purchase. The library tracks acknowledged tokens internally
-            // and suppresses replay of `Recovered` for already-handled purchases —
-            // you don't need a consumer-side `Set&lt;String&gt;` dedupe.
+            // Same handle() call as Live — but no confetti. Background
+            // recovery, not a fresh purchase.
             event.purchases.forEach { handle(it) }
         }
         is FlowOutcome -&gt; { /* sub-when on Pending / Canceled / etc. */ }
     }
 }</code></p>
-<p><code>Live</code> and <code>Recovered</code> are separate variants so you can branch your UX — don't show "thanks for your purchase!" on a sweep that ran when the user opened the app. The handle/grant code is identical for one-time products.</p>
-<p><strong>Subscription replacements need special handling (until v0.2.0).</strong> Subscription upgrade/downgrade/crossgrade purchases carry a non-null <code>linkedPurchaseToken</code> pointing at the prior subscription. Treating them as fresh grants double-grants entitlement on plan changes. PBL's <code>Purchase</code> API doesn't expose a getter for <code>linkedPurchaseToken</code> (<code>AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>); the field is only present in <code>purchase.originalJson</code>. Until v0.2.0 ships the typed <code>SubscriptionReplacement</code> variant (see the <a href="../../roadmap/">Roadmap</a>), consumers using subscriptions need to parse it themselves:</p>
+<h2 id="subscription-replacements-need-extra-care-until-v020">Subscription replacements need extra care (until v0.2.0)<a class="headerlink" href="#subscription-replacements-need-extra-care-until-v020" title="Permanent link">&para;</a></h2>
+<p>Subscription upgrade/downgrade/crossgrade purchases carry a non-null <code>linkedPurchaseToken</code> pointing at the prior subscription. If you treat one as a fresh grant rather than a replacement, you've double-granted entitlement on the plan change — the new purchase shows up in <code>OwnedPurchases.Live</code> (or <code>Recovered</code> if recovered after a crash) and looks identical to a brand-new buy.</p>
+<p>PBL's <code>Purchase</code> API doesn't expose a getter for <code>linkedPurchaseToken</code> (<code>AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>); the field is only present in <code>purchase.originalJson</code>. Until v0.2.0 ships the typed <code>OwnedPurchases.SubscriptionReplacement</code> variant (see the <a href="../../roadmap/">Roadmap</a>), consumers using subscriptions need to parse it themselves:</p>
 <p><code>kotlin
 fun Purchase.linkedPurchaseToken(): String? = try {
     org.json.JSONObject(originalJson)
         .optString("linkedPurchaseToken")
         .takeIf { it.isNotEmpty() }
 } catch (e: org.json.JSONException) { null }</code></p>
-<p>Treat a non-null result as a plan change (invalidate the old token, grant against the new one) rather than a fresh purchase. IAP-only apps are unaffected — one-time products never carry a <code>linkedPurchaseToken</code>.</p>
-<p>To opt out (e.g. you run a server-side reconciliation queue):</p>
+<p>A non-null result is a plan change: invalidate the old token's grant and grant against the new one. IAP-only apps are unaffected — one-time products never carry a <code>linkedPurchaseToken</code>.</p>
+<h2 id="opting-out">Opting out<a class="headerlink" href="#opting-out" title="Permanent link">&para;</a></h2>
+<p>If you run a server-side reconciliation queue that you'd rather have own this concern:</p>
 <p><code>kotlin
 val billing = BillingRepositoryCreator.create(
     context = applicationContext,
     recoverPurchasesOnConnect = false
 )</code></p>
+<p>The auto-sweep is opt-out, not opt-in, because the failure mode of skipping recovery is silent and asymmetric (paid users lose entitlement) and most apps shouldn't run without it.</p>
 
 
 

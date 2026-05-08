@@ -509,9 +509,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#whats-worth-reading-next" class="md-nav__link">
     <span class="md-ellipsis">
-      Next steps
+      What's worth reading next
     </span>
   </a>
   
@@ -1083,9 +1083,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#whats-worth-reading-next" class="md-nav__link">
     <span class="md-ellipsis">
-      Next steps
+      What's worth reading next
     </span>
   </a>
   
@@ -1190,21 +1190,14 @@ private suspend fun handle(purchase: Purchase) {
 <p>}
 ```</p>
 <p>That's enough for a working one-time-IAP integration.</p>
-<div class="admonition warning">
-<p class="admonition-title">Two-tier <code>PurchaseEvent</code> — read before writing to your cache</p>
-<p><code>observePurchaseUpdates()</code> emits <code>PurchaseEvent</code>, a marker interface with two sealed roots:</p>
+<h2 id="whats-worth-reading-next">What's worth reading next<a class="headerlink" href="#whats-worth-reading-next" title="Permanent link">&para;</a></h2>
+<p>A few topics are worth picking up before you ship — especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:</p>
 <ul>
-<li><strong><code>OwnedPurchases</code></strong> (<code>Live</code>, <code>Recovered</code>) — owned-state updates. The user owns these purchases; acknowledge / consume / grant entitlement. These are <strong>incremental updates, not authoritative owned-state snapshots</strong> — <code>Live</code> carries the <code>PURCHASED</code>-or-<code>UNSPECIFIED_STATE</code> subset of an <code>OK</code> callback, and <code>Recovered</code> carries only the unacknowledged subset from the auto-sweep. Both channels are filtered to non-empty before delivery (PBL occasionally fires the listener with no purchases at all; the library drops those at the source). Merge into your own entitlement state on <code>handlePurchase</code> Success rather than replacing your cache from <code>event.purchases</code>. For managed entitlement state with grace policy, use <a href="../guides/entitlement-cache/"><code>EntitlementCache</code></a>.</li>
-<li><strong><code>FlowOutcome</code></strong> (<code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>Failure</code>, <code>UnknownResponse</code>) — purchase-flow attempt outcomes. These describe what <em>happened</em> on a single launch attempt. The <code>purchases</code> list is typically empty (or, for <code>Pending</code>, purchases that haven't completed yet) and <strong>must not</strong> be written to an entitlement cache.</li>
-</ul>
-<p>The marker interface doesn't expose <code>purchases</code> directly — you have to narrow to <code>OwnedPurchases</code> or <code>FlowOutcome</code> first. That's what prevents the original bug: writing <code>update.purchases</code> from a <code>Canceled</code> (or other <code>FlowOutcome</code>) event into your entitlement cache. Note: <code>OwnedPurchases.purchases</code> still isn't an authoritative owned-state snapshot — see each variant's KDoc for the actual shape.</p>
-</div>
-<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../guides/purchase-recovery/">Purchase recovery</a> — what happens when an acknowledge lands the next time the connection comes up</li>
-<li><a href="../guides/error-handling/">Error handling</a> — <code>BillingException</code> subtypes, <code>userFacingCategory</code>, the <code>HandlePurchaseResult</code> branches</li>
-<li><a href="../guides/entitlement-cache/">EntitlementCache</a> — opt-in state machine for "is the user entitled right now?"</li>
-<li><a href="../testing/">Testing</a> — the three-levels approach (static SKUs / license tester / Play Billing Lab)</li>
+<li><a href="../guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code>'s two tiers actually are (and why splitting them matters), why acknowledgement is a three-day cliff that costs real money if you miss it, and what the library's auto-sweep does for you. Probably the most important read in the docs.</li>
+<li><a href="../guides/error-handling/">Error handling</a> — typed exceptions, the seven <code>BillingErrorCategory</code> UI buckets, and the retry strategy the library runs before throwing.</li>
+<li><a href="../guides/entitlement-cache/">EntitlementCache</a> — opt-in state machine that answers "is the user entitled right now," with a grace window for transient Play outages and signed/tamper-resistant storage if your threat model needs it.</li>
+<li><a href="../guides/signature-verification/">Signature verification</a> — proving an incoming <code>Purchase</code> actually came from Google.</li>
+<li><a href="../testing/">Testing</a> — the three-levels approach (static SKUs / license tester / Play Billing Lab).</li>
 </ul>
 
 

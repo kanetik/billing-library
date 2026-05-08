@@ -1199,7 +1199,14 @@
 
 
 <h1 id="entitlementcache-opt-in">EntitlementCache (opt-in)<a class="headerlink" href="#entitlementcache-opt-in" title="Permanent link">&para;</a></h1>
-<p>Most apps that consume <code>observePurchaseUpdates()</code> end up reinventing the same <code>(isEntitled, lastConfirmedTimestamp, source)</code> state machine: take the raw <code>PurchaseEvent</code> stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. <code>EntitlementCache</code> (in <code>com.kanetik.billing.entitlement</code>) is that state machine, opt-in.</p>
+<p>Once your code can answer "did the user buy this" in the moment, three follow-up questions usually land within a few weeks of shipping:</p>
+<ul>
+<li>How do I render premium UI on cold start, <em>before</em> the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)</li>
+<li>What do I do when Play is unreachable for an hour or two — flip every paid user back to the free tier, or wait it out?</li>
+<li>How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?</li>
+</ul>
+<p>PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same <code>(isEntitled, lastConfirmedTimestamp, source)</code> state machine: take the raw <code>PurchaseEvent</code> stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. <code>EntitlementCache</code> (in <code>com.kanetik.billing.entitlement</code>) is that state machine, opt-in.</p>
+<p>It listens to <code>observePurchaseUpdates()</code>, so it benefits from the auto-recovery sweep — see <a href="../purchase-recovery/">Purchase recovery</a> for what <code>OwnedPurchases.Live</code> vs <code>OwnedPurchases.Recovered</code> actually mean and why you can't just write the callback's <code>purchases</code> list to your storage and call it done.</p>
 <p>```kotlin
 import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementState
