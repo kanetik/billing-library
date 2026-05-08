@@ -19,8 +19,9 @@ billing.observePurchaseUpdates()
                 // Don't grant entitlement; consider reporting to your backend.
                 return@forEach
             }
-            // For Recovered events, dedupe by purchaseToken (see Purchase recovery)
-            // — this snippet shows just the verify-then-handle skeleton.
+            // The library filters already-acknowledged purchases out of the
+            // Recovered channel at delivery time, so no consumer-side dedupe
+            // is needed. This snippet is just the verify-then-handle skeleton.
             when (val r = billing.handlePurchase(purchase, consume = false)) {
                 HandlePurchaseResult.Success -> grantEntitlement(purchase)
                 HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement(purchase) // safe — no PBL call made
@@ -42,5 +43,5 @@ billing.observePurchaseUpdates()
 
 ## See also
 
-- [Purchase recovery](purchase-recovery.md) — `Recovered` events need dedupe; this snippet is just the verify-then-handle skeleton.
+- [Purchase recovery](purchase-recovery.md) — how `Recovered` events flow, why no consumer-side dedupe is needed, and the auto-sweep on connect.
 - [Error handling](error-handling.md) — full `HandlePurchaseResult` branching.
