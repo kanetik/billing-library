@@ -1,13 +1,16 @@
 name: Publish docs site
 
 # Builds the MkDocs Material site (with Dokka HTML mounted at /api/) and
-# pushes the result to the gh-pages branch. GitHub Pages serves that
-# branch at https://kanetik.github.io/billing-library/.
+# on push-to-main pushes the result to the gh-pages branch. GitHub Pages
+# serves that branch at https://kanetik.github.io/billing-library/.
 #
-# Triggers on push to main when docs sources change, when the README
-# changes (the slim README links to the docs site), or when the source
-# KDoc that feeds Dokka changes. Manual dispatch is available too for
-# forcing a rebuild after a Pages settings change.
+# Two trigger modes:
+#   - push to main:  full build + `mkdocs gh-deploy --force` (publishes)
+#   - pull_request:  full build with `mkdocs build --strict` only — no
+#                    deploy. Catches Dokka failures, broken nav links,
+#                    and missing pages before the PR merges to main.
+#   - workflow_dispatch: manual run, also publishes (useful after a
+#                        Pages settings change).
 #
 # One-time setup after the first successful run of this workflow:
 #   Repo Settings -> Pages -> Source: "Deploy from a branch" -> Branch: gh-pages
@@ -23,7 +26,23 @@ on:
       - 'README.md'
       - 'billing/src/main/kotlin/**'
       - 'billing/build.gradle.kts'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'README.md'
+      - 'billing/src/main/kotlin/**'
+      - 'billing/build.gradle.kts'
   workflow_dispatch:
+
+# Single in-flight build per branch / PR. If a second commit lands on
+# main while the first is still deploying, the first run is cancelled
+# so gh-pages can't be overwritten with stale output by an older run
+# finishing last.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -77,10 +96,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install mkdocs-material
 
+      - name: Build site (strict — fails on warnings)
+        # Always run on every trigger. Strict mode catches broken nav
+        # links, missing referenced pages, and other footguns before
+        # they reach gh-pages. On pull_request this is the only build
+        # step that runs (no deploy); on push to main / dispatch the
+        # gh-deploy step runs after.
+        run: mkdocs build --strict
+
       - name: Configure git for gh-deploy
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Deploy to gh-pages
+        if: github.event_name != 'pull_request'
         run: mkdocs gh-deploy --force
