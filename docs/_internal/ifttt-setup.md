@@ -1,6 +1,6 @@
 # IFTTT setup for the automated update Routine
 
-One-time configuration for the Android-device notification step in the [automated update playbook](AUTOMATED_UPDATE_PLAYBOOK.md). The playbook's daily Routine fires this applet whenever it opens a PR or an issue.
+One-time configuration for the Android-device notification step in the [automated update playbook](automated-update-playbook.md). The playbook's daily Routine fires this applet whenever it opens a PR or an issue.
 
 If you skip this section, the playbook still works — GitHub's built-in PR/issue email becomes the notification path. The IFTTT layer is a convenience, not a dependency.
 
@@ -102,7 +102,7 @@ If you change the action, the trigger and applet name stay the same — the play
 
 If `Kanetik PBL Update Notification` doesn't fit your naming convention:
 1. Rename the applet in IFTTT.
-2. Edit `docs/AUTOMATED_UPDATE_PLAYBOOK.md` section 10 and section 11 (the Routine prompt) to match.
+2. Edit `docs/_internal/automated-update-playbook.md` section 10 and section 11 (the Routine prompt) to match.
 3. Update both places — the rule and the prompt — to keep them in sync.
 
 ---

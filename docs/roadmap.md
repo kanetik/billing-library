@@ -2,7 +2,7 @@
 
 What's next for the Kanetik Billing Library. Items here are demand-driven — most aren't committed to until a real consumer asks. Status reflects intent at the time of last update; dates are absolute (not relative).
 
-For what already shipped in v0.1.0, see [`BUILD_HISTORY.md`](BUILD_HISTORY.md).
+For what already shipped in v0.1.0, see [Design notes](design-notes.md).
 
 ---
 
@@ -81,25 +81,30 @@ Consumers who genuinely need a non-default mode can drop down to a lower-level `
 
 #### linkedPurchaseToken: surface as a typed sealed variant
 
-When a subscription replacement completes, the new `Purchase` carries a `linkedPurchaseToken` field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's `Purchase` API doesn't expose a getter for it — `Purchase.AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`; `linkedPurchaseToken` is only present in `purchase.originalJson`. Right now the library would emit a replacement purchase as `PurchasesUpdate.Success` / `Recovered`, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.
+When a subscription replacement completes, the new `Purchase` carries a `linkedPurchaseToken` field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's `Purchase` API doesn't expose a getter for it — `Purchase.AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`; `linkedPurchaseToken` is only present in `purchase.originalJson`. Right now the library would emit a replacement purchase as `OwnedPurchases.Live` / `OwnedPurchases.Recovered`, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.
 
-Fix: add a dedicated variant emitted *instead of* `Success` whenever `linkedPurchaseToken` is non-null:
+Fix: add a dedicated `OwnedPurchases` variant emitted *instead of* `Live` (or `Recovered`) whenever `linkedPurchaseToken` is non-null:
 
 ```kotlin
+// Sealed-extends OwnedPurchases so it shares the existing branch
+// position in `when (event)` collectors — consumers handling
+// owned-state today can opt into replacement-aware logic by adding
+// the new arm without rewriting their existing OwnedPurchases.Live /
+// OwnedPurchases.Recovered handling.
 public data class SubscriptionReplacement(
     val newPurchase: Purchase,
     val linkedPurchaseToken: String,
-    override val purchases: List<Purchase> = listOf(newPurchase)
-) : PurchasesUpdate()
+    override val purchases: List<Purchase> = listOf(newPurchase),
+) : OwnedPurchases()
 ```
 
-Detection lives in `FlowPurchasesUpdatedListener.computeUpdates`: when `responseCode == OK` and any settled purchase has a non-empty `linkedPurchaseToken` field in `originalJson`, emit a `SubscriptionReplacement` for that one (still partition the rest into `Success` / `Pending` as today). Also emit `SubscriptionReplacement` from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed. Detection requires JSON-parsing `purchase.originalJson` and reading the `linkedPurchaseToken` field; PBL doesn't expose a getter (`Purchase.AccountIdentifiers` only carries the obfuscated IDs).
+Detection lives in `FlowPurchasesUpdatedListener.computeUpdates`: when `responseCode == OK` and any settled purchase has a non-empty `linkedPurchaseToken` field in `originalJson`, emit `OwnedPurchases.SubscriptionReplacement` for that one (still partition the rest into `OwnedPurchases.Live` for completed-and-acknowledged-or-pending-ack purchases and `FlowOutcome.Pending` for `PURCHASE_STATE_PENDING` purchases, as today). Also emit `OwnedPurchases.SubscriptionReplacement` from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed — same JSON parsing, same conditions. Detection requires JSON-parsing `purchase.originalJson` and reading the `linkedPurchaseToken` field; PBL doesn't expose a getter (`Purchase.AccountIdentifiers` only carries the obfuscated IDs).
 
 This makes the wrong code not type-check: you literally can't unpack the variant without seeing both tokens. The consumer's correct response is "process the new token, invalidate the old."
 
 #### Sweep impact
 
-The v0.1.0 recovery sweep (`PurchasesUpdate.Recovered`) already covers stranded subscription purchases — `queryPurchasesAsync(SUBS)` returns them and the same `PURCHASED && !isAcknowledged` filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with `linkedPurchaseToken`) into `SubscriptionReplacement` rather than the generic `Recovered` variant, for the same reason the live-purchase path does.
+The v0.1.x recovery sweep (which today emits `OwnedPurchases.Recovered`) already covers stranded subscription purchases — `queryPurchasesAsync(SUBS)` returns them and the same `PURCHASED && !isAcknowledged` filter applies. v0.2.0 needs to additionally classify recovered subscription-replacement purchases (those with `linkedPurchaseToken`) into `OwnedPurchases.SubscriptionReplacement` rather than the generic `OwnedPurchases.Recovered` variant, for the same reason the live-purchase path does.
 
 ### `:billing-testing` artifact — *planned*
 

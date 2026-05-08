@@ -1,0 +1,23 @@
+# Pinned MkDocs Material toolchain for reproducible docs builds.
+#
+# Pins cover the direct dependencies the workflow actually uses:
+#   - mkdocs                 the static site builder
+#   - mkdocs-material        theme + features
+#   - pymdown-extensions     mkdocs.yml references pymdownx.* extensions
+#
+# Transitive deps (markdown, jinja2, pygments, etc.) are not fully
+# locked. The direct pins below catch the realistic breakage modes
+# (theme major bumps, mkdocs core 2.x, pymdown 11.x); if drift in
+# transitives ever becomes a problem, the migration path is to set up
+# pip-tools — split this file into a `requirements.in` (with just the
+# direct deps) and regenerate a fully-locked `requirements.txt` via
+# `pip-compile`. No `requirements.in` exists today; that's a
+# deliberate "we'll add it when we need it" deferral.
+#
+# Bump deliberately — a silent upgrade can break the build (theme
+# changes, new strict-mode warnings, etc.). The docs.yml workflow
+# installs from this file in both the build and deploy jobs so the
+# two jobs render against an identical environment.
+mkdocs==1.6.1
+mkdocs-material==9.5.49
+pymdown-extensions==10.13

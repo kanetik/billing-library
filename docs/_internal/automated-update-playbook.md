@@ -366,7 +366,7 @@ After opening any PR or issue, the agent notifies the maintainer's Android devic
 
 ### Setup (one-time)
 
-See [`IFTTT_SETUP.md`](IFTTT_SETUP.md) for the full step-by-step (applet creation, Webhooks trigger event name, Notifications action, phone-side test). At a glance:
+See [`ifttt-setup.md`](ifttt-setup.md) for the full step-by-step (applet creation, Webhooks trigger event name, Notifications action, phone-side test). At a glance:
 
 - **Applet name:** `Kanetik PBL Update Notification` (case-sensitive — the playbook looks up by this exact name)
 - **Trigger:** Webhooks → "Receive a web request with a JSON payload" → event name `kanetik_pbl_update`
@@ -412,7 +412,7 @@ stable release, while protecting consumers from breaking changes.
    no issue, no notification. Done.
 
 4. If the wrapper is behind: clone the repo, then read the playbook at
-   docs/AUTOMATED_UPDATE_PLAYBOOK.md and follow it end-to-end. The playbook
+   docs/_internal/automated-update-playbook.md and follow it end-to-end. The playbook
    covers:
    - Categorizing the release as safe vs risky
    - Branching (main vs next, creating next if needed)

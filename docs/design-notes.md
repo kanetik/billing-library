@@ -1,6 +1,6 @@
-# Build history — v0.1.0
+# Design notes — v0.1.0
 
-The intent and design rationale behind what shipped in v0.1.0. Distinct from `CHANGELOG.md` (which lists user-visible changes per release) and `ROADMAP.md` (which tracks what's next). This doc captures *why the library is shaped the way it is* — useful for contributors landing in the repo months later, or future-Jeremy when reopening this project after a long pause.
+The intent and design rationale behind what shipped in v0.1.0. Distinct from `CHANGELOG.md` (which lists user-visible changes per release) and the [Roadmap](roadmap.md) (which tracks what's next). This doc captures *why the library is shaped the way it is* — useful for contributors landing in the repo months later, or future-Jeremy when reopening this project after a long pause.
 
 ## Origins
 
@@ -51,7 +51,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 
 ### Purchase updates
 
-`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `SharedFlow<PurchasesUpdate>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchasesUpdate` has variants `Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`. `Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases.
+`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `Flow<PurchaseEvent>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchaseEvent` is a marker interface with two sealed roots — `OwnedPurchases` (variants `Live`, `Recovered`) for owned-state updates and `FlowOutcome` (variants `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) for purchase-flow attempt outcomes — plus a standalone `PurchaseRevoked` event for server-driven revocation. `FlowOutcome.Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single `PurchasesUpdate` sealed class with flat variants `Success`/`Pending`/`Canceled`/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)
 
 ### Actions
 
@@ -139,7 +139,7 @@ These were considered during the architectural review and PBL research; document
 | `@Jvm*` annotations for Java interop | Locked-in decision: Kotlin-first. 2026 Android lib ecosystem is Kotlin-dominant; @Jvm* noise isn't worth the source-clutter cost unless Java consumers actually appear and complain. |
 | Server-side / RTDN integration in the library | Out of scope for a client library. RTDN is fundamentally a Cloud Pub/Sub server concern. README documents the boundary and points to Google's RTDN docs. |
 | `BillingException` subtypes as `data class` | PBL's `BillingResult` lacks content-based equality, so data-class `equals` would still be identity-based on the result field — no consumer benefit. The toString improvement (which was the real readability win) was achieved via an `override fun toString()` on the sealed superclass instead. |
-| `getConnectionState()` direct accessor for v0.1.0 | `SharedFlow<BillingConnectionResult>` + `replay = 1` already lets consumers do `flow.replayCache.firstOrNull()` to peek at the current state. Adding a separate API for the same info is bloat. (Listed in `ROADMAP.md` as a future-if-demanded enhancement.) |
+| `getConnectionState()` direct accessor for v0.1.0 | `SharedFlow<BillingConnectionResult>` + `replay = 1` already lets consumers do `flow.replayCache.firstOrNull()` to peek at the current state. Adding a separate API for the same info is bloat. (Listed in the [Roadmap](roadmap.md) as a future-if-demanded enhancement.) |
 | `getBillingConfigAsync` exposure for v0.1.0 | Niche feature for region-specific UX. Defer until requested. |
 | `BillingActions.handlePurchase(purchase, isConsumable: (Purchase) -> Boolean)` predicate-lambda variant | We *did* add `handlePurchase(purchase, consume: Boolean)`. Rejected the *predicate-lambda* form — devs already know the consume/acknowledge decision at the call site; passing a `Boolean` is clearer than passing a function. Predicate would only be useful for batch processing, which the consumer can do with their own loop. |
 | Consumer-rules.pro keep for full library package | Kept only the two `BillingLogger` impl objects. Other types are reachable via consumer code (typed exception subtypes, sealed variants) so R8 follows them naturally. PBL and kotlinx-coroutines ship their own consumer-rules already. |

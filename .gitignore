@@ -54,5 +54,15 @@ secring.gpg
 .DS_Store
 Thumbs.db
 
+# MkDocs site build output (Pages workflow builds + deploys this)
+site/
+
+# Dokka HTML output mounted into docs/api/ at CI time (see docs.yml).
+# Track only the placeholder index.html so MkDocs nav validation passes
+# locally; CI overwrites the entire docs/api/ tree with the real Dokka
+# output before mkdocs gh-deploy runs.
+docs/api/*
+!docs/api/index.html
+
 # Claude Code
 .claude/settings.local.json

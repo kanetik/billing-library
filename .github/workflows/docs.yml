@@ -1,0 +1,168 @@
+name: Publish docs site
+
+# Builds the MkDocs Material site (with Dokka HTML mounted at /api/) and
+# on push-to-main pushes the result to the gh-pages branch. GitHub Pages
+# serves that branch at https://kanetik.github.io/billing-library/.
+#
+# Trigger modes:
+#   - push to main:  build (validates) + deploy (publishes)
+#   - pull_request:  build only (no deploy, runs without contents:write)
+#   - workflow_dispatch: manual run, also deploys (useful after a Pages
+#                        settings change).
+#
+# Job structure follows least-privilege: the `build` job has
+# contents:read and runs on every trigger; the `deploy` job has
+# contents:write and is gated on `github.event_name != 'pull_request'`.
+#
+# One-time setup after the first successful run of this workflow:
+#   Repo Settings -> Pages -> Source: "Deploy from a branch" -> Branch: gh-pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'README.md'
+      - 'billing/src/main/kotlin/**'
+      - 'billing/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/**'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'README.md'
+      - 'billing/src/main/kotlin/**'
+      - 'billing/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/**'
+  workflow_dispatch:
+
+# Single in-flight build per branch / PR. If a second commit lands on
+# main while the first is still deploying, the first run is cancelled
+# so gh-pages can't be overwritten with stale output by an older run
+# finishing last.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only at workflow scope. The deploy job opts up to
+# contents:write; the build job runs with the default.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build docs (validate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17 (for Gradle / Dokka)
+        # Gradle 9.x requires JDK 17+ to run; Dokka 2.x runs in the same
+        # daemon. The produced AAR still targets JDK 11 via jvmToolchain(11).
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Dokka HTML
+        # `dokkaGeneratePublicationHtml` is the same task vanniktech's
+        # JavadocJar.Dokka(...) calls during Maven Central publish, so the
+        # output here matches what consumers see in the Maven Javadoc JAR.
+        run: ./gradlew :billing:dokkaGeneratePublicationHtml --no-configuration-cache
+
+      - name: Mount Dokka output under docs/api/
+        run: |
+          rm -rf docs/api
+          mkdir -p docs/api
+          # Dokka 2.x writes to billing/build/dokka/html. Copy the contents
+          # (not the directory itself) so docs/api/index.html is the entry
+          # point referenced from mkdocs.yml's nav.
+          cp -r billing/build/dokka/html/. docs/api/
+          test -f docs/api/index.html || (echo "Dokka output missing index.html" && ls -la billing/build/dokka/html/ && exit 1)
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build site (strict — fails on warnings)
+        # Strict mode catches broken nav links, missing referenced pages,
+        # and other footguns. On pull_request this is the only build that
+        # runs (the deploy job is skipped); on push to main / dispatch
+        # the deploy job runs after.
+        run: mkdocs build --strict
+
+  deploy:
+    name: Deploy to gh-pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17 (for Gradle / Dokka)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Dokka HTML
+        run: ./gradlew :billing:dokkaGeneratePublicationHtml --no-configuration-cache
+
+      - name: Mount Dokka output under docs/api/
+        run: |
+          rm -rf docs/api
+          mkdir -p docs/api
+          cp -r billing/build/dokka/html/. docs/api/
+          test -f docs/api/index.html || (echo "Dokka output missing index.html" && ls -la billing/build/dokka/html/ && exit 1)
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Configure git for gh-deploy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy to gh-pages
+        run: mkdocs gh-deploy --force
