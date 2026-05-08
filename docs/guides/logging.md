@@ -2,17 +2,23 @@
 
 Default is silent. Opt into logcat with one line, or wire your own adapter to route through Crashlytics, Timber, or whatever you prefer.
 
+## Silent (default)
+
 ```kotlin
-// Silent (default)
 val billing = BillingRepositoryCreator.create(context)
+```
 
-// Logcat
+## Logcat
+
+```kotlin
 val billing = BillingRepositoryCreator.create(context, logger = BillingLogger.Android)
+```
 
-// Crashlytics adapter (your code, ~10 lines).
-// The library does not dictate a tag — pick one that fits your logging
-// convention (here, "Billing"). If you omit `.tag(...)`, Timber falls back
-// to the calling class name; android.util.Log requires a tag explicitly.
+## Crashlytics adapter
+
+Your code, ~10 lines. The library doesn't dictate a tag — pick one that fits your logging convention (here, `"Billing"`). If you omit `.tag(...)`, Timber falls back to the calling class name; `android.util.Log` requires a tag explicitly.
+
+```kotlin
 class CrashlyticsBillingLogger : BillingLogger {
     override fun d(message: String, throwable: Throwable?) {
         Timber.tag("Billing").d(throwable, message)
@@ -27,6 +33,9 @@ class CrashlyticsBillingLogger : BillingLogger {
         )
     }
 }
+```
+
+```kotlin
 val billing = BillingRepositoryCreator.create(context, logger = CrashlyticsBillingLogger())
 ```
 
