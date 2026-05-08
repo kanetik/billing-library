@@ -192,7 +192,7 @@ public interface BillingTelemetryOwner {
 - Categories, not raw response codes — emit [`BillingErrorCategory`][error-category] (the same enum the UI uses), so events line up with the rest of the library's error model.
 - Product IDs are fine — developer-controlled, not PII.
 
-[error-category]: ../billing/src/main/kotlin/com/kanetik/billing/exception/BillingErrorCategory.kt
+[error-category]: https://github.com/kanetik/billing-library/blob/main/billing/src/main/kotlin/com/kanetik/billing/exception/BillingErrorCategory.kt
 
 ### Default behavior
 
