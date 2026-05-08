@@ -85,18 +85,12 @@ class CheckoutActivity : ComponentActivity() {
 
 That's enough for a working one-time-IAP integration.
 
-!!! warning "Two-tier `PurchaseEvent` — read before writing to your cache"
+## What's worth reading next
 
-    `observePurchaseUpdates()` emits `PurchaseEvent`, a marker interface with two sealed roots:
+A few topics are worth picking up before you ship — especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:
 
-    - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The user owns these purchases; acknowledge / consume / grant entitlement. These are **incremental updates, not authoritative owned-state snapshots** — `Live` carries the `PURCHASED`-or-`UNSPECIFIED_STATE` subset of an `OK` callback, and `Recovered` carries only the unacknowledged subset from the auto-sweep. Both channels are filtered to non-empty before delivery (PBL occasionally fires the listener with no purchases at all; the library drops those at the source). Merge into your own entitlement state on `handlePurchase` Success rather than replacing your cache from `event.purchases`. For managed entitlement state with grace policy, use [`EntitlementCache`](guides/entitlement-cache.md).
-    - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) — purchase-flow attempt outcomes. These describe what *happened* on a single launch attempt. The `purchases` list is typically empty (or, for `Pending`, purchases that haven't completed yet) and **must not** be written to an entitlement cache.
-
-    The marker interface doesn't expose `purchases` directly — you have to narrow to `OwnedPurchases` or `FlowOutcome` first. That's what prevents the original bug: writing `update.purchases` from a `Canceled` (or other `FlowOutcome`) event into your entitlement cache. Note: `OwnedPurchases.purchases` still isn't an authoritative owned-state snapshot — see each variant's KDoc for the actual shape.
-
-## Next steps
-
-- [Purchase recovery](guides/purchase-recovery.md) — what happens when an acknowledge lands the next time the connection comes up
-- [Error handling](guides/error-handling.md) — `BillingException` subtypes, `userFacingCategory`, the `HandlePurchaseResult` branches
-- [EntitlementCache](guides/entitlement-cache.md) — opt-in state machine for "is the user entitled right now?"
-- [Testing](testing.md) — the three-levels approach (static SKUs / license tester / Play Billing Lab)
+- [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent`'s two tiers actually are (and why splitting them matters), why acknowledgement is a three-day cliff that costs real money if you miss it, and what the library's auto-sweep does for you. Probably the most important read in the docs.
+- [Error handling](guides/error-handling.md) — typed exceptions, the seven `BillingErrorCategory` UI buckets, and the retry strategy the library runs before throwing.
+- [EntitlementCache](guides/entitlement-cache.md) — opt-in state machine that answers "is the user entitled right now," with a grace window for transient Play outages and signed/tamper-resistant storage if your threat model needs it.
+- [Signature verification](guides/signature-verification.md) — proving an incoming `Purchase` actually came from Google.
+- [Testing](testing.md) — the three-levels approach (static SKUs / license tester / Play Billing Lab).
