@@ -1,0 +1,6 @@
+# Pinned MkDocs Material toolchain for reproducible docs builds.
+# Bump deliberately — a silent upgrade can break the build (theme
+# changes, new strict-mode warnings, etc.). The docs.yml workflow
+# installs from this file in both the build and deploy jobs so the
+# two jobs render against an identical environment.
+mkdocs-material==9.5.49
