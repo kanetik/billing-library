@@ -1,6 +1,10 @@
 # Signature verification
 
-`PurchaseVerifier` (in `com.kanetik.billing.security`) does RSA signature verification of `Purchase.originalJson` against your app's public key. The recommended integration:
+Play's signature is the only on-device proof that a `Purchase` actually came from Google rather than from a malicious app forging the response or from a man-in-the-middle tampering with the intent. PBL hands you `Purchase.signature` and `Purchase.originalJson`, but it doesn't validate them — that's on you. Skipping verification leaves your entitlement checks trusting whatever the device hands the listener, which on a rooted phone is whatever the user (or a tool they're running) wants it to be.
+
+`PurchaseVerifier` (in `com.kanetik.billing.security`) does RSA signature verification of `Purchase.originalJson` against your app's public key (Play Console gives you the key when you create the app — Monetization setup → Licensing). It's a small piece of code with a high payoff: a verified `Purchase` is one Play vouches for, and an unverified one shouldn't grant entitlement no matter how convincing it looks.
+
+The recommended integration:
 
 ```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)

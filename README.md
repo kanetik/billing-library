@@ -101,35 +101,11 @@ class CheckoutActivity : ComponentActivity() {
 
 That's enough for a working one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 (see the [Roadmap](https://kanetik.github.io/billing-library/roadmap/)).
 
-> **⚠️ Two-tier `PurchaseEvent` — read before writing to your cache**
->
-> `observePurchaseUpdates()` emits `PurchaseEvent`, a marker interface with
-> two sealed roots:
->
-> - **`OwnedPurchases`** (`Live`, `Recovered`) — owned-state updates. The
->   user owns these purchases; acknowledge / consume / grant entitlement.
->   These are **incremental updates, not authoritative owned-state
->   snapshots** — `Live` carries the `PURCHASED`-or-`UNSPECIFIED_STATE`
->   subset of an `OK` callback, and `Recovered` carries only the
->   unacknowledged subset from the auto-sweep. Both channels are filtered
->   to non-empty before delivery (PBL occasionally fires the listener with
->   no purchases at all; the library drops those at the source). Merge
->   into your own entitlement state on `handlePurchase` Success rather
->   than replacing your cache from `event.purchases`. For managed
->   entitlement state with grace policy, use `EntitlementCache`.
-> - **`FlowOutcome`** (`Pending`, `Canceled`, `ItemAlreadyOwned`,
->   `ItemUnavailable`, `Failure`, `UnknownResponse`) — purchase-flow attempt outcomes.
->   These describe what *happened* on a single launch attempt. The
->   `purchases` list is typically empty (or, for `Pending`, purchases
->   that haven't completed yet) and **must not** be written to an
->   entitlement cache.
->
-> The marker interface doesn't expose `purchases` directly — you have to
-> narrow to `OwnedPurchases` or `FlowOutcome` first. That's what prevents
-> the original bug: writing `update.purchases` from a `Canceled` (or other
-> `FlowOutcome`) event into your entitlement cache. Note:
-> `OwnedPurchases.purchases` still isn't an authoritative owned-state
-> snapshot — see each variant's KDoc for the actual shape.
+A few things are worth a read once you're past the smoke test, especially if Play Billing is new to you:
+
+- [Purchase recovery](https://kanetik.github.io/billing-library/guides/purchase-recovery/) — what the two `PurchaseEvent` tiers actually are, why acknowledgement is a three-day cliff, and what the auto-sweep does about it. Probably the most important read in the docs.
+- [Error handling](https://kanetik.github.io/billing-library/guides/error-handling/) — the typed exception surface and which response codes the library retries automatically.
+- [EntitlementCache](https://kanetik.github.io/billing-library/guides/entitlement-cache/) — opt-in state machine for "is the user entitled right now," including signed/tamper-resistant storage.
 
 ## Where to go next
 

@@ -1,6 +1,14 @@
 # EntitlementCache (opt-in)
 
-Most apps that consume `observePurchaseUpdates()` end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source)` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
+Once your code can answer "did the user buy this" in the moment, three follow-up questions usually land within a few weeks of shipping:
+
+- How do I render premium UI on cold start, *before* the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)
+- What do I do when Play is unreachable for an hour or two — flip every paid user back to the free tier, or wait it out?
+- How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?
+
+PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source)` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
+
+It listens to `observePurchaseUpdates()`, so it benefits from the auto-recovery sweep — see [Purchase recovery](purchase-recovery.md) for what `OwnedPurchases.Live` vs `OwnedPurchases.Recovered` actually mean and why you can't just write the callback's `purchases` list to your storage and call it done.
 
 ```kotlin
 import com.kanetik.billing.entitlement.EntitlementCache

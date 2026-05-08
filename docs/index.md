@@ -2,6 +2,19 @@
 
 A coroutine-first wrapper around [Google Play Billing Library 8.x](https://developer.android.com/google/play/billing). The [README](https://github.com/kanetik/billing-library#readme) covers what the library is and the bare-minimum integration; this site is the deeper reference.
 
+## New to Play Billing?
+
+If you haven't shipped a Play Billing integration before, the docs work best in this order:
+
+1. [Installation](installation.md) and [Quick start](quick-start.md) — get something running.
+2. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is, why it has two tiers, and the three-day acknowledge cliff that catches almost everyone the first time. The most important read.
+3. [Error handling](guides/error-handling.md) — typed exceptions, the seven UI categories, and the retry loop the library runs for you.
+4. [EntitlementCache](guides/entitlement-cache.md) — opt-in but most apps end up wanting it.
+5. [Signature verification](guides/signature-verification.md) — proving a `Purchase` actually came from Google.
+6. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app.
+
+The rest of the guides below are scenario-specific reference; pick them up when the situation comes up.
+
 ## What you'll find here
 
 ### Getting set up
