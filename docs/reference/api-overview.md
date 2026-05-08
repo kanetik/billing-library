@@ -1,6 +1,6 @@
 # API overview
 
-For full per-class / per-method docs, see the [Dokka API reference](../api/index.html).
+For full per-class / per-method docs, see the [Dokka API reference](https://kanetik.github.io/billing-library/api/).
 
 ## Top-level types
 
