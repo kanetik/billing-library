@@ -20,6 +20,8 @@ Requires `minSdk = 23` (PBL 8.1's floor — the library pins to PBL 8.3.0). JVM 
 
 ## Quick start (one-time IAP)
 
+(Standard AndroidX / coroutines imports — `ComponentActivity`, `Bundle`, `lifecycleScope`, `kotlinx.coroutines.launch` — are omitted for readability; only the library's own imports are listed.)
+
 ```kotlin
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase

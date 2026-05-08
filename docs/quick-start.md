@@ -2,6 +2,8 @@
 
 A complete one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 — see the [Roadmap](roadmap.md).
 
+(Standard AndroidX / coroutines imports — `ComponentActivity`, `Bundle`, `lifecycleScope`, `kotlinx.coroutines.launch` — are omitted for readability; only the library's own imports are listed.)
+
 ```kotlin
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
