@@ -29,6 +29,15 @@ theme:
         icon: material/weather-night
         name: Switch to light mode
 
+# Keep operational / internal docs out of the published site. Anything
+# under docs/_internal/ (manual setup, IFTTT config, the automated update
+# playbook) is contributor-facing and shouldn't appear in nav, search, or
+# the rendered HTML. exclude_docs uses gitignore-style patterns and is
+# applied before the build, so the files aren't even copied into the
+# generated site/.
+exclude_docs: |
+  _internal/
+
 validation:
   # docs/api/ is populated at CI time from Dokka HTML output (see
   # .github/workflows/docs.yml). Locally it's gitignored and empty, so
