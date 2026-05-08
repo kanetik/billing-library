@@ -51,7 +51,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 
 ### Purchase updates
 
-`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `SharedFlow<PurchasesUpdate>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchasesUpdate` has variants `Success`, `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`. `Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases.
+`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `Flow<PurchaseEvent>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchaseEvent` is a marker interface with two sealed roots — `OwnedPurchases` (variants `Live`, `Recovered`) for owned-state updates and `FlowOutcome` (variants `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) for purchase-flow attempt outcomes — plus a standalone `PurchaseRevoked` event for server-driven revocation. `FlowOutcome.Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single `PurchasesUpdate` sealed class with flat variants `Success`/`Pending`/`Canceled`/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)
 
 ### Actions
 
