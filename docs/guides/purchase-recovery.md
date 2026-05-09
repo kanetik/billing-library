@@ -1,34 +1,34 @@
 # Purchase recovery
 
-If you've never shipped a Play Billing integration before, this is probably the most surprising thing about it: **a purchase isn't really yours until you acknowledge it, and Play auto-refunds anything you don't acknowledge within three days.** Not a soft warning, not a flag in the console — Play actually reverses the charge and the user loses entitlement. Crashes mid-acknowledge, network failures, the user force-quitting before your code finishes — any of those leaves a paid purchase stranded, and seventy-two hours later it's gone.
+If you've never shipped a Play Billing integration before, this is probably the most surprising thing about it: a purchase isn't really yours until you acknowledge it, and Play auto-refunds anything you don't acknowledge within three days. That's not a soft warning or a console flag. Play reverses the charge, the user loses entitlement, and the only signal you get is a refund showing up in their order history. Mid-acknowledge crashes, dropped network requests, force-quits before your code finishes — any of these strand a paid purchase, and seventy-two hours later it's gone.
 
-PBL doesn't help you with this. The acknowledge requirement is documented, but you're on the hook for noticing the failure and retrying. This guide is the most important read in the docs because it's the gotcha that costs real money — yours and the user's.
+PBL doesn't help. The requirement is documented, but noticing failures and retrying is on you. That's why this is probably the most important page in these docs: the failure mode is silent and asymmetric, and it costs real money on both sides.
 
 ## What `PurchaseEvent` is, and why it has two roots
 
-Before getting to the recovery sweep itself, a short conceptual detour. PBL gives you one callback — `PurchasesUpdatedListener` — that fires for two semantically different reasons that look identical at the API level:
+PBL gives you one callback, `PurchasesUpdatedListener`, that fires for two semantically different reasons that look identical at the API level:
 
-- **The user actually owns a purchase** — they just completed one via your active flow, or one was already in their account from a prior session that didn't finish processing.
-- **A launch attempt produced an outcome that isn't a purchase** — they canceled the dialog, the product wasn't available in their region, the network dropped, etc.
+- The user actually owns a purchase — they just completed one through your active flow, or one was already on their account from a prior session that didn't finish processing.
+- A launch attempt produced an outcome that *isn't* a purchase — they canceled the dialog, the product wasn't available in their region, the network dropped.
 
-Both arrive on the same listener with a `BillingResult` and a `List<Purchase>`. The naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app maintains. But a `USER_CANCELED` outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts your entitlement state. People have shipped real apps that revoke premium when the user opens the purchase dialog and clicks Back.
+Both arrive on the same listener with a `BillingResult` and a `List<Purchase>`. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a `USER_CANCELED` outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke premium when the user taps Back on the purchase dialog.
 
-The library splits the callback into two sealed roots so the type system makes the mistake harder to make:
+The library splits the callback into two sealed roots so the type system can catch this at compile time:
 
-- **`OwnedPurchases`** — the user owns these. Acknowledge / consume / grant entitlement. Two variants:
-    - `Live` — completed via the active purchase flow (or carried in an `OK` callback).
-    - `Recovered` — discovered by the auto-sweep on connect (this is what the rest of this guide is about).
-- **`FlowOutcome`** — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
+- `OwnedPurchases` — the user owns these. Acknowledge / consume / grant entitlement. Two variants:
+    - `Live` — completed through the active purchase flow (or carried in an `OK` callback).
+    - `Recovered` — found by the auto-sweep on connect (the rest of this guide is about these).
+- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. Never write it to your entitlement cache.
 
-There's also `PurchaseRevoked` (a third root, sibling to the two above) for server-driven revocation events — see [Server-driven revocation](server-driven-revocation.md) for that story.
+There's also `PurchaseRevoked`, a third root sibling to the two above, for server-driven revocation events. See [Server-driven revocation](server-driven-revocation.md) for that story.
 
-The `PurchaseEvent` marker interface deliberately doesn't expose `purchases` directly, so a `when` branch that wants to read purchases has to narrow to `OwnedPurchases` or `FlowOutcome` first. The wrong code now fails to compile rather than silently corrupting state.
+The `PurchaseEvent` marker interface doesn't expose `purchases` at all, so a `when` branch that wants to read purchases has to narrow to `OwnedPurchases` or `FlowOutcome` first. The wrong code fails to compile instead of silently corrupting state.
 
 ## How recovery works
 
-On every fresh Play Billing connection — app start, post-disconnect reconnect, foregrounding after the connection released — the library queries owned `INAPP` + `SUBS` purchases from Play, filters to `PURCHASED && !isAcknowledged`, and emits any matches as `OwnedPurchases.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up. There's no startup hook to wire and no scheduling code to write.
+On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released) the library queries owned `INAPP` + `SUBS` purchases from Play, filters to `PURCHASED && !isAcknowledged`, and emits any matches as `OwnedPurchases.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up. There's no startup hook to wire and no scheduling code to write.
 
-(About "fresh connection": the library's `connectToBilling()` is shared via `WhileSubscribed(60s)`, so a quick background round-trip — collapsed activity, brief task switch — *doesn't* tear down and recreate the connection, and therefore *doesn't* re-run the sweep on resume. The sweep fires when the connection actually transitions from disconnected to OK. See [Replay semantics](../reference/replay-semantics.md) for the timing details.)
+A quick aside on "fresh connection": the library shares `connectToBilling()` via `WhileSubscribed(60s)`, so a brief background round-trip (a collapsed activity, a quick task switch) doesn't tear down and recreate the connection, and so doesn't re-run the sweep on resume. The sweep fires when the connection genuinely transitions from disconnected to OK. See [Replay semantics](../reference/replay-semantics.md) for the timing details.
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see [Lifecycle integration](lifecycle.md)), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire.
 
@@ -108,7 +108,7 @@ A non-null result is a plan change: invalidate the old token's grant and grant a
 
 ## Opting out
 
-If you run a server-side reconciliation queue that you'd rather have own this concern:
+If you run a server-side reconciliation queue and you'd rather have it own this concern:
 
 ```kotlin
 val billing = BillingRepositoryCreator.create(
@@ -117,4 +117,4 @@ val billing = BillingRepositoryCreator.create(
 )
 ```
 
-The auto-sweep is opt-out, not opt-in, because the failure mode of skipping recovery is silent and asymmetric (paid users lose entitlement) and most apps shouldn't run without it.
+The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.

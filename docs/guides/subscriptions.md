@@ -1,8 +1,10 @@
 # Subscriptions (v0.1.x)
 
-Subscriptions are a deeper rabbit hole than one-time purchases. PBL adds offer-token selection (a single product can have multiple base plans, each with multiple offers — free trials, intro pricing, regional discounts), multi-line-item replacements (upgrades / downgrades / add-ons in a single flow), deferred billing for prepaid plans, and a `linkedPurchaseToken` field that — if you miss it — double-grants entitlement on every plan change because the new purchase looks identical to a fresh buy. Most apps that ship subs and skip these end up either over-granting (free upgrades for everyone who taps the wrong button) or stranding users on stale plans.
+Subscriptions are a deeper rabbit hole than one-time purchases. A single product can carry multiple base plans, each with its own offers (free trials, intro pricing, regional discounts). Replacements happen as multi-line-item flows. Prepaid plans defer billing. And every replacement purchase carries a `linkedPurchaseToken` field that, if your code misses it, double-grants entitlement on every plan change — the new purchase looks identical to a fresh buy unless you parse the JSON and check.
 
-The v0.1.x series supports subscriptions at the *protocol* level — `queryPurchases`, `queryProductDetails`, `launchFlow` all accept `BillingClient.ProductType.SUBS`. What that means in practice: you can buy / observe / acknowledge subscriptions today, but the offer-selection and replacement-mode helpers that make the dev ergonomics tolerable are still on you. Typed helpers land in v0.2.0; this guide documents the manual path until then.
+Most apps that ship subscriptions without working through these either over-grant (free upgrades for everyone who taps the wrong button) or strand users on stale plans.
+
+The v0.1.x series supports subscriptions at the *protocol* level: `queryPurchases`, `queryProductDetails`, and `launchFlow` all accept `BillingClient.ProductType.SUBS`. So you can buy, observe, and acknowledge subscriptions today — the offer-selection and replacement-mode helpers that make the dev ergonomics tolerable are what's missing. Typed helpers land in v0.2.0; this guide documents the manual path until then.
 
 What's missing in v0.1.x:
 
