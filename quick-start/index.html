@@ -1110,8 +1110,8 @@
 
 
 <h1 id="quick-start-one-time-iap">Quick start (one-time IAP)<a class="headerlink" href="#quick-start-one-time-iap" title="Permanent link">&para;</a></h1>
-<p>A complete one-time-IAP integration. Subscriptions work at the protocol level via raw <code>QueryPurchasesParams</code> + <code>BillingFlowParams</code>; subscription-specific helpers ship in v0.2.0 — see the <a href="../roadmap/">Roadmap</a>.</p>
-<p>(Standard AndroidX / coroutines imports — <code>ComponentActivity</code>, <code>Bundle</code>, <code>lifecycleScope</code>, <code>kotlinx.coroutines.launch</code> — are omitted for readability; only the library's own imports are listed.)</p>
+<p>A complete one-time-IAP integration. Subscriptions work at the protocol level via raw <code>QueryPurchasesParams</code> + <code>BillingFlowParams</code>; subscription-specific helpers ship in v0.2.0 (see the <a href="../roadmap/">Roadmap</a>).</p>
+<p>(Standard AndroidX / coroutines imports are omitted for readability; only the library's own imports are listed. The omitted ones are <code>ComponentActivity</code>, <code>Bundle</code>, <code>lifecycleScope</code>, and <code>kotlinx.coroutines.launch</code>.)</p>
 <p>```kotlin
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
@@ -1191,9 +1191,9 @@ private suspend fun handle(purchase: Purchase) {
 ```</p>
 <p>That's enough for a working one-time-IAP integration.</p>
 <h2 id="whats-worth-reading-next">What's worth reading next<a class="headerlink" href="#whats-worth-reading-next" title="Permanent link">&para;</a></h2>
-<p>A few topics are worth picking up before you ship — especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:</p>
+<p>A few topics are worth picking up before you ship, especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:</p>
 <ul>
-<li><a href="../guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code>'s two tiers actually are (and why splitting them matters), why acknowledgement is a three-day cliff that costs real money if you miss it, and what the library's auto-sweep does for you. Probably the most important read in the docs.</li>
+<li><a href="../guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code>'s two tiers actually are, why acknowledgement is a three-day cliff, and what the library's auto-sweep does for you. The most important page in this set.</li>
 <li><a href="../guides/error-handling/">Error handling</a> — typed exceptions, the seven <code>BillingErrorCategory</code> UI buckets, and the retry strategy the library runs before throwing.</li>
 <li><a href="../guides/entitlement-cache/">EntitlementCache</a> — opt-in state machine that answers "is the user entitled right now," with a grace window for transient Play outages and signed/tamper-resistant storage if your threat model needs it.</li>
 <li><a href="../guides/signature-verification/">Signature verification</a> — proving an incoming <code>Purchase</code> actually came from Google.</li>

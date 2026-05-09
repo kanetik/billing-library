@@ -1500,7 +1500,7 @@
 
 
 <h1 id="testing-your-billing-integration">Testing your billing integration<a class="headerlink" href="#testing-your-billing-integration" title="Permanent link">&para;</a></h1>
-<p>The Kanetik Billing Library is a thin wrapper over Play Billing — your tests are mostly about exercising the <em>flow</em>, not the library. This guide covers the realistic options for testing a billing integration, from cheap automated checks to the full real-Play-dialog round trip.</p>
+<p>The Kanetik Billing Library is a thin wrapper over Play Billing, so your tests are mostly about exercising the <em>flow</em>, not the library. This guide covers the realistic options for testing a billing integration, from cheap automated checks to the full real-Play-dialog round trip.</p>
 <p>The README points readers here for anything beyond install + quick start. Everything you need to test a billing integration end-to-end is below.</p>
 <hr />
 <h2 id="levels-of-test-realism">Levels of test realism<a class="headerlink" href="#levels-of-test-realism" title="Permanent link">&para;</a></h2>
@@ -1623,7 +1623,7 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
 </ol>
 <h3 id="per-test-loop">Per-test loop<a class="headerlink" href="#per-test-loop" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Build the debug APK (<code>./gradlew :app:assembleDebug</code>). The test build does not need to be uploaded each time — Play Store recognizes your installed app from its package and signature against what's been uploaded once.</li>
+<li>Build the debug APK (<code>./gradlew :app:assembleDebug</code>). The test build does not need to be uploaded each time. Play Store recognizes your installed app from its package and signature against what's been uploaded once.</li>
 <li>Install on a device signed in with the license-tester account.</li>
 <li>Run the app, query your real product ID, tap Buy.</li>
 <li>The real Play purchase dialog appears with your product's title, description, price, and "test card" indicator.</li>
@@ -1638,8 +1638,8 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
 - Region-specific pricing (your tester account's region drives this)</p>
 <h3 id="what-level-2-still-doesnt-easily-verify">What Level 2 still doesn't easily verify<a class="headerlink" href="#what-level-2-still-doesnt-easily-verify" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Specific failure scenarios (network down, billing unavailable, item already owned, etc.) — for that, use Level 3.</li>
-<li>Subscription edge states (grace period, account hold, price changes) — Level 3.</li>
+<li>Specific failure scenarios (network down, billing unavailable, item already owned, etc.); for that, use Level 3.</li>
+<li>Subscription edge states (grace period, account hold, price changes); also Level 3.</li>
 </ul>
 <hr />
 <h2 id="level-3-play-billing-lab">Level 3 — Play Billing Lab<a class="headerlink" href="#level-3-play-billing-lab" title="Permanent link">&para;</a></h2>
@@ -1667,7 +1667,7 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
 </ul>
 </li>
 <li>Activate the simulator (toggle in the dashboard).</li>
-<li>Run your app and exercise the relevant flow — Lab returns the simulated code instead of the real Play response.</li>
+<li>Run your app and exercise the relevant flow. Lab returns the simulated code instead of the real Play response.</li>
 </ol>
 <p>This is by far the easiest way to verify every branch of your <code>BillingException</code> handling without orchestrating real failures.</p>
 <h3 id="configuration-settings-region-overrides-free-trials-intro-offers">Configuration settings — region overrides, free trials, intro offers<a class="headerlink" href="#configuration-settings-region-overrides-free-trials-intro-offers" title="Permanent link">&para;</a></h3>
@@ -1702,7 +1702,7 @@ val billing = mockk&lt;BillingRepository&gt;()
 coEvery { billing.queryProductDetails(any()) } returns listOf(productDetails())
 coEvery { billing.launchFlow(any(), any()) } returns Unit
 every { billing.observePurchaseUpdates() } returns flowOf(OwnedPurchases.Live(listOf(purchase())))</code></p>
-<p><code>BillingRepository</code> is composed of three narrower interfaces (<code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>) — depend on the narrowest one your code under test needs, and mock that.</p>
+<p><code>BillingRepository</code> is composed of three narrower interfaces (<code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>). Depend on the narrowest one your code under test needs, and mock that.</p>
 <p>The library's own test suite (<code>billing/src/test/kotlin/com/kanetik/billing/</code>) uses this pattern with mockk + Truth + kotlinx-coroutines-test. Worth skimming for examples.</p>
 <h3 id="looking-ahead-billing-testing">Looking ahead: <code>:billing-testing</code><a class="headerlink" href="#looking-ahead-billing-testing" title="Permanent link">&para;</a></h3>
 <p>v0.2.0 plans a published <code>com.kanetik.billing:billing-testing</code> artifact with:

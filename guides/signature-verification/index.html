@@ -1115,8 +1115,8 @@
 
 
 <h1 id="signature-verification">Signature verification<a class="headerlink" href="#signature-verification" title="Permanent link">&para;</a></h1>
-<p>Play's signature is the only on-device proof that a <code>Purchase</code> actually came from Google rather than from a malicious app forging the response or from a man-in-the-middle tampering with the intent. PBL hands you <code>Purchase.signature</code> and <code>Purchase.originalJson</code>, but it doesn't validate them — that's on you. Skipping verification leaves your entitlement checks trusting whatever the device hands the listener, which on a rooted phone is whatever the user (or a tool they're running) wants it to be.</p>
-<p><code>PurchaseVerifier</code> (in <code>com.kanetik.billing.security</code>) does RSA signature verification of <code>Purchase.originalJson</code> against your app's public key (Play Console gives you the key when you create the app — Monetization setup → Licensing). It's a small piece of code with a high payoff: a verified <code>Purchase</code> is one Play vouches for, and an unverified one shouldn't grant entitlement no matter how convincing it looks.</p>
+<p>Play's signature is the only on-device proof that a <code>Purchase</code>'s data is what Google actually sent, untampered. The realistic threat isn't an external app calling your listener (the <code>PurchasesUpdatedListener</code> callback runs inside your own process, and PBL doesn't expose it externally); it's tampering between Play and your code. On a rooted device, hooks like Xposed or Frida — or a modified Play Store APK, or a repackaged version of your own app — can swap in arbitrary <code>Purchase</code> data before it reaches your collector. PBL hands you <code>Purchase.signature</code> and <code>Purchase.originalJson</code> but doesn't validate them; that's on you. Without verification, your entitlement checks are trusting whatever data made it through, and on a rooted phone that's whatever the user (or a tool they're running) decides.</p>
+<p><code>PurchaseVerifier</code> (in <code>com.kanetik.billing.security</code>) does RSA signature verification of <code>Purchase.originalJson</code> against your app's public key. Play Console gives you the key when you create the app, under Monetization setup → Licensing. The check itself is small; the consequence of skipping it is that any unverified <code>Purchase</code> in your code is essentially user-supplied input.</p>
 <p>The recommended integration:</p>
 <p>```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)</p>
@@ -1153,7 +1153,7 @@ billing.observePurchaseUpdates()
         }
     }
 ```</p>
-<p><code>signatureAlgorithm</code> defaults to <code>SHA1withRSA</code> (PBL-current). Override only if you know what you're doing — PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.</p>
+<p><code>signatureAlgorithm</code> defaults to <code>SHA1withRSA</code> (PBL-current). Override only if you know what you're doing. PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../purchase-recovery/">Purchase recovery</a> — how <code>Recovered</code> events flow, why no consumer-side dedupe is needed, and the auto-sweep on connect.</li>
