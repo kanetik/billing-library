@@ -7,7 +7,7 @@
 androidGradlePlugin = "9.2.1"
 kotlin = "2.3.21"
 playBillingKtx = "8.3.0"
-kotlinxCoroutines = "1.10.2"
+kotlinxCoroutines = "1.11.0"
 lifecycle = "2.10.0"
 coreKtx = "1.18.0"
 # Sample-only deps. Compose UI/material versions are resolved through the BOM
