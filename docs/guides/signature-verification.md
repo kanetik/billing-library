@@ -1,8 +1,8 @@
 # Signature verification
 
-Play's signature is the only on-device proof that a `Purchase` actually came from Google rather than from a malicious app forging the response or from a man-in-the-middle tampering with the intent. PBL hands you `Purchase.signature` and `Purchase.originalJson`, but it doesn't validate them — that's on you. Skipping verification leaves your entitlement checks trusting whatever the device hands the listener, which on a rooted phone is whatever the user (or a tool they're running) wants it to be.
+Play's signature is the only on-device proof that a `Purchase`'s data is what Google actually sent, untampered. The realistic threat isn't an external app calling your listener (the `PurchasesUpdatedListener` callback runs inside your own process, and PBL doesn't expose it externally); it's tampering between Play and your code. On a rooted device, hooks like Xposed or Frida — or a modified Play Store APK, or a repackaged version of your own app — can swap in arbitrary `Purchase` data before it reaches your collector. PBL hands you `Purchase.signature` and `Purchase.originalJson` but doesn't validate them; that's on you. Without verification, your entitlement checks are trusting whatever data made it through, and on a rooted phone that's whatever the user (or a tool they're running) decides.
 
-`PurchaseVerifier` (in `com.kanetik.billing.security`) does RSA signature verification of `Purchase.originalJson` against your app's public key (Play Console gives you the key when you create the app — Monetization setup → Licensing). It's a small piece of code with a high payoff: a verified `Purchase` is one Play vouches for, and an unverified one shouldn't grant entitlement no matter how convincing it looks.
+`PurchaseVerifier` (in `com.kanetik.billing.security`) does RSA signature verification of `Purchase.originalJson` against your app's public key. Play Console gives you the key when you create the app, under Monetization setup → Licensing. The check itself is small; the consequence of skipping it is that any unverified `Purchase` in your code is essentially user-supplied input.
 
 The recommended integration:
 
@@ -43,7 +43,7 @@ billing.observePurchaseUpdates()
     }
 ```
 
-`signatureAlgorithm` defaults to `SHA1withRSA` (PBL-current). Override only if you know what you're doing — PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.
+`signatureAlgorithm` defaults to `SHA1withRSA` (PBL-current). Override only if you know what you're doing. PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.
 
 ## See also
 

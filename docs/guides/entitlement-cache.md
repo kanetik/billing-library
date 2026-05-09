@@ -3,12 +3,12 @@
 Once your code can answer "did the user buy this" in the moment, three follow-up questions usually land within a few weeks of shipping:
 
 - How do I render premium UI on cold start, *before* the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)
-- What do I do when Play is unreachable for an hour or two — flip every paid user back to the free tier, or wait it out?
+- What do I do when Play is unreachable for an hour or two: flip every paid user back to the free tier, or wait it out?
 - How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?
 
 PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source)` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
 
-It listens to `observePurchaseUpdates()`, so it benefits from the auto-recovery sweep — see [Purchase recovery](purchase-recovery.md) for what `OwnedPurchases.Live` vs `OwnedPurchases.Recovered` actually mean and why you can't just write the callback's `purchases` list to your storage and call it done.
+It listens to `observePurchaseUpdates()`, so it benefits from the auto-recovery sweep. See [Purchase recovery](purchase-recovery.md) for what `OwnedPurchases.Live` vs `OwnedPurchases.Recovered` actually mean and why you can't just write the callback's `purchases` list to your storage and call it done.
 
 ```kotlin
 import com.kanetik.billing.entitlement.EntitlementCache
@@ -57,21 +57,21 @@ Grace expiry is re-evaluated on every emission and on a periodic tick, so an ext
 
 ## When to use it
 
-Use `EntitlementCache` when you want a simple `is the user entitled right now?` flow off the side of your existing `observePurchaseUpdates()` integration. The cache is purely observational — it does **not** call `handlePurchase` for you. Acknowledge / consume + entitlement grant remain your collector's job; the cache just tracks the resulting confirmed observation.
+Use `EntitlementCache` when you want a simple `is the user entitled right now?` flow off the side of your existing `observePurchaseUpdates()` integration. The cache is purely observational; it does **not** call `handlePurchase` for you. Acknowledge / consume + entitlement grant remain your collector's job. The cache just tracks the resulting confirmed observation.
 
-Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch — write a thin custom layer for those).
+Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch). Write a thin custom layer for those.
 
 The cache reacts to four event paths:
 
-- `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke — `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to the predicate, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
+- `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. A match against the cache's `productPredicate` transitions to `Granted` and persists the snapshot. A *non-match* on either does **not** revoke. `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to the predicate, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
 - `FlowOutcome.Failure` triggers `InGrace` (or transitions straight to `Revoked` if the policy window is zero or has already elapsed since the last confirmation).
 - `PurchaseRevoked` matched against `lastConfirmedSnapshot.purchaseToken` transitions to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline (or whatever transport carries refund/chargeback signals); see [Server-driven revocation](server-driven-revocation.md).
 
-The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are no-ops — they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
+The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
 
 ## Storage is your responsibility
 
-The library doesn't pick a persistence library. Implement `EntitlementStorage` against whatever your app already uses — DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key, etc. The interface is two suspend functions:
+The library doesn't pick a persistence library. Implement `EntitlementStorage` against whatever your app already uses (DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key). The interface is two suspend functions:
 
 ```kotlin
 interface EntitlementStorage {
@@ -82,7 +82,7 @@ interface EntitlementStorage {
 
 `EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `read()` once on `start()` to hydrate, then `write()` on every entitlement-affecting transition. `InGrace` is **not** persisted — grace re-derives from the most recent confirmed `confirmedAtMs` on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.
 
-For most apps the on-device storage is fine — a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement. The cache trusts what storage returns.
+For most apps the on-device storage is fine: a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement. The cache trusts what storage returns.
 
 ## Tamper-resistant storage
 
