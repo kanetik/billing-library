@@ -19,8 +19,6 @@ If you haven't shipped a Play Billing integration before, these are the guides t
 
 ## Situational guides
 
-Pick these up when the situation comes up:
-
 - [Lifecycle integration](guides/lifecycle.md) — `BillingConnectionLifecycleManager` against an Activity, Fragment, or `ProcessLifecycleOwner`.
 - [Logging](guides/logging.md) — Noop/Android default + Crashlytics adapter sketch.
 - [Dependency injection](guides/dependency-injection.md) — Hilt and Koin module shapes.
