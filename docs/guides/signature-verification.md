@@ -43,7 +43,7 @@ billing.observePurchaseUpdates()
     }
 ```
 
-`signatureAlgorithm` defaults to `SHA1withRSA` (PBL-current). Override only if you know what you're doing — PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.
+`signatureAlgorithm` defaults to `SHA1withRSA` (PBL-current). Override only if you know what you're doing. PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.
 
 ## See also
 

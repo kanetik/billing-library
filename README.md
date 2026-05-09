@@ -4,7 +4,7 @@ A coroutine-first wrapper around [Google Play Billing Library 8.x](https://devel
 
 ## Why
 
-- The coroutine wrappers — `connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()` — replace PBL's listener/callback wiring at the call site. `observePurchaseUpdates()` returns a `Flow<PurchaseEvent>` split into two sealed roots: `OwnedPurchases` (`Live`, `Recovered`) for owned-state updates and `FlowOutcome` (`Pending`, `Canceled`, etc.) for purchase-flow attempt outcomes. The split is what stops you from accidentally writing a `Canceled` event's `purchases` list into your entitlement cache.
+- The coroutine wrappers (`connectToBilling()`, `queryProductDetails(...)`, `launchFlow(...)`, `observePurchaseUpdates()`) replace PBL's listener/callback wiring at the call site. `observePurchaseUpdates()` returns a `Flow<PurchaseEvent>` split into two sealed roots: `OwnedPurchases` (`Live`, `Recovered`) for owned-state updates and `FlowOutcome` (`Pending`, `Canceled`, etc.) for purchase-flow attempt outcomes. The split is what stops you from accidentally writing a `Canceled` event's `purchases` list into your entitlement cache.
 - Every `BillingResponseCode` lands as a typed `BillingException` subtype with a `RetryType` hint. Branch on the type, not on integers.
 - `BillingConnectionLifecycleManager` keeps the connection warm while an activity (or process) is observable and tears it down on destruction. There's a 60-second grace window so configuration changes don't churn the connection.
 
@@ -16,11 +16,11 @@ dependencies {
 }
 ```
 
-Requires `minSdk = 23` (PBL 8.1's floor — the library pins to PBL 8.3.0). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
+Requires `minSdk = 23` (PBL 8.1's floor; the library pins to PBL 8.3.0). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
 
 ## Quick start (one-time IAP)
 
-(Standard AndroidX / coroutines imports — `ComponentActivity`, `Bundle`, `lifecycleScope`, `kotlinx.coroutines.launch` — are omitted for readability; only the library's own imports are listed.)
+(Standard AndroidX / coroutines imports are omitted for readability; only the library's own imports are listed. The omitted ones are `ComponentActivity`, `Bundle`, `lifecycleScope`, and `kotlinx.coroutines.launch`.)
 
 ```kotlin
 import com.android.billingclient.api.BillingClient
@@ -118,6 +118,6 @@ A few things are worth a read once you're past the smoke test, especially if Pla
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0; see [LICENSE](LICENSE).
 
 This project is a substantial rewrite of [`michal-luszczuk/MakeBillingEasy`](https://github.com/michal-luszczuk/MakeBillingEasy) (Apache-2.0). See [NOTICE](NOTICE) for full attribution.

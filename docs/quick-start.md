@@ -1,8 +1,8 @@
 # Quick start (one-time IAP)
 
-A complete one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 — see the [Roadmap](roadmap.md).
+A complete one-time-IAP integration. Subscriptions work at the protocol level via raw `QueryPurchasesParams` + `BillingFlowParams`; subscription-specific helpers ship in v0.2.0 (see the [Roadmap](roadmap.md)).
 
-(Standard AndroidX / coroutines imports — `ComponentActivity`, `Bundle`, `lifecycleScope`, `kotlinx.coroutines.launch` — are omitted for readability; only the library's own imports are listed.)
+(Standard AndroidX / coroutines imports are omitted for readability; only the library's own imports are listed. The omitted ones are `ComponentActivity`, `Bundle`, `lifecycleScope`, and `kotlinx.coroutines.launch`.)
 
 ```kotlin
 import com.android.billingclient.api.BillingClient
@@ -87,7 +87,7 @@ That's enough for a working one-time-IAP integration.
 
 ## What's worth reading next
 
-A few topics are worth picking up before you ship — especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:
+A few topics are worth picking up before you ship, especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:
 
 - [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent`'s two tiers actually are, why acknowledgement is a three-day cliff, and what the library's auto-sweep does for you. The most important page in this set.
 - [Error handling](guides/error-handling.md) — typed exceptions, the seven `BillingErrorCategory` UI buckets, and the retry strategy the library runs before throwing.

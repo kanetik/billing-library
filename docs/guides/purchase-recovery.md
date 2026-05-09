@@ -1,6 +1,6 @@
 # Purchase recovery
 
-If you've never shipped a Play Billing integration before, this is probably the most surprising thing about it: a purchase isn't really yours until you acknowledge it, and Play auto-refunds anything you don't acknowledge within three days. That's not a soft warning or a console flag. Play reverses the charge, the user loses entitlement, and the only signal you get is a refund showing up in their order history. Mid-acknowledge crashes, dropped network requests, force-quits before your code finishes — any of these strand a paid purchase, and seventy-two hours later it's gone.
+If you've never shipped a Play Billing integration before, this is probably the most surprising thing about it: a purchase isn't really yours until you acknowledge it, and Play auto-refunds anything you don't acknowledge within three days. That's not a soft warning or a console flag. Play reverses the charge, the user loses entitlement, and the only signal you get is a refund showing up in their order history. Mid-acknowledge crashes, dropped network requests, force-quits before your code finishes: any of these strand a paid purchase, and seventy-two hours later it's gone.
 
 PBL doesn't help. The requirement is documented, but noticing failures and retrying is on you. That's why this is probably the most important page in these docs: the failure mode is silent and asymmetric, and it costs real money on both sides.
 
@@ -36,7 +36,7 @@ The recovery channel uses `replay = 1` internally, so a subscriber that attaches
 
 ## Handling `Recovered` events
 
-Same code path as `Live`. Hand each purchase to `handlePurchase` — that's the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.
+Same code path as `Live`. Hand each purchase to `handlePurchase`, the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.
 
 ```kotlin
 is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
@@ -65,9 +65,9 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
 }
 ```
 
-You don't need a consumer-side dedupe `Set<String>`. Earlier versions of the library required one because `replay = 1` would re-deliver the cached snapshot to a re-attached collector even after the consumer had already acknowledged the purchase. The library now tracks acknowledged tokens internally (in `BillingClientStorage.acknowledgedTokens`) and filters the cached snapshot against that set at delivery time — so re-attached subscribers don't see already-handled recovered purchases.
+You don't need a consumer-side dedupe `Set<String>`. Earlier versions of the library required one because `replay = 1` would re-deliver the cached snapshot to a re-attached collector even after the consumer had already acknowledged the purchase. The library now tracks acknowledged tokens internally (in `BillingClientStorage.acknowledgedTokens`) and filters the cached snapshot against that set at delivery time, so re-attached subscribers don't see already-handled recovered purchases.
 
-You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.) — the library's dedupe is about not re-handling the *purchase*, not about coalescing your side-effects.
+You should still treat the `Recovered` branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.). The library's dedupe is about not re-handling the *purchase*, not about coalescing your side-effects.
 
 ## Live vs. Recovered: when the UX should differ
 
@@ -92,7 +92,7 @@ billing.observePurchaseUpdates().collect { event ->
 
 ## Subscription replacements need extra care (until v0.2.0)
 
-Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. If you treat one as a fresh grant rather than a replacement, you've double-granted entitlement on the plan change — the new purchase shows up in `OwnedPurchases.Live` (or `Recovered` if recovered after a crash) and looks identical to a brand-new buy.
+Subscription upgrade/downgrade/crossgrade purchases carry a non-null `linkedPurchaseToken` pointing at the prior subscription. If you treat one as a fresh grant rather than a replacement, you've double-granted entitlement on the plan change. The new purchase shows up in `OwnedPurchases.Live` (or `Recovered` if recovered after a crash) and looks identical to a brand-new buy.
 
 PBL's `Purchase` API doesn't expose a getter for `linkedPurchaseToken` (`AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`); the field is only present in `purchase.originalJson`. Until v0.2.0 ships the typed `OwnedPurchases.SubscriptionReplacement` variant (see the [Roadmap](../roadmap.md)), consumers using subscriptions need to parse it themselves:
 
@@ -104,7 +104,7 @@ fun Purchase.linkedPurchaseToken(): String? = try {
 } catch (e: org.json.JSONException) { null }
 ```
 
-A non-null result is a plan change: invalidate the old token's grant and grant against the new one. IAP-only apps are unaffected — one-time products never carry a `linkedPurchaseToken`.
+A non-null result is a plan change: invalidate the old token's grant and grant against the new one. IAP-only apps are unaffected; one-time products never carry a `linkedPurchaseToken`.
 
 ## Opting out
 

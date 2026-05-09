@@ -1,6 +1,6 @@
 # Testing your billing integration
 
-The Kanetik Billing Library is a thin wrapper over Play Billing — your tests are mostly about exercising the *flow*, not the library. This guide covers the realistic options for testing a billing integration, from cheap automated checks to the full real-Play-dialog round trip.
+The Kanetik Billing Library is a thin wrapper over Play Billing, so your tests are mostly about exercising the *flow*, not the library. This guide covers the realistic options for testing a billing integration, from cheap automated checks to the full real-Play-dialog round trip.
 
 The README points readers here for anything beyond install + quick start. Everything you need to test a billing integration end-to-end is below.
 
@@ -88,7 +88,7 @@ This is the canonical Play testing path. Real dialog, real flow, no actual money
 
 ### Per-test loop
 
-1. Build the debug APK (`./gradlew :app:assembleDebug`). The test build does not need to be uploaded each time — Play Store recognizes your installed app from its package and signature against what's been uploaded once.
+1. Build the debug APK (`./gradlew :app:assembleDebug`). The test build does not need to be uploaded each time. Play Store recognizes your installed app from its package and signature against what's been uploaded once.
 2. Install on a device signed in with the license-tester account.
 3. Run the app, query your real product ID, tap Buy.
 4. The real Play purchase dialog appears with your product's title, description, price, and "test card" indicator.
@@ -105,8 +105,8 @@ Everything Level 1 does, plus:
 
 ### What Level 2 still doesn't easily verify
 
-- Specific failure scenarios (network down, billing unavailable, item already owned, etc.) — for that, use Level 3.
-- Subscription edge states (grace period, account hold, price changes) — Level 3.
+- Specific failure scenarios (network down, billing unavailable, item already owned, etc.); for that, use Level 3.
+- Subscription edge states (grace period, account hold, price changes); also Level 3.
 
 ---
 
@@ -137,7 +137,7 @@ The most useful Lab feature for library validation. Force any response code on a
     - `DEVELOPER_ERROR` → `BillingException.DeveloperErrorException` (`RetryType.NONE`).
     - `FEATURE_NOT_SUPPORTED` → `BillingException.FeatureNotSupportedException` (`RetryType.NONE`).
 3. Activate the simulator (toggle in the dashboard).
-4. Run your app and exercise the relevant flow — Lab returns the simulated code instead of the real Play response.
+4. Run your app and exercise the relevant flow. Lab returns the simulated code instead of the real Play response.
 
 This is by far the easiest way to verify every branch of your `BillingException` handling without orchestrating real failures.
 
@@ -192,7 +192,7 @@ coEvery { billing.launchFlow(any(), any()) } returns Unit
 every { billing.observePurchaseUpdates() } returns flowOf(OwnedPurchases.Live(listOf(purchase())))
 ```
 
-`BillingRepository` is composed of three narrower interfaces (`BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`) — depend on the narrowest one your code under test needs, and mock that.
+`BillingRepository` is composed of three narrower interfaces (`BillingActions`, `BillingConnector`, `BillingPurchaseUpdatesOwner`). Depend on the narrowest one your code under test needs, and mock that.
 
 The library's own test suite (`billing/src/test/kotlin/com/kanetik/billing/`) uses this pattern with mockk + Truth + kotlinx-coroutines-test. Worth skimming for examples.
 
