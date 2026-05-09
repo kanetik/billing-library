@@ -4,7 +4,7 @@ PBL hands you back errors as integer response codes on a `BillingResult`. The co
 
 The library does two things about that:
 
-1. Maps each response code to a typed `BillingException` subtype with a `RetryType` hint, and runs the retries that should happen automatically. Network errors back off exponentially, transient disconnects retry quickly, ownership-mismatches re-query owned state and try once more. What reaches your `catch` is what didn't recover.
+1. Maps each response code to a typed `BillingException` subtype with a `RetryType` hint, and runs the retries that should happen automatically. Network errors back off exponentially, transient disconnects retry quickly, and ownership-mismatches re-query owned state and try once more. What reaches your `catch` is what didn't recover.
 2. Categorizes every exception into a `BillingErrorCategory` enum (seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) so your UI can localize per bucket without memorizing twelve response codes.
 
 Most `BillingActions` methods that fail throw a typed `BillingException` subtype: `queryPurchases`, `queryProductDetails`, `queryProductDetailsWithUnfetched`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see [Handling `handlePurchase` failures correctly](#handling-handlepurchase-failures-correctly) below). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing, so what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
@@ -50,7 +50,7 @@ try {
 
 **Never display `BillingException.message` in your UI.** It's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
 
-For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory`: seven buckets — `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
+For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
 
 ```kotlin
 catch (e: BillingException) {

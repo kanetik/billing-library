@@ -69,4 +69,4 @@ In both cases the helper is small. Read your `EntitlementStorage` snapshot, no-o
 - `SubscriptionExpired` — subscription has fully expired (auto-renew off **and** the paid-through period elapsed). PBL distinguishes this from `SUBSCRIPTION_CANCELED` which means auto-renew was disabled but the user still has entitlement until the period ends. Forward-compatible with v0.2.0 subscription helpers; the v0.1.x library does not emit this itself.
 - `Other` — none of the above (manual revocation by support, fraud-detection action, etc.).
 
-The library doesn't validate or inspect the reason; pick whichever bucket fits your backend's payload. The enum is there so downstream collectors get a typed switch for differentiated UX: chargeback may flag the account, a plain refund probably just shows a neutral notice.
+The library doesn't validate or inspect the reason; pick whichever bucket fits your backend's payload. The enum is there so downstream collectors get a typed switch for differentiated UX: chargeback may flag the account; a plain refund probably just shows a neutral notice.
