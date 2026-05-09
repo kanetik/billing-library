@@ -18,7 +18,7 @@ The library splits the callback into two sealed roots so the type system can cat
 - `OwnedPurchases` — the user owns these. Acknowledge / consume / grant entitlement. Two variants:
     - `Live` — completed through the active purchase flow (or carried in an `OK` callback).
     - `Recovered` — found by the auto-sweep on connect (the rest of this guide is about these).
-- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. Never write it to your entitlement cache.
+- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
 
 There's also `PurchaseRevoked`, a third root sibling to the two above, for server-driven revocation events. See [Server-driven revocation](server-driven-revocation.md) for that story.
 
@@ -26,9 +26,9 @@ The `PurchaseEvent` marker interface doesn't expose `purchases` at all, so a `wh
 
 ## How recovery works
 
-On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released) the library queries owned `INAPP` + `SUBS` purchases from Play, filters to `PURCHASED && !isAcknowledged`, and emits any matches as `OwnedPurchases.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up. There's no startup hook to wire and no scheduling code to write.
+On every fresh Play Billing connection (app start, post-disconnect reconnect, foregrounding after the connection released), the library queries owned `INAPP` + `SUBS` purchases from Play, filters to `PURCHASED && !isAcknowledged`, and emits any matches as `OwnedPurchases.Recovered`. Your existing `observePurchaseUpdates()` collector picks them up. There's no startup hook to wire and no scheduling code to write.
 
-A quick aside on "fresh connection": the library shares `connectToBilling()` via `WhileSubscribed(60s)`, so a brief background round-trip (a collapsed activity, a quick task switch) doesn't tear down and recreate the connection, and so doesn't re-run the sweep on resume. The sweep fires when the connection genuinely transitions from disconnected to OK. See [Replay semantics](../reference/replay-semantics.md) for the timing details.
+A quick aside on "fresh connection": the library shares `connectToBilling()` via `WhileSubscribed(60s)`, so a brief background round-trip (a collapsed activity, a quick task switch) doesn't tear down and recreate the connection, which means the sweep doesn't re-run on resume. The sweep fires when the connection genuinely transitions from disconnected to OK. See [Replay semantics](../reference/replay-semantics.md) for the timing details.
 
 This requires that *something* is driving the connection. The standard pattern uses `BillingConnectionLifecycleManager` (see [Lifecycle integration](lifecycle.md)), which collects `connectToBilling()` while a `LifecycleOwner` is started and triggers the sweep automatically. Subscribing to `observePurchaseUpdates()` alone does **not** open the connection; pair it with the lifecycle manager (or your own `connectToBilling()` collector) so the sweep can fire.
 

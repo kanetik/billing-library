@@ -1,6 +1,6 @@
 # Subscriptions (v0.1.x)
 
-Subscriptions are a deeper rabbit hole than one-time purchases. A single product can carry multiple base plans, each with its own offers (free trials, intro pricing, regional discounts). Replacements happen as multi-line-item flows. Prepaid plans defer billing. And every replacement purchase carries a `linkedPurchaseToken` field that, if your code misses it, double-grants entitlement on every plan change — the new purchase looks identical to a fresh buy unless you parse the JSON and check.
+Subscriptions are a deeper rabbit hole than one-time purchases. A single product can carry multiple base plans, each with its own offers (free trials, intro pricing, regional discounts). Replacements (upgrades, downgrades, or add-ons) happen as multi-line-item flows. Prepaid plans defer billing. And every replacement purchase carries a `linkedPurchaseToken` field that, if your code misses it, double-grants entitlement on every plan change — the new purchase looks identical to a fresh buy unless you parse the JSON and check.
 
 Most apps that ship subscriptions without working through these either over-grant (free upgrades for everyone who taps the wrong button) or strand users on stale plans.
 
