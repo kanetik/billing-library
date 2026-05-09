@@ -2,33 +2,23 @@
 
 A coroutine-first wrapper around [Google Play Billing Library 8.x](https://developer.android.com/google/play/billing). The [README](https://github.com/kanetik/billing-library#readme) covers what the library is and the bare-minimum integration; this site is the deeper reference.
 
-## New to Play Billing?
-
-If you haven't shipped a Play Billing integration before, the docs work best in this order:
-
-1. [Installation](installation.md) and [Quick start](quick-start.md) — get something running.
-2. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is, why it has two tiers, and the three-day acknowledge cliff that catches almost everyone the first time. The most important read.
-3. [Error handling](guides/error-handling.md) — typed exceptions, the seven UI categories, and the retry loop the library runs for you.
-4. [EntitlementCache](guides/entitlement-cache.md) — opt-in but most apps end up wanting it.
-5. [Signature verification](guides/signature-verification.md) — proving a `Purchase` actually came from Google.
-6. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app.
-
-The rest of the guides below are scenario-specific reference; pick them up when the situation comes up.
-
-## What you'll find here
-
-### Getting set up
+## Getting set up
 
 - [Installation](installation.md) — Gradle (Kotlin DSL, Groovy, version catalog) and Maven snippets.
 - [Quick start](quick-start.md) — full one-time-IAP integration, mirrored from the README so site readers don't have to bounce.
 
-### Guides — task-oriented walkthroughs
+## Most important reading
 
-- [Purchase recovery](guides/purchase-recovery.md) — how the library auto-sweeps stranded unacknowledged purchases on every connection, and how the `Recovered` dedupe works under the covers.
-- [Error handling](guides/error-handling.md) — `BillingException` subtypes, `userFacingCategory` for UI, the `HandlePurchaseResult` branches.
-- [EntitlementCache](guides/entitlement-cache.md) — opt-in entitlement state machine with grace policy. Includes signed/tamper-resistant storage and migration from unsigned snapshots.
-- [Signature verification](guides/signature-verification.md) — `PurchaseVerifier` and the verify-then-handle skeleton.
-- [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the library via `emitExternalRevocation`. RTDN, FCM, and the non-FCM emit triggers (authoritative-empty `queryPurchases`, debug consume flows).
+If you haven't shipped a Play Billing integration before, these are the guides that matter most. The order builds context as you go:
+
+1. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is (two tiers), the three-day acknowledge cliff that catches almost everyone the first time, and the library's auto-sweep that recovers stranded purchases on every connection. The most important read.
+2. [Error handling](guides/error-handling.md) — typed exceptions, the seven UI categories, and the retry loop the library runs for you.
+3. [EntitlementCache](guides/entitlement-cache.md) — opt-in entitlement state machine with grace policy. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.
+4. [Signature verification](guides/signature-verification.md) — proving a `Purchase` actually came from Google.
+5. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app via `emitExternalRevocation`. Covers RTDN, FCM, and non-FCM triggers like authoritative-empty `queryPurchases`.
+
+## Situational guides
+
 - [Lifecycle integration](guides/lifecycle.md) — `BillingConnectionLifecycleManager` against an Activity, Fragment, or `ProcessLifecycleOwner`.
 - [Logging](guides/logging.md) — Noop/Android default + Crashlytics adapter sketch.
 - [Dependency injection](guides/dependency-injection.md) — Hilt and Koin module shapes.
@@ -38,14 +28,14 @@ The rest of the guides below are scenario-specific reference; pick them up when 
 - [In-app messaging](guides/in-app-messaging.md) — surfacing PBL 8's transactional messaging UI.
 - [Subscriptions (v0.1.x)](guides/subscriptions.md) — what works at the protocol level today; the gap closes in v0.2.0.
 
-### Reference
+## Reference
 
 - [API overview](reference/api-overview.md) — top-level types and package layout. The full per-class KDoc is in the [Dokka API reference](api/index.html).
 - [Replay semantics](reference/replay-semantics.md) — the three-channel structure of `observePurchaseUpdates()`, plus the connection grace window.
 - [Extensions](reference/extensions.md) — the `com.kanetik.billing.ext` helpers (`validatePurchaseActivity`, `toOneTimeFlowParams`, `PurchaseFlowCoordinator`).
 - [Limitations](reference/limitations.md) — what's out of scope for the v0.1.x series.
 
-### Other
+## Other
 
 - [Testing](testing.md) — three-levels approach (static SKUs / license tester / Play Billing Lab) plus consumer-code testing patterns.
 - [Roadmap](roadmap.md) — v0.2.0 subscription helpers, `:billing-testing` artifact, plus longer-term demand-driven items.
