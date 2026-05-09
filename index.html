@@ -467,25 +467,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#new-to-play-billing" class="md-nav__link">
-    <span class="md-ellipsis">
-      New to Play Billing?
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-youll-find-here" class="md-nav__link">
-    <span class="md-ellipsis">
-      What you'll find here
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What you'll find here">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#getting-set-up" class="md-nav__link">
     <span class="md-ellipsis">
       Getting set up
@@ -493,17 +474,26 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#guides-task-oriented-walkthroughs" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#most-important-reading" class="md-nav__link">
     <span class="md-ellipsis">
-      Guides — task-oriented walkthroughs
+      Most important reading
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#situational-guides" class="md-nav__link">
+    <span class="md-ellipsis">
+      Situational guides
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reference" class="md-nav__link">
     <span class="md-ellipsis">
       Reference
@@ -511,18 +501,13 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#other" class="md-nav__link">
     <span class="md-ellipsis">
       Other
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1141,25 +1126,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#new-to-play-billing" class="md-nav__link">
-    <span class="md-ellipsis">
-      New to Play Billing?
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-youll-find-here" class="md-nav__link">
-    <span class="md-ellipsis">
-      What you'll find here
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What you'll find here">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#getting-set-up" class="md-nav__link">
     <span class="md-ellipsis">
       Getting set up
@@ -1167,17 +1133,26 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#guides-task-oriented-walkthroughs" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#most-important-reading" class="md-nav__link">
     <span class="md-ellipsis">
-      Guides — task-oriented walkthroughs
+      Most important reading
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#situational-guides" class="md-nav__link">
+    <span class="md-ellipsis">
+      Situational guides
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reference" class="md-nav__link">
     <span class="md-ellipsis">
       Reference
@@ -1185,18 +1160,13 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#other" class="md-nav__link">
     <span class="md-ellipsis">
       Other
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1229,30 +1199,22 @@
 
 <h1 id="kanetik-billing-library">Kanetik Billing Library<a class="headerlink" href="#kanetik-billing-library" title="Permanent link">&para;</a></h1>
 <p>A coroutine-first wrapper around <a href="https://developer.android.com/google/play/billing">Google Play Billing Library 8.x</a>. The <a href="https://github.com/kanetik/billing-library#readme">README</a> covers what the library is and the bare-minimum integration; this site is the deeper reference.</p>
-<h2 id="new-to-play-billing">New to Play Billing?<a class="headerlink" href="#new-to-play-billing" title="Permanent link">&para;</a></h2>
-<p>If you haven't shipped a Play Billing integration before, the docs work best in this order:</p>
-<ol>
-<li><a href="installation/">Installation</a> and <a href="quick-start/">Quick start</a> — get something running.</li>
-<li><a href="guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code> is, why it has two tiers, and the three-day acknowledge cliff that catches almost everyone the first time. The most important read.</li>
-<li><a href="guides/error-handling/">Error handling</a> — typed exceptions, the seven UI categories, and the retry loop the library runs for you.</li>
-<li><a href="guides/entitlement-cache/">EntitlementCache</a> — opt-in but most apps end up wanting it.</li>
-<li><a href="guides/signature-verification/">Signature verification</a> — proving a <code>Purchase</code> actually came from Google.</li>
-<li><a href="guides/server-driven-revocation/">Server-driven revocation</a> — how refunds and chargebacks reach the app.</li>
-</ol>
-<p>The rest of the guides below are scenario-specific reference; pick them up when the situation comes up.</p>
-<h2 id="what-youll-find-here">What you'll find here<a class="headerlink" href="#what-youll-find-here" title="Permanent link">&para;</a></h2>
-<h3 id="getting-set-up">Getting set up<a class="headerlink" href="#getting-set-up" title="Permanent link">&para;</a></h3>
+<h2 id="getting-set-up">Getting set up<a class="headerlink" href="#getting-set-up" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="installation/">Installation</a> — Gradle (Kotlin DSL, Groovy, version catalog) and Maven snippets.</li>
 <li><a href="quick-start/">Quick start</a> — full one-time-IAP integration, mirrored from the README so site readers don't have to bounce.</li>
 </ul>
-<h3 id="guides-task-oriented-walkthroughs">Guides — task-oriented walkthroughs<a class="headerlink" href="#guides-task-oriented-walkthroughs" title="Permanent link">&para;</a></h3>
+<h2 id="most-important-reading">Most important reading<a class="headerlink" href="#most-important-reading" title="Permanent link">&para;</a></h2>
+<p>If you haven't shipped a Play Billing integration before, these are the guides that matter most. The order builds context as you go:</p>
+<ol>
+<li><a href="guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code> is (two tiers), the three-day acknowledge cliff that catches almost everyone the first time, and the library's auto-sweep that recovers stranded purchases on every connection. The most important read.</li>
+<li><a href="guides/error-handling/">Error handling</a> — typed exceptions, the seven UI categories, and the retry loop the library runs for you.</li>
+<li><a href="guides/entitlement-cache/">EntitlementCache</a> — opt-in entitlement state machine with grace policy. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.</li>
+<li><a href="guides/signature-verification/">Signature verification</a> — proving a <code>Purchase</code> actually came from Google.</li>
+<li><a href="guides/server-driven-revocation/">Server-driven revocation</a> — how refunds and chargebacks reach the app via <code>emitExternalRevocation</code>. Covers RTDN, FCM, and non-FCM triggers like authoritative-empty <code>queryPurchases</code>.</li>
+</ol>
+<h2 id="situational-guides">Situational guides<a class="headerlink" href="#situational-guides" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="guides/purchase-recovery/">Purchase recovery</a> — how the library auto-sweeps stranded unacknowledged purchases on every connection, and how the <code>Recovered</code> dedupe works under the covers.</li>
-<li><a href="guides/error-handling/">Error handling</a> — <code>BillingException</code> subtypes, <code>userFacingCategory</code> for UI, the <code>HandlePurchaseResult</code> branches.</li>
-<li><a href="guides/entitlement-cache/">EntitlementCache</a> — opt-in entitlement state machine with grace policy. Includes signed/tamper-resistant storage and migration from unsigned snapshots.</li>
-<li><a href="guides/signature-verification/">Signature verification</a> — <code>PurchaseVerifier</code> and the verify-then-handle skeleton.</li>
-<li><a href="guides/server-driven-revocation/">Server-driven revocation</a> — how refunds and chargebacks reach the library via <code>emitExternalRevocation</code>. RTDN, FCM, and the non-FCM emit triggers (authoritative-empty <code>queryPurchases</code>, debug consume flows).</li>
 <li><a href="guides/lifecycle/">Lifecycle integration</a> — <code>BillingConnectionLifecycleManager</code> against an Activity, Fragment, or <code>ProcessLifecycleOwner</code>.</li>
 <li><a href="guides/logging/">Logging</a> — Noop/Android default + Crashlytics adapter sketch.</li>
 <li><a href="guides/dependency-injection/">Dependency injection</a> — Hilt and Koin module shapes.</li>
@@ -1262,14 +1224,14 @@
 <li><a href="guides/in-app-messaging/">In-app messaging</a> — surfacing PBL 8's transactional messaging UI.</li>
 <li><a href="guides/subscriptions/">Subscriptions (v0.1.x)</a> — what works at the protocol level today; the gap closes in v0.2.0.</li>
 </ul>
-<h3 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h3>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="reference/api-overview/">API overview</a> — top-level types and package layout. The full per-class KDoc is in the <a href="api/">Dokka API reference</a>.</li>
 <li><a href="reference/replay-semantics/">Replay semantics</a> — the three-channel structure of <code>observePurchaseUpdates()</code>, plus the connection grace window.</li>
 <li><a href="reference/extensions/">Extensions</a> — the <code>com.kanetik.billing.ext</code> helpers (<code>validatePurchaseActivity</code>, <code>toOneTimeFlowParams</code>, <code>PurchaseFlowCoordinator</code>).</li>
 <li><a href="reference/limitations/">Limitations</a> — what's out of scope for the v0.1.x series.</li>
 </ul>
-<h3 id="other">Other<a class="headerlink" href="#other" title="Permanent link">&para;</a></h3>
+<h2 id="other">Other<a class="headerlink" href="#other" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="testing/">Testing</a> — three-levels approach (static SKUs / license tester / Play Billing Lab) plus consumer-code testing patterns.</li>
 <li><a href="roadmap/">Roadmap</a> — v0.2.0 subscription helpers, <code>:billing-testing</code> artifact, plus longer-term demand-driven items.</li>
