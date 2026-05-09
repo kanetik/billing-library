@@ -11,11 +11,11 @@ A coroutine-first wrapper around [Google Play Billing Library 8.x](https://devel
 
 If you haven't shipped a Play Billing integration before, these are the guides that matter most. The order builds context as you go:
 
-1. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is, why it has two tiers, and the three-day acknowledge cliff that catches almost everyone the first time. The most important read.
+1. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is (two tiers), the three-day acknowledge cliff that catches almost everyone the first time, and the library's auto-sweep that recovers stranded purchases on every connection. The most important read.
 2. [Error handling](guides/error-handling.md) — typed exceptions, the seven UI categories, and the retry loop the library runs for you.
 3. [EntitlementCache](guides/entitlement-cache.md) — opt-in entitlement state machine with grace policy. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.
 4. [Signature verification](guides/signature-verification.md) — proving a `Purchase` actually came from Google.
-5. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app via `emitExternalRevocation`, including the non-FCM emit triggers.
+5. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app via `emitExternalRevocation`. Covers RTDN, FCM, and non-FCM triggers like authoritative-empty `queryPurchases`.
 
 ## Situational guides
 
