@@ -132,6 +132,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **(beta)** Bumped Play Billing Library `8.3.0` → `9.0.0`
+  ([release notes](https://developer.android.com/google/play/billing/release-notes)).
+  Play now returns `BILLING_UNAVAILABLE` (instead of `ERROR`) when the Play
+  Store app is blocked by the system (e.g., OEM-customised kids mode). The
+  wrapper propagates this correctly through the existing exception hierarchy
+  (`BillingUnavailableException` instead of `FatalErrorException`) — no
+  wrapper code changes were required, but the exception type seen by consumers
+  in this scenario changes.
+
+### Public API changes
+
+None — wrapper public API is unchanged by this bump.
+
+### Risky items flagged for follow-up
+
+- **Behavior change (error code): Play Store blocked → `BILLING_UNAVAILABLE`
+  instead of `ERROR` ([release notes](https://developer.android.com/google/play/billing/release-notes#9.0.0)).**
+  Consumers who previously caught `BillingException.FatalErrorException` to
+  handle the blocked-Play-Store case will no longer match; they should add a
+  `BillingException.BillingUnavailableException` branch (which is the
+  semantically correct exception anyway — "billing is unavailable" is more
+  accurate than "fatal error" for a policy block). Retry logic also differs:
+  `FatalErrorException` uses `EXPONENTIAL_RETRY`; `BillingUnavailableException`
+  uses `NONE`. Requires `androidx.core` ≥ 1.9.
+
 - **`BillingActions` class-level KDoc** gains a "Wrapping suspend members for
   resilience" note explaining that suspend members propagate structured
   cancellation (parent-scope `CancellationException` is rethrown; an internal
