@@ -28,7 +28,7 @@ android {
 
     defaultConfig {
         // PBL 8.1.0 raised the minimum supported SDK to 23 (Android 6.0). We pin
-        // to PBL 8.3.0, so 23 is the floor — going lower would let consumers hit
+        // to PBL 9.0.0, so 23 is the floor — going lower would let consumers hit
         // a runtime crash on API 21–22 devices.
         minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
@@ -88,7 +88,7 @@ mavenPublishing {
     pom {
         name.set("Kanetik Billing Library")
         description.set(
-            "A coroutine-first wrapper around Google Play Billing Library 8.x. " +
+            "A coroutine-first wrapper around Google Play Billing Library 9.x. " +
                 "Typed exception hierarchy with retry-type hints, lifecycle-aware " +
                 "connection sharing, exponential backoff, and opt-in helpers " +
                 "(signature verification, purchase-flow coordinator, activity validation)."
