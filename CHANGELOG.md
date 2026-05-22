@@ -158,6 +158,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completes once `BillingClient.launchBillingFlow` has returned (i.e., the
   request was submitted to Play) — PBL exposes no "UI rendered" signal, so
   completion is not a visibility guarantee. (#17)
+- **(beta)** Bumped Play Billing Library `8.3.0` → `9.0.0`
+  ([release notes](https://developer.android.com/google/play/billing/release-notes)).
+  PBL 9 changes the response code for a blocked Play Store app (e.g.,
+  OEM-customized kids mode) from `ERROR` to `BILLING_UNAVAILABLE`. Consumers
+  who match on `BillingException.FatalErrorException` or
+  `BillingErrorCategory.Other` specifically for the Play-Store-blocked scenario
+  will now receive `BillingUnavailableException` /
+  `BillingErrorCategory.BillingUnavailable` instead, with retry-hint `NONE`
+  (was `EXPONENTIAL_RETRY`). No wrapper code changes required — the library
+  already handled both codes correctly.
+
+### Risky items flagged for follow-up
+
+- **PBL 9.0.0 — `ERROR` → `BILLING_UNAVAILABLE` for blocked Play Store
+  ([release notes](https://developer.android.com/google/play/billing/release-notes)).**
+  When the Play Store app is blocked by the system, PBL now returns
+  `BILLING_UNAVAILABLE` instead of `ERROR`. Observable wrapper-side effects:
+  `BillingUnavailableException` (retry: `NONE`, category: `BillingUnavailable`)
+  is now thrown instead of `FatalErrorException` (retry: `EXPONENTIAL_RETRY`,
+  category: `Other`). Consumers who relied on exponential-retry behavior for
+  this condition, or who pattern-matched on `FatalErrorException` /
+  `BillingErrorCategory.Other` for it, need to update their handling.
 
 ## [0.1.1] - 2026-05-03
 
