@@ -18,7 +18,7 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 - Fixes any code or test failures the bump introduces, on the appropriate branch
 - Opens or updates a PR against `main` (safe) or `next` (risky), with categorization rationale and a clear summary of what changed (and refreshes an existing open bump PR in place rather than opening a duplicate — see section 3)
 - Opens a separate `[feat proposal]` GitHub issue (labeled `question`) for each net-new PBL feature, @-mentioning the maintainer
-- Notifies the maintainer via IFTTT (SMS to Android) for every PR opened or refreshed, plus one ping per feature-proposal issue and one per intervention issue
+- Notifies the maintainer via IFTTT (SMS to Android) when a new PR is opened, or when an existing PR's target version is bumped (a stale-target refresh per section 3 — audit fixes and rebase-only refreshes do **not** re-ping), plus one ping per feature-proposal issue and one per intervention issue
 
 ### What the agent never does
 
@@ -107,7 +107,12 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
    - CHANGELOG entry present and in the templated format from section 5 or 6?
    - Latest commit passes `:billing:test :sample:assembleDebug :billing:lint`?
    - Any maintainer review comments unaddressed?
-3. If any audit item is missing or wrong: pull the branch locally, rebase its base (`main` or `next`) into it so verification runs against the current state of the base branch, then push improvements to the **same branch** with `git push --force-with-lease` (rebase rewrites history, so a plain push will be rejected as non-fast-forward; `--force-with-lease` is preferred over `--force` because it refuses to clobber commits the agent hasn't seen). If the audit fixes changed the categorization, release-notes enumeration, or linked feature-proposal issues, update the PR title and body to match before pushing. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
+3. If any audit item is missing or wrong, work on the **existing branch** — never open a duplicate PR. Do the following in this exact order:
+   - Pull the branch locally and rebase its base (`main` or `next`) into it so the fixes and the verification run against the current state of the base branch.
+   - Apply the audit fixes. If they changed the categorization, release-notes enumeration, or linked feature-proposal issues, also update the PR title and body to match.
+   - Re-run verification (`:billing:test :sample:assembleDebug :billing:lint`). Only continue if it passes; if it fails, go to section 7.
+   - Push with `git push --force-with-lease` (the rebase rewrote history, so a plain push will be rejected as non-fast-forward; `--force-with-lease` is preferred over `--force` because it refuses to clobber commits the agent hasn't seen).
+   - Add a PR comment summarizing what changed and why, so the maintainer can see what shifted since their last look. No IFTTT — the maintainer was already pinged when the PR opened.
    - **No-changes-needed but base has moved:** if the audit shows the PR is already correct but its base branch has moved since the last commit, refresh the branch (rebase + re-run verification + `git push --force-with-lease`) so the PR's CI reflects the current base. Post a brief PR comment noting the rebase. No IFTTT notification — the maintainer was already pinged when the PR opened.
 4. Do not overrule the maintainer. If the maintainer has commented endorsing a specific categorization, public-API decision, or migration choice, leave it alone — only fix mechanical gaps (missing CHANGELOG bullet, failing verification, missing release-notes enumeration).
 5. If everything is already correct: exit silently. Do **not** re-notify; the maintainer was already pinged when the PR opened.
@@ -521,7 +526,7 @@ The applet accepts a single text parameter via `{{Value1}}` — the playbook han
 1. Use `mcp__claude_ai_IFTTT__my_applets` to find an applet whose name matches `Kanetik PBL Update Notification` (or the name in the setup section above; if the applet is renamed, update both this playbook and the setup section).
 2. If found: use `mcp__claude_ai_IFTTT__run_action` (or the equivalent) to fire the applet with text content:
    - For a PR: `Kanetik PBL update <OLD> -> <NEW> needs review: <PR_URL> [Path A | Path B-beta]`
-   - For a refreshed PR (existing PR updated to new latest, per section 3): `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`
+   - For a target-version refresh (existing PR updated because a newer PBL stable is out, per section 3 — **not** audit fixes or rebase-only refreshes, which don't notify): `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`
    - For a feature-proposal issue (per section 4): `Kanetik PBL <VERSION> feature proposal needs decision: <ISSUE_URL>` — fire one per feature-proposal issue
    - For an intervention issue (3 fix attempts failed, per section 7): `Kanetik PBL update <OLD> -> <NEW> needs intervention: <ISSUE_URL>`
 3. If not found, or if the IFTTT call fails: log the failure in a comment on the PR or issue ("notification not sent — applet not found / IFTTT error: <details>") and proceed. The PR/issue itself is the primary deliverable; the SMS is a convenience.
@@ -581,8 +586,9 @@ stable release, while protecting consumers from breaking changes.
    - Opening a PR with templated title/body, OR opening a GitHub issue if
      the fix can't be completed in 3 attempts
    - Notifying the maintainer via IFTTT (section 11) — one ping per PR
-     (new or refreshed), one per feature-proposal issue, one per
-     intervention issue
+     (new, or target-version refresh; audit fixes and rebase-only
+     refreshes don't re-ping), one per feature-proposal issue, one
+     per intervention issue
    - When to open as draft (ambiguity only — never as a workaround for
      failing tests)
 
