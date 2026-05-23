@@ -85,9 +85,12 @@ Before branching, editing, or running any verification, look for an open PR that
 ### Lookup
 
 ```bash
-gh pr list --state open --search "head:bump/pbl-" \
-  --json number,title,headRefName,baseRefName,isDraft,updatedAt,body
+gh pr list --state open \
+  --json number,title,headRefName,baseRefName,isDraft,updatedAt,body \
+  --jq '[.[] | select(.headRefName | startswith("bump/pbl-"))]'
 ```
+
+(GitHub's `--search "head:bump/pbl-"` does an exact branch-name match, not a prefix match — filtering client-side with `--jq startswith` is the reliable way to catch any `bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta` branch.)
 
 A match is any open PR whose head branch starts with `bump/pbl-`. Identify the target version from the branch name (`bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta`) and the PR body's "Version delta" section.
 
@@ -205,7 +208,7 @@ Default behavior, for every net-new PBL feature:
 
 **Zero-ambiguity exception (rare — default is still to open an issue):** if the new PBL API is unambiguously the wrapper's job to expose with no design choice required — most commonly a new overload of a method the wrapper already wraps, where the new overload's wrapped signature follows mechanically from the existing one — the agent **may** include it in the bump PR. When it does:
 
-- **Path B / `next` only.** Adding any new function to `com.kanetik.billing.*` — even a trivial mechanical overload — is a public-API change, and per §1's guardrails public-API changes are forbidden on Path A / `main`. If you're on Path A and the exception applies, the categorization flips to risky and the work moves to Path B (see section 7's re-categorization logic). On Path A the exception is **not available**; the overload goes to a feature-proposal issue instead, exactly like a non-trivial feature.
+- **Path B / `next` only.** Adding any new function to `com.kanetik.billing.*` — even a trivial mechanical overload — is a public-API change, and per §1's guardrails public-API changes are forbidden on Path A / `main`. If you're on Path A and an overload would qualify for this exception, treat it as a re-categorization mid-flow (see "Re-categorization mid-flow" later in this section): abandon the Path A bump and re-open the work on `next` per section 6. The branch-switching mechanics in section 7 apply even though the trigger here is the exception applying, not a test failure. Alternatively, drop the overload from the bump PR and open it as a feature-proposal issue instead, exactly like a non-trivial feature. On Path A the exception itself is **not available** in the current PR.
 - List every such addition under a "Net-new PBL surface included for parity" section in the PR body (Path B template only — section 6).
 - For each, give a one-line rationale for why it was a mechanical add (e.g., "PBL added a `BillingClient.queryPurchasesAsync(QueryPurchasesParams, Continuation)` Kotlin-coroutine overload of the existing wrapped `queryPurchasesAsync(QueryPurchasesParams, PurchasesResponseListener)`; the wrapper's coroutine wrapper now delegates to the new overload — no design choice").
 - If you're under ~95% confident the add is mechanical: don't include it. Open the issue instead.
