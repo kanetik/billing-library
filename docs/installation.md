@@ -48,7 +48,7 @@ dependencies {
 
 ## Requirements
 
-- **`minSdk = 23`** — PBL 8.1's floor. The library pins Play Billing Library to 8.3.0.
+- **`minSdk = 23`** — PBL 8.1's floor (unchanged through PBL 9). The library pins Play Billing Library to 9.0.0.
 - **JVM target 11** — produced AAR targets JDK 11 bytecode. Your app can build with any newer JDK (the Gradle daemon needs JDK 17+ for Gradle 9.x compatibility, but that's a build-time concern, not a target).
 - **AndroidX** — required (the library uses `androidx.lifecycle.*`).
 

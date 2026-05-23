@@ -1,6 +1,6 @@
 # Kanetik Billing Library
 
-A coroutine-first wrapper around [Google Play Billing Library 8.x](https://developer.android.com/google/play/billing). Typed errors with retry-type hints, lifecycle-aware connection sharing, exponential backoff, and opt-in helpers for the patterns most apps reimplement themselves.
+A coroutine-first wrapper around [Google Play Billing Library 9.x](https://developer.android.com/google/play/billing). Typed errors with retry-type hints, lifecycle-aware connection sharing, exponential backoff, and opt-in helpers for the patterns most apps reimplement themselves.
 
 ## Why
 
@@ -16,7 +16,7 @@ dependencies {
 }
 ```
 
-Requires `minSdk = 23` (PBL 8.1's floor; the library pins to PBL 8.3.0). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
+Requires `minSdk = 23` (PBL 8.1's floor, unchanged through PBL 9; the library pins to PBL 9.0.0). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
 
 ## Quick start (one-time IAP)
 
