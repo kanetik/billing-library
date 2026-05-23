@@ -13,7 +13,7 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 ### What the agent does
 
 - Detects new PBL stable versions
-- Reads both the release notes and (when a major boundary is in scope) the "Migrate to Billing Library X" guide
+- Reads both the release notes and the "Migrate to Billing Library X" guide — guide is required reading when a major boundary is in scope, advisory (but worth skimming) otherwise
 - Categorizes each release as **safe** (bug fix / internal-only) or **risky** (API change / behavior change / minSdk bump)
 - Fixes any code or test failures the bump introduces, on the appropriate branch
 - Opens a PR against `main` (safe) or `next` (risky), with categorization rationale and a clear summary of what changed
@@ -27,7 +27,7 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 - Tag any release
 - Bump any dependency other than `playBillingKtx`
 - **Open a PR (draft or otherwise) with a failing build or failing tests.** This is absolute. If the bump breaks something, the agent fixes it before opening the PR. If it can't fix in three attempts, it opens an *issue* instead, with full diagnostic detail.
-- **Auto-include net-new PBL features in the bump PR.** New PBL APIs the wrapper does not already expose go to a feature-proposal issue (section 4). The only exception is a trivial overload of a method the wrapper already wraps, where the new signature follows mechanically from the existing wrapping.
+- **Auto-include net-new PBL features in the bump PR.** New PBL APIs the wrapper does not already expose go to a feature-proposal issue (section 4). The only exception is a trivial overload of a method the wrapper already wraps, where the new signature follows mechanically from the existing wrapping — and that exception is **Path B only**, because any new function in `com.kanetik.billing.*` is a public-API change.
 
 ### Working-assumption when something fails
 
@@ -105,7 +105,8 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
    - CHANGELOG entry present and in the templated format from section 5 or 6?
    - Latest commit passes `:billing:test :sample:assembleDebug :billing:lint`?
    - Any maintainer review comments unaddressed?
-3. If any audit item is missing or wrong: push improvements to the **same branch**. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
+3. If any audit item is missing or wrong: pull the branch locally, rebase its base (`main` or `next`) into it so verification runs against the current state of the base branch, then push improvements to the **same branch**. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
+   - **No-changes-needed but base has moved:** if the audit shows the PR is already correct but its base branch has moved since the last commit, refresh the branch (rebase + re-run verification + force-push) so the PR's CI reflects the current base. Post a brief PR comment noting the rebase. No IFTTT notification — the maintainer was already pinged when the PR opened.
 4. Do not overrule the maintainer. If the maintainer has commented endorsing a specific categorization, public-API decision, or migration choice, leave it alone — only fix mechanical gaps (missing CHANGELOG bullet, failing verification, missing release-notes enumeration).
 5. If everything is already correct: exit silently. Do **not** re-notify; the maintainer was already pinged when the PR opened.
 
@@ -138,7 +139,7 @@ The agent's job is to hold the PR to this playbook's mechanical bar: right base,
 For each version in scope, read **both** of these Google sources:
 
 1. **Release notes** — <https://developer.android.com/google/play/billing/release-notes> — the per-version change list.
-2. **Migration guide** — `https://developer.android.com/google/play/billing/migrate-<MAJOR>` (e.g., `migrate-8` for the 8.x line, linked from the left nav of the release-notes page). **Required reading** whenever the version range in scope crosses a major boundary (e.g., pinned 7.x → latest 8.x). For minor/patch-only bumps, skim it anyway — it sometimes flags items the release notes under-state or omit.
+2. **Migration guide** — `https://developer.android.com/google/play/billing/migrate-<MAJOR>` (e.g., `migrate-8` for the 8.x line, linked from the left nav of the release-notes page). **Required reading** whenever the version range in scope crosses a major boundary (e.g., pinned 7.x → latest 8.x). For minor/patch-only bumps, skim it anyway — it sometimes flags items the release notes understate or omit.
 
 Cross-reference the two. If the migration guide describes something the release notes didn't (or vice versa), treat that as a categorization signal — escalate to risky if there's any doubt. Then classify each change using the rubric below.
 
@@ -197,7 +198,8 @@ Default behavior, for every net-new PBL feature:
 
 **Zero-ambiguity exception (rare — default is still to open an issue):** if the new PBL API is unambiguously the wrapper's job to expose with no design choice required — most commonly a new overload of a method the wrapper already wraps, where the new overload's wrapped signature follows mechanically from the existing one — the agent **may** include it in the bump PR. When it does:
 
-- List every such addition under a "Net-new PBL surface included for parity" section in the PR body.
+- **Path B / `next` only.** Adding any new function to `com.kanetik.billing.*` — even a trivial mechanical overload — is a public-API change, and per §1's guardrails public-API changes are forbidden on Path A / `main`. If you're on Path A and the exception applies, the categorization flips to risky and the work moves to Path B (see section 7's re-categorization logic). On Path A the exception is **not available**; the overload goes to a feature-proposal issue instead, exactly like a non-trivial feature.
+- List every such addition under a "Net-new PBL surface included for parity" section in the PR body (Path B template only — section 6).
 - For each, give a one-line rationale for why it was a mechanical add (e.g., "PBL added a `BillingClient.queryPurchasesAsync(QueryPurchasesParams, Continuation)` Kotlin-coroutine overload of the existing wrapped `queryPurchasesAsync(QueryPurchasesParams, PurchasesResponseListener)`; the wrapper's coroutine wrapper now delegates to the new overload — no design choice").
 - If you're under ~95% confident the add is mechanical: don't include it. Open the issue instead.
 
@@ -269,11 +271,10 @@ If anything fails: do **not** open a PR. Go to section 7 (Test failure handling)
   Reasoning:
   - <bullet for each change in release notes, with the safe-rationale>
 
-  ## Net-new PBL surface included for parity
-  <if none>: None — the bump introduces no new public surface in the wrapper.
-  <if any (zero-ambiguity exception per section 4)>:
-  - <one-line description of addition>
-    Rationale: <why this was a mechanical add — e.g., "new overload of an already-wrapped method">
+  (Path A never introduces net-new public surface in the wrapper — see
+  section 4's zero-ambiguity exception, which is Path B only. If a
+  trivial overload looks like it ought to be included, the categorization
+  flips to risky and the work moves to `next`.)
 
   ## Feature proposals deferred to follow-up issues
   <if none>: None — no net-new PBL features in this version range.
@@ -492,7 +493,7 @@ The agent creates `next` if needed (first-time event); the agent never deletes b
 - **No PR (draft or otherwise) with a failing build or failing tests.** Fix first; if you can't fix in 3 attempts, open an issue instead.
 - **No duplicate bump PRs.** If an open `bump/pbl-*` PR exists, audit it (same target) or refresh it (stale target) per section 3 — never open a second one.
 - **Read both release notes AND the migration guide** for every version in scope. Migration guide is required reading when a major boundary is crossed.
-- **No auto-including net-new PBL features.** Open a feature-proposal issue and @-mention @kanetik (per section 4). Zero-ambiguity exception: trivial overloads of methods the wrapper already wraps may be included in the bump PR, called out under "Net-new PBL surface included for parity."
+- **No auto-including net-new PBL features.** Open a feature-proposal issue and @-mention @kanetik (per section 4). Zero-ambiguity exception (Path B only): trivial overloads of methods the wrapper already wraps may be included in the bump PR, called out under "Net-new PBL surface included for parity." On Path A the exception is unavailable — even trivial overloads either go to an issue or flip the bump to Path B.
 - Public API changes allowed only on `next`, never on `main`. If a Path A fix needs public API changes, re-route to Path B.
 - Draft PRs are for *ambiguity*, not for failures. Post the specific questions in the PR description.
 - When confidence < 80% on categorization, route as risky.
@@ -567,7 +568,8 @@ stable release, while protecting consumers from breaking changes.
      the bump PR (section 4).** Open one issue per feature, label it
      `question`, @-mention @kanetik, and leave the design call to the
      maintainer. Trivial overloads of already-wrapped methods are the
-     only exception.
+     only exception — and that exception is Path B only, because any
+     new function in `com.kanetik.billing.*` is a public-API change.
    - Branching (main vs next, creating next if needed)
    - Editing libs.versions.toml + CHANGELOG.md
    - Running :billing:test, :sample:assembleDebug, :billing:lint
@@ -589,8 +591,9 @@ Constraints — the playbook spells these out, but to be explicit:
 - No auto-including net-new PBL features in the bump PR. Open a
   `[feat proposal]` GitHub issue per feature, labeled `question`,
   @-mention @kanetik, and let the maintainer decide whether/how to
-  expose it. Only exception: trivial overloads of methods the wrapper
-  already wraps.
+  expose it. Only exception (Path B only): trivial overloads of
+  methods the wrapper already wraps. On Path A the exception does
+  not apply — flip to Path B or open an issue.
 - No PR (draft or otherwise) with a failing build or failing tests.
   Fix the underlying issue. After 3 fix attempts that don't work, open
   a GitHub issue instead and notify via IFTTT.
