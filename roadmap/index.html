@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 8.x.">
+        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 9.x.">
       
       
       
@@ -1703,9 +1703,14 @@ lifecycleScope.launch {
 <td>RTDN is server-side (Cloud Pub/Sub from Play). If we add server-side helpers, they ship as a separate artifact (<code>com.kanetik.billing:billing-server</code> or similar), not folded into the client lib. README v0.1.0 documents the boundary.</td>
 </tr>
 <tr>
+<td>Sub-response codes on the public error surface</td>
+<td>demand-driven</td>
+<td><code>BillingLoggingUtils</code> already reads <code>onPurchasesUpdatedSubResponseCode</code> (<code>PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS</code>, <code>USER_INELIGIBLE</code>) and emits them in logs, but the wrapper's public error types don't surface them — consumers can't distinguish "insufficient funds" from any other declined purchase in their <code>BillingException</code> branch. PBL 9's <a href="https://developer.android.com/google/play/billing/migrate-gpblv9">migration guide §5</a> flags handling these for "better user experience." Candidate shape: a richer <code>BillingException.subResponseCode</code> field, or a sealed sub-type under <code>UserCanceledException</code> / <code>DeveloperErrorException</code>. Patch- or minor-level work depending on shape.</td>
+</tr>
+<tr>
 <td>Virtual installment subscription support</td>
 <td>demand-driven</td>
-<td>PBL 7+ feature, regional (Brazil, France, Italy, Spain). Niche but exists; build only on request.</td>
+<td>PBL 7+ feature, regional (Brazil, France, Italy, Spain). PBL 9's <a href="https://developer.android.com/google/play/billing/migrate-gpblv9">migration guide §8</a> re-surfaces this as an optional integration alongside the v9 bump; still scoped to v0.2.0+ subscription work, not the PBL 9 dependency bump itself. Niche; build only on request.</td>
 </tr>
 <tr>
 <td>Subscription pause / resume / migrate APIs</td>

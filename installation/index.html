@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 8.x.">
+        <meta name="description" content="A coroutine-first wrapper around Google Play Billing Library 9.x.">
       
       
       
@@ -1232,9 +1232,9 @@ dependencies {
 &lt;/dependency&gt;</code></p>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>minSdk = 23</code></strong> — PBL 8.1's floor. The library pins Play Billing Library to 8.3.0.</li>
+<li><strong><code>minSdk = 23</code></strong> — PBL 8.1's floor (unchanged through PBL 9). The library pins Play Billing Library to 9.0.0.</li>
 <li><strong>JVM target 11</strong> — produced AAR targets JDK 11 bytecode. Your app can build with any newer JDK (the Gradle daemon needs JDK 17+ for Gradle 9.x compatibility, but that's a build-time concern, not a target).</li>
-<li><strong>AndroidX</strong> — required (the library uses <code>androidx.lifecycle.*</code>).</li>
+<li><strong>AndroidX</strong> — required. The library uses <code>androidx.lifecycle.*</code>, and PBL 9's blocked-Play-Store handling needs <code>androidx.core</code> ≥ 1.9 (already brought in transitively at <code>1.18.0</code>, so consumer apps typically don't need to add this explicitly).</li>
 </ul>
 <h2 id="verify-the-integration">Verify the integration<a class="headerlink" href="#verify-the-integration" title="Permanent link">&para;</a></h2>
 <p>After adding the dependency and syncing Gradle, <code>import com.kanetik.billing.BillingRepositoryCreator</code> in any Kotlin file. If your IDE resolves it, you're set. The <a href="../quick-start/">Quick start</a> is the next step.</p>
