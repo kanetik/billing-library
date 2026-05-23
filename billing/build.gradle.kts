@@ -13,7 +13,7 @@ plugins {
 // .github/workflows/publish.yml). Local builds get the SNAPSHOT default so
 // nothing accidentally publishes as a release version off main.
 group = "com.kanetik.billing"
-version = (findProperty("VERSION_NAME") as String?) ?: "0.1.1-SNAPSHOT"
+version = (findProperty("VERSION_NAME") as String?) ?: "0.1.2-SNAPSHOT"
 
 kotlin {
     // JVM 11 keeps the AAR consumable by any Android consumer on JDK 11+.
