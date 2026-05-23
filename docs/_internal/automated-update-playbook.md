@@ -128,7 +128,7 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
 
 1. Decide whether to update in place or re-template:
    - Old PR was safe and the delta from `<OLD_TARGET>` → `<NEW_TARGET>` adds only safe items → **update in place** (no template change).
-   - Old PR was safe but the additional versions in scope add risky items → categorization flips. **Update in place**: rename the PR title to the risky template (section 6), rewrite the body to the risky template, re-stamp the CHANGELOG entry as a risky bump (under `[Unreleased]`, `**(beta)**` qualifier). Branch name (`bump/pbl-<OLD>`) can stay as-is — it's a minor cosmetic mismatch with the conventional `-beta` suffix but doesn't break anything; alternatively the agent may open a fresh `bump/pbl-<NEW>-beta` branch and close the old PR with `Superseded by #<NEW_PR>` (only if a `Superseded by #` comment isn't already there — keep idempotent across daily runs). Prefer update-in-place unless the branch-name cosmetic bothers the maintainer; both are acceptable. **This update-in-place + re-template is the only path a single bump PR transitions through during its lifetime** — see §10.
+   - Old PR was safe but the additional versions in scope add risky items → categorization flips. **Update in place**: rename the PR title to the risky template (section 6), rewrite the body to the risky template, re-stamp the CHANGELOG entry as a risky bump (under `[Unreleased]`, `**(beta)**` qualifier). Branch name (`bump/pbl-<OLD>`) can stay as-is — it's a minor cosmetic mismatch with the conventional `-beta` suffix but doesn't break anything; alternatively the agent may open a fresh `bump/pbl-<NEW>-beta` branch and supersede the old PR with a `Superseded by #<NEW_PR>` comment for the maintainer to close (only if a `Superseded by #` comment isn't already there — keep idempotent across daily runs). Prefer update-in-place unless the branch-name cosmetic bothers the maintainer; both are acceptable. **This update-in-place + re-template is the only path a single bump PR transitions through during its lifetime** — see §10.
    - Old PR was risky → update in place (template already matches).
 2. Updating in place:
    - Pull the branch locally and rebase `main` into it so it's current.
@@ -369,7 +369,7 @@ Same as a safe bump: `./gradlew :billing:test :sample:assembleDebug :billing:lin
   Migration guide: <URL if any major boundary in scope, else "N/A — no major boundary crossed">
 
   ## Categorization
-  Risky — minor or major beta, tag as `<NEXT_VERSION>-beta1` after merge.
+  Risky — minor or major beta, tag as `v<NEXT_VERSION>-beta1` after merge.
 
   ### Risky items
   - <each risky change with: what it is, why it's risky, what the wrapper now does>
