@@ -135,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **(beta)** Bumped Play Billing Library `8.3.0` → `9.0.0`
   ([release notes](https://developer.android.com/google/play/billing/release-notes)).
   Play now returns `BILLING_UNAVAILABLE` (instead of `ERROR`) when the Play
-  Store app is blocked by the system (e.g., OEM-customised kids mode). The
+  Store app is blocked by the system (e.g., OEM-customized kids mode). The
   wrapper propagates this correctly through the existing exception hierarchy
   (`BillingUnavailableException` instead of `FatalErrorException`) — no
   wrapper code changes were required, but the exception type seen by consumers

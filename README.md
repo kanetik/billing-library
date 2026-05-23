@@ -16,7 +16,7 @@ dependencies {
 }
 ```
 
-Requires `minSdk = 23` (PBL 8.1's floor, unchanged through PBL 9; the library pins to PBL 9.0.0). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
+Requires `minSdk = 23` (PBL 8.1's floor, unchanged through PBL 9; the library pins to PBL 9.0.0) and `androidx.core` ≥ 1.9 (the wrapper already brings `1.18.0` transitively, so consumers typically don't need to add this). JVM target is 11. See [Installation](https://kanetik.github.io/billing-library/installation/) for Groovy / version catalog / Maven variants.
 
 ## Quick start (one-time IAP)
 
