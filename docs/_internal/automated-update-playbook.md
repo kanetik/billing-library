@@ -85,14 +85,18 @@ Before branching, editing, or running any verification, look for an open PR that
 ### Lookup
 
 ```bash
-gh pr list --state open \
-  --json number,title,headRefName,baseRefName,isDraft,updatedAt,body \
+gh pr list --state open --limit 200 \
+  --json number,title,headRefName,baseRefName,isDraft,updatedAt \
   --jq '[.[] | select(.headRefName | startswith("bump/pbl-"))]'
 ```
 
-(GitHub's `--search "head:bump/pbl-"` does an exact branch-name match, not a prefix match — filtering client-side with `--jq startswith` is the reliable way to catch any `bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta` branch.)
+Notes on the command shape:
 
-A match is any open PR whose head branch starts with `bump/pbl-`. Identify the target version from the branch name (`bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta`) and the PR body's "Version delta" section.
+- `--search "head:bump/pbl-"` is **not** used because GitHub's PR search treats `head:` as an exact branch-name match, not a prefix — filtering client-side with `--jq startswith` is the reliable way to catch any `bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta` branch.
+- `--limit 200` is well above the worst-case number of open PRs on this repo so the lookup doesn't silently truncate.
+- `body` is intentionally omitted from `--json` — it would pull the full PR description for every open PR. Fetch the body only for matched candidates: `gh pr view <NUMBER> --json body,title,baseRefName,headRefName,...`.
+
+A match is any open PR whose head branch starts with `bump/pbl-`. Identify the target version from the branch name (`bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta`); fetch the body via `gh pr view` for the matched PR and read its "Version delta" section to confirm.
 
 ### Decisions
 
@@ -124,7 +128,7 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
 
 1. Decide whether to update in place or re-route:
    - Old PR was Path A and the delta from `<OLD_TARGET>` → `<NEW_TARGET>` adds only safe items → **update in place**.
-   - Old PR was Path A but the additional versions in scope add risky items → categorization flips. Open a fresh PR on `next` per section 6. Post a comment on the old PR: `Superseded by #<NEW_PR>. The newer versions in scope require public-API changes; work moved to next.` Leave the old PR open for the maintainer to close.
+   - Old PR was Path A but the additional versions in scope add risky items → categorization flips. Open a fresh PR on `next` per section 6. On the old Path A PR, post a comment (only if a `Superseded by #` comment isn't already there — keep this idempotent across daily Routine runs): `Superseded by #<NEW_PR>. The newer versions in scope require public-API changes; work moved to next. This PR can be closed.` Leave the old PR open for the maintainer to close. **This is the single explicit exception to §10's "no duplicate bump PRs" rule** — see §10.
    - Old PR was Path B → keep it on `next`; update in place.
 2. Updating in place:
    - Pull the branch locally and rebase its base (`main` or `next`) into it so it's current.
@@ -136,7 +140,7 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
    - Post a PR comment: `Refreshed: target bumped <OLD_TARGET> → <NEW_TARGET>; added <N> additional release-notes items to scope; verification re-run.`
 3. Send the IFTTT notification (section 11) noting the refresh: `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`.
 
-**Multiple open PRs match** (shouldn't normally happen, but defensive): treat the most recently updated one as authoritative. On each other matching PR, post a comment pointing at the authoritative PR (`Superseded by #<NUM>; this PR can be closed.`). Do not auto-close — let the maintainer.
+**Multiple open PRs match** (the common case is the Path A → Path B supersession above, but otherwise rare): treat the most recently updated one as authoritative. On each other matching PR, post a comment pointing at the authoritative PR (`Superseded by #<NUM>; this PR can be closed.`) — but skip the comment if such a comment from the agent is already present, so daily Routine runs don't pile up duplicate supersede comments. Do not auto-close — let the maintainer.
 
 ### What "as good as possible" means here
 
@@ -177,11 +181,16 @@ A net-new PBL feature is any new API, method, class, or capability the wrapper d
 
 Default behavior, for every net-new PBL feature:
 
-1. Open a **separate** GitHub issue (one per feature) titled `[feat proposal] Expose PBL <feature name> (added in <VERSION>)` and label it `question`. With `gh`:
+1. Open a **separate** GitHub issue (one per feature) titled `[feat proposal] Expose PBL <feature name> (added in <VERSION>)` and label it `question`. Use `--body-file` (or stdin via `--body-file -`) so the multi-line markdown body from step 2 keeps its formatting — quoting a multi-line markdown blob into `--body "..."` is brittle:
    ```bash
-   gh issue create --title "[feat proposal] Expose PBL <feature name> (added in <VERSION>)" --label question --body "<body from step 2>"
+   gh issue create \
+     --title "[feat proposal] Expose PBL <feature name> (added in <VERSION>)" \
+     --label question \
+     --body-file - <<'EOF'
+   <body from step 2>
+   EOF
    ```
-   If the `question` label doesn't exist on the repo, create it first (`gh label create question --color cc317c --description "Needs maintainer decision"`).
+   (Or write the body to a temp file and pass `--body-file /path/to/body.md`.) If the `question` label doesn't exist on the repo, create it first (`gh label create question --color cc317c --description "Needs maintainer decision"`).
 2. Body template:
    ```
    PBL <VERSION> added <feature name>. The wrapper does not currently expose it.
@@ -501,7 +510,7 @@ The agent creates `next` if needed (first-time event); the agent never deletes b
 - No tag creation
 - No deps bumped other than `playBillingKtx`
 - **No PR (draft or otherwise) with a failing build or failing tests.** Fix first; if you can't fix in 3 attempts, open an issue instead.
-- **No duplicate bump PRs.** If an open `bump/pbl-*` PR exists, audit it (same target) or refresh it (stale target) per section 3 — never open a second one.
+- **No duplicate bump PRs.** If an open `bump/pbl-*` PR exists, audit it (same target) or refresh it (stale target) per section 3 — never open a second one. **Single explicit exception:** when a stale-target refresh's new scope flips categorization Path A → Path B (section 3), the agent opens a fresh PR on `next` and leaves the old Path A PR open with a one-time `Superseded by #<NEW_PR>` comment for the maintainer to close. Subsequent daily runs must not repost that comment.
 - **Read both release notes AND the migration guide** for every version in scope. Migration guide is required reading when a major boundary is crossed.
 - **No auto-including net-new PBL features.** Open a feature-proposal issue and @-mention @kanetik (per section 4). Zero-ambiguity exception (Path B only): trivial overloads of methods the wrapper already wraps may be included in the bump PR, called out under "Net-new PBL surface included for parity." On Path A the exception is unavailable — even trivial overloads either go to an issue or flip the bump to Path B.
 - Public API changes allowed only on `next`, never on `main`. If a Path A fix needs public API changes, re-route to Path B.
