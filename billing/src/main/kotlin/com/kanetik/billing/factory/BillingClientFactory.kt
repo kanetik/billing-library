@@ -8,7 +8,7 @@ import com.android.billingclient.api.PurchasesUpdatedListener
  * Strategy for constructing a [BillingClient].
  *
  * Most consumers don't need to provide their own — the default impl builds a
- * client with Play Billing 8.x's recommended setup
+ * client with Play Billing 9.x's recommended setup
  * (`enablePendingPurchases(enableOneTimeProducts())`, `enableAutoServiceReconnection()`).
  *
  * Implement this if you need to:

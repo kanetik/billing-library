@@ -1,5 +1,5 @@
 site_name: Kanetik Billing Library
-site_description: A coroutine-first wrapper around Google Play Billing Library 8.x.
+site_description: A coroutine-first wrapper around Google Play Billing Library 9.x.
 site_url: https://kanetik.github.io/billing-library/
 repo_url: https://github.com/kanetik/billing-library
 repo_name: kanetik/billing-library

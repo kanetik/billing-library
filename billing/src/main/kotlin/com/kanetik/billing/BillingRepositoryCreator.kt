@@ -44,7 +44,7 @@ import kotlinx.coroutines.Dispatchers
 public object BillingRepositoryCreator {
 
     /**
-     * Builds a [BillingRepository] backed by Google Play Billing Library 8.x.
+     * Builds a [BillingRepository] backed by Google Play Billing Library 9.x.
      *
      * @param context Any [Context]; passed to the underlying [com.android.billingclient.api.BillingClient]
      *   builder. Application context is fine.
@@ -53,7 +53,7 @@ public object BillingRepositoryCreator {
      * @param billingClientFactory Strategy for constructing the
      *   [com.android.billingclient.api.BillingClient]. Defaults to
      *   [DefaultBillingClientFactory], which builds a client with the
-     *   PBL 8.x recommended setup. Provide a custom impl to tweak the
+     *   PBL 9.x recommended setup. Provide a custom impl to tweak the
      *   builder (e.g. enable user-choice billing, swap configuration in
      *   tests).
      * @param scope The [CoroutineScope] used to share the billing connection across

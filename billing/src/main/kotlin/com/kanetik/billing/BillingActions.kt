@@ -89,7 +89,7 @@ public interface BillingActions {
 
     /**
      * Same as [queryProductDetails] but also exposes the list of products Play Billing
-     * could not fetch. The Kotlin coroutine extension shipped by `billing-ktx` 8.x
+     * could not fetch. The Kotlin coroutine extension shipped by `billing-ktx` 9.x
      * returns the legacy `ProductDetailsResult`, which discards this information — use
      * this overload when you need diagnostics on missing products.
      */

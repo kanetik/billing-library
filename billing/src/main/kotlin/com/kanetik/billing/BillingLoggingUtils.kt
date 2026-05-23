@@ -6,16 +6,17 @@ import com.android.billingclient.api.BillingResult
 import com.kanetik.billing.logging.BillingLogger
 
 /**
- * Internal logging helpers for Billing Library 8 that build detailed context
- * strings for billing failures, including sub-response codes introduced in
- * PBL 8.0.0. All output flows through a [BillingLogger] supplied by the caller —
- * the consumer's logger decides whether anything is actually emitted.
+ * Internal logging helpers for Billing Library 9 that build detailed context
+ * strings for billing failures, including sub-response codes (originally
+ * introduced in PBL 8.0.0). All output flows through a [BillingLogger] supplied
+ * by the caller — the consumer's logger decides whether anything is actually
+ * emitted.
  */
 internal object BillingLoggingUtils {
 
     /**
      * Builds a detailed billing failure context string with the enhanced information
-     * available in Billing Library 8 (response code, sub-response code, debug message).
+     * available in Billing Library 9 (response code, sub-response code, debug message).
      */
     fun createDetailedBillingContext(
         billingResult: BillingResult,

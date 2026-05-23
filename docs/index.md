@@ -1,6 +1,6 @@
 # Kanetik Billing Library
 
-A coroutine-first wrapper around [Google Play Billing Library 8.x](https://developer.android.com/google/play/billing). The [README](https://github.com/kanetik/billing-library#readme) covers what the library is and the bare-minimum integration; this site is the deeper reference.
+A coroutine-first wrapper around [Google Play Billing Library 9.x](https://developer.android.com/google/play/billing). The [README](https://github.com/kanetik/billing-library#readme) covers what the library is and the bare-minimum integration; this site is the deeper reference.
 
 ## Getting set up
 

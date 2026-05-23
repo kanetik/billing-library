@@ -95,7 +95,7 @@ internal class DefaultBillingRepository(
         params: QueryProductDetailsParams
     ): ProductDetailsQuery {
         // Wraps the callback-based queryProductDetailsAsync directly because the
-        // billing-ktx 8.x suspend extension returns the legacy ProductDetailsResult,
+        // billing-ktx 9.x suspend extension returns the legacy ProductDetailsResult,
         // which omits the unfetched list. Handed through executeBillingOperation so it
         // gets the same retry/backoff treatment as every other call.
         //
