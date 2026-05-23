@@ -609,7 +609,11 @@ Constraints — the playbook spells these out, but to be explicit:
 - No duplicate bump PRs. If a `bump/pbl-*` PR is already open, follow
   section 3: audit it (same target version) or refresh the existing
   branch to the new latest (stale target version). Never open a second
-  PR for the same bump.
+  PR for the same bump. Single documented exception (section 3 / §10):
+  when a stale-target refresh's new scope flips categorization Path A
+  → Path B, open a fresh PR on `next` and leave the old Path A PR
+  open with a one-time, idempotent `Superseded by #<NEW_PR>` comment
+  for the maintainer to close.
 - No auto-including net-new PBL features in the bump PR. Open a
   `[feat proposal]` GitHub issue per feature, labeled `question`,
   @-mention @kanetik, and let the maintainer decide whether/how to
