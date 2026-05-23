@@ -157,6 +157,21 @@ None — wrapper public API is unchanged by this bump.
   `FatalErrorException` uses `EXPONENTIAL_RETRY`; `BillingUnavailableException`
   uses `NONE`. Requires `androidx.core` ≥ 1.9.
 
+- **`"Play Store is blocked"` debug message propagates automatically.**
+  PBL 9 sets a specific debug message on the `BillingResult` for the
+  system-blocked case. No wrapper API change was needed — the message
+  reaches consumers through paths the library already exposes:
+  - **Logs:** `BillingUnavailableException.message` includes it (built by
+    `BillingLoggingUtils.createDetailedBillingContext`), so Crashlytics /
+    Timber output for that exception shows `Debug: 'Play Store is blocked'`.
+  - **Programmatic differentiation:** consumers that need to distinguish
+    a system-block from other `BILLING_UNAVAILABLE` causes (Play Services
+    missing, ineligible account, non-Play distribution) can read
+    `exception.result?.debugMessage` directly — `result` is the public
+    `BillingResult` field on every `BillingException` subtype. Per the
+    `BillingException` class KDoc, `result.debugMessage` is the documented
+    path for programmatic branching; `.message` is for logs only.
+
 - **`BillingActions` class-level KDoc** gains a "Wrapping suspend members for
   resilience" note explaining that suspend members propagate structured
   cancellation (parent-scope `CancellationException` is rethrown; an internal
