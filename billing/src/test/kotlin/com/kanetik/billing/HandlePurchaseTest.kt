@@ -58,7 +58,7 @@ class HandlePurchaseTest {
     }
 
     @Test
-    fun `handlePurchase with consume=true does NOT short-circuit on isAcknowledged — still consumes`() = runTest {
+    fun `handlePurchase with consume=true does NOT short-circuit on isAcknowledged - still consumes`() = runTest {
         // The consume=true path must run regardless of isAcknowledged state:
         // consumables aren't acked, they're consumed, and Play doesn't
         // expose isConsumed on Purchase for a parallel check. (If isAcknowledged

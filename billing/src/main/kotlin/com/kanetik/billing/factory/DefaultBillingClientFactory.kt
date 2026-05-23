@@ -9,7 +9,7 @@ import com.android.billingclient.api.PurchasesUpdatedListener
  * The default [BillingClientFactory] used by [BillingRepositoryCreator][com.kanetik.billing.BillingRepositoryCreator]
  * when no override is supplied.
  *
- * Builds a [BillingClient] with the PBL 8.x recommended setup:
+ * Builds a [BillingClient] with the PBL 9.x recommended setup:
  *  - `enablePendingPurchases` with `enableOneTimeProducts` (replaces the no-arg
  *    overload removed in PBL 8.0.0)
  *  - `enableAutoServiceReconnection` so PBL handles reconnects internally
