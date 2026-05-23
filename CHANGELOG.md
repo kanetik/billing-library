@@ -141,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrapper code changes were required, but the exception type seen by consumers
   in this scenario changes.
 
-### Public API changes
+### Public API changes (BREAKING — bump major if any)
 
 None — wrapper public API is unchanged by this bump.
 
