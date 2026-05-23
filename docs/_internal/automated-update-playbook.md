@@ -1,6 +1,6 @@
 # Automated PBL update playbook
 
-This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Routine fires the prompt in section 11 below; that prompt reads this doc and acts on it.
+This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Routine fires the prompt in section 12 below; that prompt reads this doc and acts on it.
 
 **Audience:** the agent firing on the Routine, plus the human maintainer who reviews the PRs (and occasionally the issues) it opens.
 
@@ -13,10 +13,12 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 ### What the agent does
 
 - Detects new PBL stable versions
+- Reads both the release notes and (when a major boundary is in scope) the "Migrate to Billing Library X" guide
 - Categorizes each release as **safe** (bug fix / internal-only) or **risky** (API change / behavior change / minSdk bump)
 - Fixes any code or test failures the bump introduces, on the appropriate branch
 - Opens a PR against `main` (safe) or `next` (risky), with categorization rationale and a clear summary of what changed
-- Notifies the maintainer via IFTTT (SMS to Android) when the PR is ready
+- Opens a separate `[feat proposal]` GitHub issue (labeled `question`) for each net-new PBL feature, @-mentioning the maintainer
+- Notifies the maintainer via IFTTT (SMS to Android) when the PR is ready and per feature-proposal issue
 
 ### What the agent never does
 
@@ -25,6 +27,7 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 - Tag any release
 - Bump any dependency other than `playBillingKtx`
 - **Open a PR (draft or otherwise) with a failing build or failing tests.** This is absolute. If the bump breaks something, the agent fixes it before opening the PR. If it can't fix in three attempts, it opens an *issue* instead, with full diagnostic detail.
+- **Auto-include net-new PBL features in the bump PR.** New PBL APIs the wrapper does not already expose go to a feature-proposal issue (section 4). The only exception is a trivial overload of a method the wrapper already wraps, where the new signature follows mechanically from the existing wrapping.
 
 ### Working-assumption when something fails
 
@@ -41,7 +44,7 @@ It's not impossible for the test to be at fault — but the order of investigati
 
 A draft PR is the right tool when the agent's categorization confidence is below ~80%, when a migration choice has multiple reasonable paths, or when the agent is uncertain about a public-API decision on `next`. In those cases the agent opens a draft and posts its specific questions in the PR description (and follows up in PR comments if more come up while writing).
 
-A draft PR is **not** acceptable as a way to ship work with failing tests or a broken build. If something's failing, the agent fixes it (section 6) or opens an issue.
+A draft PR is **not** acceptable as a way to ship work with failing tests or a broken build. If something's failing, the agent fixes it (section 7) or opens an issue.
 
 ---
 
@@ -49,7 +52,7 @@ A draft PR is **not** acceptable as a way to ship work with failing tests or a b
 
 ### Trigger
 
-The Claude.ai Routine fires the prompt in section 11 daily.
+The Claude.ai Routine fires the prompt in section 12 daily.
 
 ### Steps
 
@@ -75,16 +78,75 @@ The Claude.ai Routine fires the prompt in section 11 daily.
 
 ---
 
-## 3. Categorization rubric
+## 3. Check for existing open PR
 
-Read each version's release notes from <https://developer.android.com/google/play/billing/release-notes>. Classify each change.
+Before branching, editing, or running any verification, look for an open PR that already targets this bump. The Routine fires daily — without this step, every day a still-open bump PR remains unmerged would spawn a duplicate.
+
+### Lookup
+
+```bash
+gh pr list --state open --search "head:bump/pbl-" \
+  --json number,title,headRefName,baseRefName,isDraft,updatedAt,body
+```
+
+A match is any open PR whose head branch starts with `bump/pbl-`. Identify the target version from the branch name (`bump/pbl-<VERSION>` or `bump/pbl-<VERSION>-beta`) and the PR body's "Version delta" section.
+
+### Decisions
+
+**No matching open PR** → proceed to section 4 (categorization).
+
+**An open PR targets exactly the latest stable version** (e.g., latest is 8.5.0 and the PR is for 8.5.0):
+
+1. Read the PR end-to-end — title, body, diff, file changes, comments, CI status.
+2. Audit it against this playbook:
+   - Categorization correct (safe vs risky, Path A vs Path B, right base branch)?
+   - Every change in release notes enumerated in the PR body?
+   - For Path B, every public-API change labeled `**BREAKING:**`?
+   - CHANGELOG entry present and in the templated format from section 5 or 6?
+   - Latest commit passes `:billing:test :sample:assembleDebug :billing:lint`?
+   - Any maintainer review comments unaddressed?
+3. If any audit item is missing or wrong: push improvements to the **same branch**. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
+4. Do not overrule the maintainer. If the maintainer has commented endorsing a specific categorization, public-API decision, or migration choice, leave it alone — only fix mechanical gaps (missing CHANGELOG bullet, failing verification, missing release-notes enumeration).
+5. If everything is already correct: exit silently. Do **not** re-notify; the maintainer was already pinged when the PR opened.
+
+**An open PR targets a stale version** (e.g., PR is for 8.5.0 but latest stable is now 8.5.1, or pinned was 8.3.0 and the old PR jumped to 8.4.0 while latest is now 8.5.0):
+
+1. Decide whether to update in place or re-route:
+   - Old PR was Path A and the delta from `<OLD_TARGET>` → `<NEW_TARGET>` adds only safe items → **update in place**.
+   - Old PR was Path A but the additional versions in scope add risky items → categorization flips. Open a fresh PR on `next` per section 6. Post a comment on the old PR: `Superseded by #<NEW_PR>. The newer versions in scope require public-API changes; work moved to next.` Leave the old PR open for the maintainer to close.
+   - Old PR was Path B → keep it on `next`; update in place.
+2. Updating in place:
+   - Pull the branch locally and rebase its base (`main` or `next`) into it so it's current.
+   - Bump `playBillingKtx` to the new latest.
+   - Extend the CHANGELOG entry's release-notes summary to cover the newly-in-scope versions; widen the version-delta range in the PR body.
+   - Re-run verification (`:billing:test :sample:assembleDebug :billing:lint`). Fix failures per section 7.
+   - Update the PR title to reflect the new `<NEW>` version, and update the body's Version delta, Categorization, and (for Path B) Risky items / Public API changes sections.
+   - Force-push the updated branch.
+   - Post a PR comment: `Refreshed: target bumped <OLD_TARGET> → <NEW_TARGET>; added <N> additional release-notes items to scope; verification re-run.`
+3. Send the IFTTT notification (section 11) noting the refresh: `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`.
+
+**Multiple open PRs match** (shouldn't normally happen, but defensive): treat the most recently updated one as authoritative. On each other matching PR, post a comment pointing at the authoritative PR (`Superseded by #<NUM>; this PR can be closed.`). Do not auto-close — let the maintainer.
+
+### What "as good as possible" means here
+
+The agent's job is to hold the PR to this playbook's mechanical bar: right base, templated body, CHANGELOG entry, passing verification, every release-notes item accounted for, every public-API change flagged. It is **not** to second-guess editorial judgments the maintainer has explicitly endorsed.
+
+---
+
+## 4. Categorization rubric
+
+For each version in scope, read **both** of these Google sources:
+
+1. **Release notes** — <https://developer.android.com/google/play/billing/release-notes> — the per-version change list.
+2. **Migration guide** — `https://developer.android.com/google/play/billing/migrate-<MAJOR>` (e.g., `migrate-8` for the 8.x line, linked from the left nav of the release-notes page). **Required reading** whenever the version range in scope crosses a major boundary (e.g., pinned 7.x → latest 8.x). For minor/patch-only bumps, skim it anyway — it sometimes flags items the release notes under-state or omit.
+
+Cross-reference the two. If the migration guide describes something the release notes didn't (or vice versa), treat that as a categorization signal — escalate to risky if there's any doubt. Then classify each change using the rubric below.
 
 ### Safe (route to `main`, wrapper patch bump)
 
 - Pure bug fix
 - Performance improvement
 - Internal refactor (PBL's own internals, no consumer-visible change)
-- New PBL API the wrapper does **not** expose and doesn't need to expose
 - Documentation-only change
 
 ### Risky (route to `next`, wrapper minor or major beta)
@@ -95,7 +157,53 @@ Read each version's release notes from <https://developer.android.com/google/pla
 - **New minSdk requirement** (e.g., PBL 8.1 raised the floor from 21 to 23)
 - **New permission** required in the manifest
 - **New build-script requirement** (Kotlin/AGP/Gradle minimum version)
-- **New PBL API the wrapper should arguably expose** — adds public API surface to the wrapper, which is a minor bump by semver
+
+Net-new PBL features are handled separately — see the next subsection.
+
+### Net-new PBL features → feature-proposal issue (do not auto-include)
+
+A net-new PBL feature is any new API, method, class, or capability the wrapper does not currently expose. **The agent does not unilaterally decide whether to include a net-new feature in the bump PR, and does not unilaterally decide a feature isn't worth including either** — both are design calls for the maintainer.
+
+Default behavior, for every net-new PBL feature:
+
+1. Open a **separate** GitHub issue (one per feature) titled `[feat proposal] Expose PBL <feature name> (added in <VERSION>)` and label it `question`. With `gh`:
+   ```bash
+   gh issue create --title "[feat proposal] Expose PBL <feature name> (added in <VERSION>)" --label question --body "<body from step 2>"
+   ```
+   If the `question` label doesn't exist on the repo, create it first (`gh label create question --color cc317c --description "Needs maintainer decision"`).
+2. Body template:
+   ```
+   PBL <VERSION> added <feature name>. The wrapper does not currently expose it.
+
+   Release notes: <URL, anchored to this feature if possible>
+   Migration guide section: <URL anchored to this feature, if applicable>
+
+   What PBL added:
+   <one-paragraph description from release notes / migration guide>
+
+   How a consumer would use it via raw PBL today:
+   <short code sketch>
+
+   Plausible wrapper shape:
+   <code sketch if the shape is obvious; otherwise "TBD — needs design decision">
+
+   @kanetik — does this belong in the wrapper? If so, how should it be shaped?
+
+   This issue is intentionally separate from the bump PR so the bump stays focused on parity with the new PBL version. The agent will not include this feature in the bump PR.
+   ```
+3. Link every feature-proposal issue from the bump PR body under a "Feature proposals deferred to follow-up issues" section (templates in sections 5 and 6).
+4. Do **not** include the feature in the bump PR's diff.
+5. Fire one IFTTT notification per feature-proposal issue (section 11).
+
+**Zero-ambiguity exception (rare — default is still to open an issue):** if the new PBL API is unambiguously the wrapper's job to expose with no design choice required — most commonly a new overload of a method the wrapper already wraps, where the new overload's wrapped signature follows mechanically from the existing one — the agent **may** include it in the bump PR. When it does:
+
+- List every such addition under a "Net-new PBL surface included for parity" section in the PR body.
+- For each, give a one-line rationale for why it was a mechanical add (e.g., "PBL added a `BillingClient.queryPurchasesAsync(QueryPurchasesParams, Continuation)` Kotlin-coroutine overload of the existing wrapped `queryPurchasesAsync(QueryPurchasesParams, PurchasesResponseListener)`; the wrapper's coroutine wrapper now delegates to the new overload — no design choice").
+- If you're under ~95% confident the add is mechanical: don't include it. Open the issue instead.
+
+Anything beyond a trivial overload — new classes, new top-level methods, new behavior surfaces — always goes to an issue, never into the bump PR.
+
+The cost of a deferred feature is "maintainer sees one extra issue in their inbox." The cost of auto-including the wrong API shape is a design mistake the wrapper has to support forever.
 
 ### Borderline → escalate (open as draft, flag in PR body with explicit questions)
 
@@ -111,11 +219,11 @@ If multiple PBL versions accumulated since the last pin, take the **most-conserv
 
 ### Re-categorization mid-flow
 
-If the agent starts on Path A (safe) and discovers during the fix loop that the necessary fix requires public-API changes, the categorization **flips to risky**. Abandon the `main` branch work, switch to `next`, and follow Path B. Section 6 covers this transition explicitly.
+If the agent starts on Path A (safe) and discovers during the fix loop that the necessary fix requires public-API changes, the categorization **flips to risky**. Abandon the `main` branch work, switch to `next`, and follow Path B. Section 7 covers this transition explicitly.
 
 ---
 
-## 4. Path A — all-safe bump (target `main`)
+## 5. Path A — all-safe bump (target `main`)
 
 Branch from `main` as `bump/pbl-<NEW_VERSION>` (e.g., `bump/pbl-8.3.1`).
 
@@ -139,7 +247,7 @@ Branch from `main` as `bump/pbl-<NEW_VERSION>` (e.g., `bump/pbl-8.3.1`).
 ./gradlew :billing:test :sample:assembleDebug :billing:lint
 ```
 
-If anything fails: do **not** open a PR. Go to section 6 (Test failure handling).
+If anything fails: do **not** open a PR. Go to section 7 (Test failure handling).
 
 ### Open the PR
 
@@ -153,12 +261,25 @@ If anything fails: do **not** open a PR. Go to section 6 (Test failure handling)
   Pinned: <OLD>
   Latest stable: <NEW>
   Release notes: <URL>
+  Migration guide: <URL if any major boundary in scope, else "N/A — no major boundary crossed">
 
   ## Categorization
   Safe — patch bump on main.
 
   Reasoning:
   - <bullet for each change in release notes, with the safe-rationale>
+
+  ## Net-new PBL surface included for parity
+  <if none>: None — the bump introduces no new public surface in the wrapper.
+  <if any (zero-ambiguity exception per section 4)>:
+  - <one-line description of addition>
+    Rationale: <why this was a mechanical add — e.g., "new overload of an already-wrapped method">
+
+  ## Feature proposals deferred to follow-up issues
+  <if none>: None — no net-new PBL features in this version range.
+  <if any>:
+  - #<ISSUE_NUM>: <feature name> — see issue for design discussion.
+  - <repeat for each>
 
   ## Verification
   - :billing:test — 58 tests passed
@@ -170,15 +291,16 @@ If anything fails: do **not** open a PR. Go to section 6 (Test failure handling)
 
   ## What the maintainer should do
   1. Skim the release notes link and confirm the categorization.
-  2. Merge if happy.
-  3. Tag `v<NEXT_PATCH_VERSION>` and push to trigger the publish workflow.
+  2. Triage any linked feature-proposal issues (separate from this PR).
+  3. Merge this PR if happy.
+  4. Tag `v<NEXT_PATCH_VERSION>` and push to trigger the publish workflow.
   ```
 
-After opening the PR: send the IFTTT notification (section 10).
+After opening the PR: send the IFTTT notification (section 11).
 
 ---
 
-## 5. Path B — risky bump (target `next`)
+## 6. Path B — risky bump (target `next`)
 
 If the `next` branch doesn't exist, create it from `main` and push it before doing anything else:
 ```bash
@@ -195,7 +317,7 @@ Branch from `next` as `bump/pbl-<NEW_VERSION>-beta` (e.g., `bump/pbl-8.5.0-beta`
 2. **Internal code adjustments as needed.** Unlike Path A, Path B may include public-API changes:
    - If a deprecated API the wrapper uses is still callable, prefer migrating to the new API rather than leaving a TODO. Be explicit in the PR body about why the migration was chosen.
    - If an API was *removed*, the agent migrates the wrapper. If the wrapper's public surface needs to change to absorb the removal, do it — but list every public-API change with a `**BREAKING:**` prefix in the PR body.
-   - If the bump enables a new PBL feature the wrapper should expose, the agent **may** add the new surface, but should open as a **draft** and ask the maintainer to confirm the API shape before going non-draft.
+   - **Net-new PBL features still go to feature-proposal issues, not into this PR** (see section 4's "Net-new PBL features" subsection). Path B is for absorbing risky upstream changes that affect what the wrapper already exposes, not for opportunistically expanding the wrapper's surface. The zero-ambiguity exception in section 4 still applies for trivial overloads of methods the wrapper already wraps.
 3. `CHANGELOG.md` on the `next` branch: add an entry under `## [Unreleased]`:
    ```markdown
    ### Changed
@@ -215,7 +337,7 @@ Branch from `next` as `bump/pbl-<NEW_VERSION>-beta` (e.g., `bump/pbl-8.5.0-beta`
 
 ### Verification (must pass before opening the PR)
 
-Same as Path A: `./gradlew :billing:test :sample:assembleDebug :billing:lint`. If anything fails, go to section 6.
+Same as Path A: `./gradlew :billing:test :sample:assembleDebug :billing:lint`. If anything fails, go to section 7.
 
 ### Open the PR
 
@@ -231,6 +353,7 @@ Same as Path A: `./gradlew :billing:test :sample:assembleDebug :billing:lint`. I
   Pinned: <OLD>
   Latest stable: <NEW>
   Release notes: <URL>
+  Migration guide: <URL if any major boundary in scope, else "N/A — no major boundary crossed">
 
   ## Categorization
   Risky — minor or major beta on `next`.
@@ -244,6 +367,18 @@ Same as Path A: `./gradlew :billing:test :sample:assembleDebug :billing:lint`. I
   - **BREAKING: <one-line description of change>**
     Rationale: <why this change was needed>
     Migration for consumers: <if any>
+  - <repeat for each>
+
+  ### Net-new PBL surface included for parity
+  <if none>: None — the bump introduces no new public surface in the wrapper.
+  <if any (zero-ambiguity exception per section 4)>:
+  - <one-line description of addition>
+    Rationale: <why this was a mechanical add>
+
+  ### Feature proposals deferred to follow-up issues
+  <if none>: None — no net-new PBL features in this version range.
+  <if any>:
+  - #<ISSUE_NUM>: <feature name> — see issue for design discussion.
   - <repeat for each>
 
   ### Safe items (along for the ride)
@@ -265,18 +400,19 @@ Same as Path A: `./gradlew :billing:test :sample:assembleDebug :billing:lint`. I
   ## What the maintainer should do
   1. Read the risky items list and confirm the migration strategy for each.
   2. Audit the public API changes (each `**BREAKING:**` line).
-  3. Merge to `next` when satisfied with the bump itself.
-  4. Tag a `vX.Y.Z-beta1` release from `next` to publish the beta.
-  5. After dog-fooding the beta, fast-forward `main` to `next` and tag `vX.Y.Z` GA.
+  3. Triage any linked feature-proposal issues (separate from this PR).
+  4. Merge to `next` when satisfied with the bump itself.
+  5. Tag a `vX.Y.Z-beta1` release from `next` to publish the beta.
+  6. After dog-fooding the beta, fast-forward `main` to `next` and tag `vX.Y.Z` GA.
   ```
 
 If the PR has unresolved questions about API shape or migration choice, mark as **draft** and post the specific questions in the PR description.
 
-After opening the PR: send the IFTTT notification (section 10).
+After opening the PR: send the IFTTT notification (section 11).
 
 ---
 
-## 6. Test failure handling
+## 7. Test failure handling
 
 Reached when `:billing:test`, `:sample:assembleDebug`, or `:billing:lint` fails after the PBL bump.
 
@@ -301,7 +437,7 @@ If on Path A (current branch = `bump/pbl-<NEW>` from main):
   3. Switch to `next` (creating from `main` if missing). Create `bump/pbl-<NEW>-beta` from `next`.
   4. Reapply the bump + the fix on the new branch.
   5. Run verification again.
-  6. Open the PR per Path B (section 5), explicitly noting in the body that the work was re-routed from Path A → Path B because the fix required public-API changes.
+  6. Open the PR per Path B (section 6), explicitly noting in the body that the work was re-routed from Path A → Path B because the fix required public-API changes.
 
 If on Path B (current branch = `bump/pbl-<NEW>-beta` from next):
 - Apply the fix (public API changes are allowed here).
@@ -317,11 +453,11 @@ Up to **3 fix attempts**. After three failed attempts (each with a meaningfully 
   - The remaining failure output (full stack trace, full lint report, etc.)
   - The agent's best-guess hypothesis for what's wrong
   - A list of branches/commits the agent created during the attempt (so the maintainer can pick up where the agent left off)
-- Send the IFTTT notification (section 10) pointing to the issue, not a PR.
+- Send the IFTTT notification (section 11) pointing to the issue, not a PR.
 
 ---
 
-## 7. CHANGELOG version-bump rules
+## 8. CHANGELOG version-bump rules
 
 The wrapper's semver is driven by **what changed in the wrapper's public API**, not by what changed in PBL. PBL is just the trigger.
 
@@ -337,7 +473,7 @@ For Path B (risky), the agent picks based on the table above. Default is minor u
 
 ---
 
-## 8. Branch lifecycle
+## 9. Branch lifecycle
 
 - `main`: always represents the latest GA-shippable code. Path A PRs land here.
 - `next`: tracks the in-progress next minor or major. Path B PRs land here. Once a `next`-cycle ships GA, fast-forward `main` to `next` and (optionally) leave `next` empty until the next risky bump arrives.
@@ -347,20 +483,23 @@ The agent creates `next` if needed (first-time event); the agent never deletes b
 
 ---
 
-## 9. Constraints (recap)
+## 10. Constraints (recap)
 
 - No direct push to `main`
 - No merge of any PR
 - No tag creation
 - No deps bumped other than `playBillingKtx`
 - **No PR (draft or otherwise) with a failing build or failing tests.** Fix first; if you can't fix in 3 attempts, open an issue instead.
+- **No duplicate bump PRs.** If an open `bump/pbl-*` PR exists, audit it (same target) or refresh it (stale target) per section 3 — never open a second one.
+- **Read both release notes AND the migration guide** for every version in scope. Migration guide is required reading when a major boundary is crossed.
+- **No auto-including net-new PBL features.** Open a feature-proposal issue and @-mention @kanetik (per section 4). Zero-ambiguity exception: trivial overloads of methods the wrapper already wraps may be included in the bump PR, called out under "Net-new PBL surface included for parity."
 - Public API changes allowed only on `next`, never on `main`. If a Path A fix needs public API changes, re-route to Path B.
 - Draft PRs are for *ambiguity*, not for failures. Post the specific questions in the PR description.
 - When confidence < 80% on categorization, route as risky.
 
 ---
 
-## 10. Notifications via IFTTT
+## 11. Notifications via IFTTT
 
 After opening any PR or issue, the agent notifies the maintainer's Android device via IFTTT.
 
@@ -379,7 +518,9 @@ The applet accepts a single text parameter via `{{Value1}}` — the playbook han
 1. Use `mcp__claude_ai_IFTTT__my_applets` to find an applet whose name matches `Kanetik PBL Update Notification` (or the name in the setup section above; if the applet is renamed, update both this playbook and the setup section).
 2. If found: use `mcp__claude_ai_IFTTT__run_action` (or the equivalent) to fire the applet with text content:
    - For a PR: `Kanetik PBL update <OLD> -> <NEW> needs review: <PR_URL> [Path A | Path B-beta]`
-   - For an issue: `Kanetik PBL update <OLD> -> <NEW> needs intervention: <ISSUE_URL>`
+   - For a refreshed PR (existing PR updated to new latest, per section 3): `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`
+   - For a feature-proposal issue (per section 4): `Kanetik PBL <VERSION> feature proposal needs decision: <ISSUE_URL>` — fire one per feature-proposal issue
+   - For an intervention issue (3 fix attempts failed, per section 7): `Kanetik PBL update <OLD> -> <NEW> needs intervention: <ISSUE_URL>`
 3. If not found, or if the IFTTT call fails: log the failure in a comment on the PR or issue ("notification not sent — applet not found / IFTTT error: <details>") and proceed. The PR/issue itself is the primary deliverable; the SMS is a convenience.
 
 ### Fallback
@@ -388,7 +529,7 @@ If IFTTT integration isn't available in the agent's runtime, GitHub's built-in P
 
 ---
 
-## 11. The Routine prompt
+## 12. The Routine prompt
 
 Paste this into the Claude.ai Routine that runs daily. The prompt is fully self-contained — a fresh agent with no prior context can execute it.
 
@@ -414,20 +555,42 @@ stable release, while protecting consumers from breaking changes.
 4. If the wrapper is behind: clone the repo, then read the playbook at
    docs/_internal/automated-update-playbook.md and follow it end-to-end. The playbook
    covers:
+   - **Checking for an already-open bump PR (section 3)** — if one exists,
+     either audit/improve it in place (same target version) or refresh it
+     to the new latest (stale target version). Never open a duplicate.
+   - **Reading BOTH the release notes AND the migration guide** for every
+     version in scope (section 4). Migration guide is at
+     https://developer.android.com/google/play/billing/migrate-<MAJOR>
+     and is required reading when a major boundary is crossed.
    - Categorizing the release as safe vs risky
+   - **Net-new PBL features get a feature-proposal issue, NOT inclusion in
+     the bump PR (section 4).** Open one issue per feature, label it
+     `question`, @-mention @kanetik, and leave the design call to the
+     maintainer. Trivial overloads of already-wrapped methods are the
+     only exception.
    - Branching (main vs next, creating next if needed)
    - Editing libs.versions.toml + CHANGELOG.md
    - Running :billing:test, :sample:assembleDebug, :billing:lint
-   - **Fixing failures rather than shipping a broken PR** (section 6)
+   - **Fixing failures rather than shipping a broken PR** (section 7)
    - Re-categorizing if the fix requires public-API changes
    - Opening a PR with templated title/body, OR opening a GitHub issue if
      the fix can't be completed in 3 attempts
-   - Notifying the maintainer via IFTTT (section 10)
+   - Notifying the maintainer via IFTTT (section 11) — one ping per PR,
+     one per feature-proposal issue, one per intervention issue
    - When to open as draft (ambiguity only — never as a workaround for
      failing tests)
 
 Constraints — the playbook spells these out, but to be explicit:
 - No push to main, no merge, no tag, no other dep bumps.
+- No duplicate bump PRs. If a `bump/pbl-*` PR is already open, follow
+  section 3: audit it (same target version) or refresh the existing
+  branch to the new latest (stale target version). Never open a second
+  PR for the same bump.
+- No auto-including net-new PBL features in the bump PR. Open a
+  `[feat proposal]` GitHub issue per feature, labeled `question`,
+  @-mention @kanetik, and let the maintainer decide whether/how to
+  expose it. Only exception: trivial overloads of methods the wrapper
+  already wraps.
 - No PR (draft or otherwise) with a failing build or failing tests.
   Fix the underlying issue. After 3 fix attempts that don't work, open
   a GitHub issue instead and notify via IFTTT.
@@ -443,14 +606,14 @@ issue-create permission.
 Repo identity: configure git user.name + user.email to a bot/automation
 identity (e.g., "kanetik-automation" / a no-reply email) so the commit
 author is distinguishable from human commits.
-IFTTT: section 10 of the playbook describes the applet-name lookup
+IFTTT: section 11 of the playbook describes the applet-name lookup
 mechanism. If the applet doesn't exist or IFTTT fails, fall back to
 GitHub's built-in email notification (which fires automatically).
 ```
 
 ---
 
-## 12. Manual-run mode (for testing the playbook)
+## 13. Manual-run mode (for testing the playbook)
 
 To dry-run the playbook locally without waiting for the Routine:
 
@@ -466,8 +629,8 @@ Run this at least once after major edits to this playbook to make sure it still 
 
 ---
 
-## 13. Maintenance of the playbook itself
+## 14. Maintenance of the playbook itself
 
-If you change this playbook (rules, templates, branch strategy, IFTTT setup, terminology), update **both** the rules sections AND the Routine prompt block in section 11. The Routine prompt is the entry point; if it diverges from the rules, the agent's behavior diverges.
+If you change this playbook (rules, templates, branch strategy, IFTTT setup, terminology), update **both** the rules sections AND the Routine prompt block in section 12. The Routine prompt is the entry point; if it diverges from the rules, the agent's behavior diverges.
 
 When in doubt: the agent always defers to the maintainer. Open a draft PR with the rationale (for ambiguity) or an issue (for failures it can't fix), and let the human decide.
