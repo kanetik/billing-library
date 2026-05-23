@@ -16,9 +16,9 @@ This playbook is invoked by a **Claude.ai Routine** on a daily schedule. The Rou
 - Reads both the release notes and the "Migrate to Billing Library X" guide — guide is required reading when a major boundary is in scope, advisory (but worth skimming) otherwise
 - Categorizes each release as **safe** (bug fix / internal-only) or **risky** (API change / behavior change / minSdk bump)
 - Fixes any code or test failures the bump introduces, on the appropriate branch
-- Opens a PR against `main` (safe) or `next` (risky), with categorization rationale and a clear summary of what changed
+- Opens or updates a PR against `main` (safe) or `next` (risky), with categorization rationale and a clear summary of what changed (and refreshes an existing open bump PR in place rather than opening a duplicate — see section 3)
 - Opens a separate `[feat proposal]` GitHub issue (labeled `question`) for each net-new PBL feature, @-mentioning the maintainer
-- Notifies the maintainer via IFTTT (SMS to Android) when the PR is ready and per feature-proposal issue
+- Notifies the maintainer via IFTTT (SMS to Android) for every PR opened or refreshed, plus one ping per feature-proposal issue and one per intervention issue
 
 ### What the agent never does
 
@@ -102,11 +102,13 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
    - Categorization correct (safe vs risky, Path A vs Path B, right base branch)?
    - Every change in release notes enumerated in the PR body?
    - For Path B, every public-API change labeled `**BREAKING:**`?
+   - **Migration guide URL** present in the PR body (if a major boundary is crossed)?
+   - **Feature-proposal issues** linked under "Feature proposals deferred to follow-up issues" (if any net-new PBL features exist in the version range)?
    - CHANGELOG entry present and in the templated format from section 5 or 6?
    - Latest commit passes `:billing:test :sample:assembleDebug :billing:lint`?
    - Any maintainer review comments unaddressed?
-3. If any audit item is missing or wrong: pull the branch locally, rebase its base (`main` or `next`) into it so verification runs against the current state of the base branch, then push improvements to the **same branch**. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
-   - **No-changes-needed but base has moved:** if the audit shows the PR is already correct but its base branch has moved since the last commit, refresh the branch (rebase + re-run verification + force-push) so the PR's CI reflects the current base. Post a brief PR comment noting the rebase. No IFTTT notification — the maintainer was already pinged when the PR opened.
+3. If any audit item is missing or wrong: pull the branch locally, rebase its base (`main` or `next`) into it so verification runs against the current state of the base branch, then push improvements to the **same branch** with `git push --force-with-lease` (rebase rewrites history, so a plain push will be rejected as non-fast-forward; `--force-with-lease` is preferred over `--force` because it refuses to clobber commits the agent hasn't seen). If the audit fixes changed the categorization, release-notes enumeration, or linked feature-proposal issues, update the PR title and body to match before pushing. Never open a duplicate PR. Re-run verification before pushing. Add a PR comment summarizing what changed and why so the maintainer can see what shifted since their last look.
+   - **No-changes-needed but base has moved:** if the audit shows the PR is already correct but its base branch has moved since the last commit, refresh the branch (rebase + re-run verification + `git push --force-with-lease`) so the PR's CI reflects the current base. Post a brief PR comment noting the rebase. No IFTTT notification — the maintainer was already pinged when the PR opened.
 4. Do not overrule the maintainer. If the maintainer has commented endorsing a specific categorization, public-API decision, or migration choice, leave it alone — only fix mechanical gaps (missing CHANGELOG bullet, failing verification, missing release-notes enumeration).
 5. If everything is already correct: exit silently. Do **not** re-notify; the maintainer was already pinged when the PR opened.
 
@@ -121,8 +123,8 @@ A match is any open PR whose head branch starts with `bump/pbl-`. Identify the t
    - Bump `playBillingKtx` to the new latest.
    - Extend the CHANGELOG entry's release-notes summary to cover the newly-in-scope versions; widen the version-delta range in the PR body.
    - Re-run verification (`:billing:test :sample:assembleDebug :billing:lint`). Fix failures per section 7.
-   - Update the PR title to reflect the new `<NEW>` version, and update the body's Version delta, Categorization, and (for Path B) Risky items / Public API changes sections.
-   - Force-push the updated branch.
+   - Update the PR title to reflect the new `<NEW>` version. Update the body's Version delta, Migration guide (if a major boundary is now in scope), Categorization, Feature proposals deferred to follow-up issues (if any new ones were opened for the additional versions), and (for Path B) Risky items / Public API changes sections.
+   - Force-push the updated branch with `git push --force-with-lease` (rebase rewrites history; `--force-with-lease` is preferred over `--force` because it refuses to clobber commits the agent hasn't seen).
    - Post a PR comment: `Refreshed: target bumped <OLD_TARGET> → <NEW_TARGET>; added <N> additional release-notes items to scope; verification re-run.`
 3. Send the IFTTT notification (section 11) noting the refresh: `Kanetik PBL update PR refreshed <OLD_TARGET> -> <NEW_TARGET>: <PR_URL>`.
 
@@ -559,6 +561,7 @@ stable release, while protecting consumers from breaking changes.
    - **Checking for an already-open bump PR (section 3)** — if one exists,
      either audit/improve it in place (same target version) or refresh it
      to the new latest (stale target version). Never open a duplicate.
+     Use `git push --force-with-lease` after any rebase (not `--force`).
    - **Reading BOTH the release notes AND the migration guide** for every
      version in scope (section 4). Migration guide is at
      https://developer.android.com/google/play/billing/migrate-<MAJOR>
@@ -577,8 +580,9 @@ stable release, while protecting consumers from breaking changes.
    - Re-categorizing if the fix requires public-API changes
    - Opening a PR with templated title/body, OR opening a GitHub issue if
      the fix can't be completed in 3 attempts
-   - Notifying the maintainer via IFTTT (section 11) — one ping per PR,
-     one per feature-proposal issue, one per intervention issue
+   - Notifying the maintainer via IFTTT (section 11) — one ping per PR
+     (new or refreshed), one per feature-proposal issue, one per
+     intervention issue
    - When to open as draft (ambiguity only — never as a workaround for
      failing tests)
 
