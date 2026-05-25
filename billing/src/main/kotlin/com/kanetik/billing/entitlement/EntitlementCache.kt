@@ -43,7 +43,7 @@ import kotlinx.coroutines.sync.withLock
  *  - **One non-consumable unlock** (e.g. "ad removal"): `K = Unit` with a
  *    `productKeySelector` that returns `Unit` for the matching product ID,
  *    `null` otherwise. The state map collapses to `{Unit -> ...}`; use
- *    [stateFor]`(Unit)` for ergonomics.
+ *    [stateFor] with `Unit` for ergonomics.
  *  - **Multiple non-consumable upgrades** (e.g. a game with a "Pro toolkit"
  *    and a separate "Expansion pack" SKU): `K = String` with the product ID,
  *    or an `enum class Entitlement { PRO_TOOLKIT, EXPANSION }`.
@@ -550,17 +550,26 @@ public class EntitlementCache<K : Any>(
      * grace — Play has explicitly revoked).
      */
     private fun handleRevoked(event: PurchaseRevoked): List<Pair<K, EntitlementSnapshot>> {
+        // Two-pass: collect matching keys first, then mutate via
+        // transitionToRevoked. Updating lastConfirmedSnapshots[key] for an
+        // already-present key is technically safe under HashMap's iterator
+        // (no structural modification), but the pattern is brittle — a
+        // future edit to transitionToRevoked could add a structural change
+        // (a new key, a removal) and break iteration. Iterate a snapshot of
+        // the matching keys instead so the transition is decoupled from the
+        // iteration.
         val now = clock()
-        val results = ArrayList<Pair<K, EntitlementSnapshot>>()
-        for ((key, confirmed) in lastConfirmedSnapshots) {
-            if (confirmed.purchaseToken == event.purchaseToken) {
-                val snapshot = EntitlementSnapshot(
-                    isEntitled = false,
-                    confirmedAtMs = now,
-                    purchaseToken = event.purchaseToken,
-                )
-                results.add(key to transitionToRevoked(key, snapshot))
-            }
+        val matchingKeys = lastConfirmedSnapshots
+            .filter { (_, confirmed) -> confirmed.purchaseToken == event.purchaseToken }
+            .keys.toList()
+        val results = ArrayList<Pair<K, EntitlementSnapshot>>(matchingKeys.size)
+        for (key in matchingKeys) {
+            val snapshot = EntitlementSnapshot(
+                isEntitled = false,
+                confirmedAtMs = now,
+                purchaseToken = event.purchaseToken,
+            )
+            results.add(key to transitionToRevoked(key, snapshot))
         }
         return results
     }

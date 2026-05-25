@@ -44,8 +44,11 @@ package com.kanetik.billing.entitlement
  *        (e.g., `viewModelScope.launch { cache.start(viewModelScope) }`),
  *        `readAll()` runs on Main unless your implementation switches.
  *      - [write] is invoked by an internal writer coroutine launched into
- *        the scope supplied to `start()`, draining a CONFLATED-per-key channel
- *        serially.
+ *        the scope supplied to `start()`, draining an UNLIMITED `(K, snapshot)`
+ *        channel in send order. Calls are serialised; there is no per-key
+ *        conflation, so back-to-back writes for the same key both reach
+ *        storage. Entitlement transitions happen at human pace (PBL events,
+ *        grace ticks), so the buffer is bounded in practice by activity.
  *    Your implementation is responsible for any further dispatching it needs
  *    (e.g. wrap the body in `withContext(Dispatchers.IO)` if your storage
  *    isn't already coroutine-friendly). DataStore handles this transparently;
