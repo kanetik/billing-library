@@ -1,0 +1,117 @@
+name: Docs freshness
+
+# Backstop for the post-release-doc-bump workflow. Fails CI when the
+# install pins in user-facing docs drift behind the latest stable version
+# published to Maven Central.
+#
+# Three asserts, in order of likely failure:
+#   1. README.md / docs/installation.md / sample/README.md all agree on
+#      the same pin. (Catches partial edits.)
+#   2. The agreed pin is >= the Maven Central <release> version (per
+#      `sort -V`). Equal = caught up. Ahead = release in flight (e.g.,
+#      this PR is the bump itself, or Central staging hasn't been
+#      released yet). Behind = stale; fail.
+#   3. CHANGELOG.md has a `## [<pin>] - <date>` section. (Catches the
+#      drift mode that motivated this workflow: pins moved but CHANGELOG
+#      stayed under `[Unreleased]`.)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-pins:
+    name: Install pins match Maven Central
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Maven Central <release>
+        id: mc
+        run: |
+          RELEASE=$(curl -fsS 'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml' \
+            | grep -oP '<release>\K[^<]+')
+          if [ -z "$RELEASE" ]; then
+            echo "::error::Could not parse <release> from Maven Central maven-metadata.xml"
+            exit 1
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "Maven Central <release> = $RELEASE"
+
+      - name: Extract pin from each doc file
+        id: pins
+        run: |
+          extract() {
+            grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$1" | sort -uV | tail -1
+          }
+          README=$(extract README.md)
+          INST=$(extract docs/installation.md)
+          SAMPLE=$(extract sample/README.md)
+          echo "README pin:       $README"
+          echo "installation pin: $INST"
+          echo "sample pin:       $SAMPLE"
+          echo "readme=$README" >> "$GITHUB_OUTPUT"
+          echo "installation=$INST" >> "$GITHUB_OUTPUT"
+          echo "sample=$SAMPLE" >> "$GITHUB_OUTPUT"
+
+      - name: Check pins agree across files
+        run: |
+          R="${{ steps.pins.outputs.readme }}"
+          I="${{ steps.pins.outputs.installation }}"
+          S="${{ steps.pins.outputs.sample }}"
+          if [ -z "$R" ] || [ -z "$I" ] || [ -z "$S" ]; then
+            echo "::error::Failed to extract a pin from one or more files."
+            echo "  README.md:         '$R'"
+            echo "  docs/installation: '$I'"
+            echo "  sample/README:     '$S'"
+            exit 1
+          fi
+          if [ "$R" != "$I" ] || [ "$R" != "$S" ]; then
+            echo "::error::Install pins disagree across files:"
+            echo "  README.md:         $R"
+            echo "  docs/installation: $I"
+            echo "  sample/README:     $S"
+            echo "All three should match. Set them to the same version."
+            exit 1
+          fi
+          echo "All three files pin: $R"
+
+      - name: Check pin >= Maven Central <release>
+        run: |
+          PIN="${{ steps.pins.outputs.readme }}"
+          REL="${{ steps.mc.outputs.release }}"
+          if [ "$PIN" = "$REL" ]; then
+            echo "Pin matches Maven Central <release> ($REL). OK."
+            exit 0
+          fi
+          LOWEST=$(printf '%s\n%s\n' "$PIN" "$REL" | sort -V | head -1)
+          if [ "$LOWEST" = "$REL" ]; then
+            echo "Pin ($PIN) is ahead of Maven Central <release> ($REL). OK — release in flight."
+            exit 0
+          fi
+          echo "::error::Install pins ($PIN) are behind Maven Central <release> ($REL)."
+          echo "Either:"
+          echo "  1. Run the 'Post-release doc bump' workflow (workflow_dispatch with version=$REL), or"
+          echo "  2. Bump pins + stamp CHANGELOG manually."
+          exit 1
+
+      - name: Check CHANGELOG has section for the pinned version
+        run: |
+          PIN="${{ steps.pins.outputs.readme }}"
+          if grep -qE "^## \[${PIN}\] - " CHANGELOG.md; then
+            echo "CHANGELOG has section [${PIN}]. OK."
+            exit 0
+          fi
+          echo "::error::CHANGELOG.md has no '## [${PIN}] - <date>' section."
+          echo "Pins moved to $PIN without stamping CHANGELOG. Either:"
+          echo "  1. Rename '## [Unreleased]' → '## [${PIN}] - YYYY-MM-DD' and add a fresh '## [Unreleased]' above, or"
+          echo "  2. Run the 'Post-release doc bump' workflow which does both."
+          exit 1

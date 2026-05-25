@@ -1,0 +1,152 @@
+name: Post-release doc bump
+
+# Triggered on a stable `v*` tag push. Opens a PR that:
+#   - Bumps install pins in README.md, docs/installation.md (Kotlin DSL /
+#     Groovy / version catalog / Maven), and sample/README.md to the new
+#     version.
+#   - Stamps CHANGELOG.md: renames `## [Unreleased]` → `## [<VERSION>] -
+#     <DATE>` and inserts a fresh empty `## [Unreleased]` placeholder above.
+#
+# Beta / pre-release tags (containing `-`, e.g., `v0.1.0-beta1`) are skipped.
+# The user-facing install snippets target the stable release line; betas are
+# opted into by exact-version pinning per `docs/_internal/manual-setup.md`.
+#
+# The PR is idempotent: re-running on the same tag is a no-op if pins and
+# CHANGELOG already match. The `pull-requests: write` permission is needed
+# to call `gh pr create`; `contents: write` is needed to push the branch.
+#
+# Note: PRs opened via `GITHUB_TOKEN` do NOT trigger workflow runs on the
+# new branch (GitHub's anti-recursion guard). The PR body reminds the
+# merger to push an empty commit or click Re-run if CI needs to fire.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to bump docs to (without leading 'v'). Required when running manually."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-docs:
+    name: Open doc-bump PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip beta / pre-release tags. `workflow_dispatch` always runs (the
+    # human invoking it is asserting the input is a stable version).
+    if: github.event_name == 'workflow_dispatch' || !contains(github.ref_name, '-')
+
+    steps:
+      - name: Checkout main (PR base)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Derive version + date
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          DATE="$(date -u +%F)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "Bumping docs to version: $VERSION (date: $DATE)"
+
+      - name: Bump install pins
+        run: |
+          VER="${{ steps.meta.outputs.version }}"
+          # Maven-coordinate form — covers Kotlin DSL, Groovy, and the sample's
+          # contrast snippet. The pattern is anchored to the artifact coord so
+          # historical refs in CHANGELOG / design-notes aren't touched.
+          for f in README.md docs/installation.md sample/README.md; do
+            sed -i -E "s|(com\\.kanetik\\.billing:billing:)[0-9]+\\.[0-9]+\\.[0-9]+|\\1${VER}|g" "$f"
+          done
+          # Version-catalog + Maven entries live only in installation.md.
+          sed -i -E "s|(kanetik-billing = \")[0-9]+\\.[0-9]+\\.[0-9]+(\")|\\1${VER}\\2|" docs/installation.md
+          sed -i -E "s|(<version>)[0-9]+\\.[0-9]+\\.[0-9]+(</version>)|\\1${VER}\\2|" docs/installation.md
+
+      - name: Stamp CHANGELOG (idempotent)
+        run: |
+          VER="${{ steps.meta.outputs.version }}"
+          DATE="${{ steps.meta.outputs.date }}"
+          if grep -qE "^## \\[${VER}\\] - " CHANGELOG.md; then
+            echo "CHANGELOG already has a section for ${VER}; skipping stamp."
+          else
+            awk -v ver="$VER" -v date="$DATE" '
+              /^## \[Unreleased\]$/ && !done {
+                print
+                print ""
+                print "## [" ver "] - " date
+                done = 1
+                next
+              }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.md.new && mv CHANGELOG.md.new CHANGELOG.md
+          fi
+
+      - name: Detect no-op
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "All pins and CHANGELOG already match — nothing to PR."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            git diff --stat
+          fi
+
+      - name: Open PR
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${{ steps.meta.outputs.version }}"
+          DATE="${{ steps.meta.outputs.date }}"
+          BRANCH="chore/post-release-doc-bump-${VER}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add README.md docs/installation.md sample/README.md CHANGELOG.md
+          git commit -m "chore: post-release doc bump for ${VER}"
+          git push -u --force-with-lease origin "$BRANCH"
+
+          # Use a heredoc body file to keep the multi-line markdown readable.
+          BODY_FILE="$(mktemp)"
+          cat > "$BODY_FILE" <<EOF
+          Auto-generated by \`.github/workflows/post-release-doc-bump.yml\` after the \`v${VER}\` tag was pushed.
+
+          ## Changes
+
+          - Install pins → \`${VER}\` in:
+            - \`README.md\`
+            - \`docs/installation.md\` (Kotlin DSL / Groovy / version catalog / Maven)
+            - \`sample/README.md\`
+          - CHANGELOG: rename \`## [Unreleased]\` → \`## [${VER}] - ${DATE}\`, with a fresh empty \`## [Unreleased]\` above.
+
+          ## Merge checklist
+
+          - [ ] Confirm \`${VER}\` is what was tagged (\`git show v${VER}\`).
+          - [ ] Confirm the CHANGELOG entries now under \`[${VER}]\` are accurate (they were inherited from \`[Unreleased]\` as of the bump time).
+          - [ ] Sonatype Central Portal — click **Release** if you haven't already (separate from this PR; the artifact has to be public for the new pin to actually resolve for consumers).
+
+          ## CI note
+
+          GitHub blocks workflows from running on PRs opened by \`GITHUB_TOKEN\` (anti-recursion). If you want CI to run on this PR, push an empty commit (\`git commit --allow-empty -m "trigger ci"\`) or click **Re-run all jobs** under the Checks tab.
+          EOF
+
+          gh pr create \
+            --title "chore: post-release doc bump for ${VER}" \
+            --body-file "$BODY_FILE" \
+            --label automation
