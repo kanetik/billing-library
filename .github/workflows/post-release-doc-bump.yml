@@ -64,6 +64,29 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Assert tag points at main HEAD (tag-push only)
+        if: github.event_name == 'push'
+        run: |
+          # The workflow stamps CHANGELOG based on main's current `[Unreleased]`
+          # contents. If the tag wasn't cut at main HEAD — either because main
+          # advanced between the tag push and this run, or because the tag
+          # intentionally points at a non-main commit (e.g., a hotfix) — the
+          # stamp would silently capture entries that don't belong in this
+          # release. Better to fail loudly and let a human use workflow_dispatch
+          # (which sources the [Unreleased] content from whatever main has at
+          # the time of dispatch — appropriate when the human is explicitly
+          # vouching for the choice).
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [ "${{ github.sha }}" != "$MAIN_SHA" ]; then
+            echo "::error::Tag ${{ github.ref_name }} (sha ${{ github.sha }}) is not at the current main HEAD ($MAIN_SHA)."
+            echo "Stamping CHANGELOG from main would capture entries from commits made"
+            echo "after the tag was created — silently producing a wrong [${{ github.ref_name }}] section."
+            echo "If this tag is intentionally not at main HEAD (e.g., a hotfix on a non-main"
+            echo "commit), bypass via workflow_dispatch with explicit version + date inputs."
+            exit 1
+          fi
+          echo "Tag ${{ github.ref_name }} matches main HEAD ($MAIN_SHA). OK."
+
       - name: Derive + validate version and date
         id: meta
         run: |
