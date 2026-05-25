@@ -2,16 +2,20 @@ name: Docs freshness
 
 # Backstop for the post-release-doc-bump workflow. Fails CI when the
 # install pins in user-facing docs drift behind the latest stable version
-# published to Maven Central.
+# published to Maven Central, or when pin sites disagree with one another.
 #
-# Three asserts, in order of likely failure:
-#   1. README.md / docs/installation.md / sample/README.md all agree on
-#      the same pin. (Catches partial edits.)
-#   2. The agreed pin is >= the Maven Central <release> version (per
+# Four asserts, in order of likely failure:
+#   1. Each file is internally consistent — every install pin found inside
+#      a single file (Kotlin DSL / Groovy / version catalog / Maven for
+#      `docs/installation.md`; one Maven-coordinate form for the other two
+#      files) is the same version. (Catches partial intra-file edits.)
+#   2. The 3 files agree with one another on that single version.
+#      (Catches partial cross-file edits.)
+#   3. The agreed pin is >= the Maven Central <release> version (per
 #      `sort -V`). Equal = caught up. Ahead = release in flight (e.g.,
 #      this PR is the bump itself, or Central staging hasn't been
 #      released yet). Behind = stale; fail.
-#   3. CHANGELOG.md has a `## [<pin>] - <date>` section. (Catches the
+#   4. CHANGELOG.md has a `## [<pin>] - <date>` section. (Catches the
 #      drift mode that motivated this workflow: pins moved but CHANGELOG
 #      stayed under `[Unreleased]`.)
 
@@ -46,17 +50,58 @@ jobs:
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           echo "Maven Central <release> = $RELEASE"
 
-      - name: Extract pin from each doc file
+      - name: Extract + validate pin from each doc file
         id: pins
         run: |
-          extract() {
-            grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$1" | sort -uV | tail -1
+          # For each file, pull every relevant install-pin version and assert
+          # the file is internally consistent (all pins in that file are the
+          # same version). Then emit that single agreed pin.
+          #
+          # `docs/installation.md` has three pin patterns:
+          #   - `com.kanetik.billing:billing:X.Y.Z`  (Kotlin DSL + Groovy)
+          #   - `kanetik-billing = "X.Y.Z"`          (version catalog)
+          #   - `<version>X.Y.Z</version>`           (Maven)
+          # The other two files only have the coord form.
+          extract_file_pins() {
+            local file="$1"
+            case "$file" in
+              docs/installation.md)
+                {
+                  grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                  grep -oP 'kanetik-billing = "\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                  grep -oP '<version>\K[0-9]+\.[0-9]+\.[0-9]+(?=</version>)' "$file" || true
+                }
+                ;;
+              *)
+                grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                ;;
+            esac
           }
-          README=$(extract README.md)
-          INST=$(extract docs/installation.md)
-          SAMPLE=$(extract sample/README.md)
+
+          check_file() {
+            local file="$1"
+            local pins
+            pins=$(extract_file_pins "$file" | sort -uV)
+            if [ -z "$pins" ]; then
+              echo "::error::No install pin found in $file (expected at least one 'com.kanetik.billing:billing:X.Y.Z')."
+              return 1
+            fi
+            local count
+            count=$(printf '%s\n' "$pins" | wc -l)
+            if [ "$count" -gt 1 ]; then
+              echo "::error::$file contains multiple pin versions — file is internally inconsistent:"
+              printf '%s\n' "$pins" | sed 's/^/  /'
+              echo "  Fix: set every pin in this file to the same version."
+              return 1
+            fi
+            printf '%s' "$pins"
+          }
+
+          README=$(check_file README.md) || exit 1
+          INST=$(check_file docs/installation.md) || exit 1
+          SAMPLE=$(check_file sample/README.md) || exit 1
           echo "README pin:       $README"
-          echo "installation pin: $INST"
+          echo "installation pin: $INST  (Kotlin DSL + Groovy + version catalog + Maven all agree)"
           echo "sample pin:       $SAMPLE"
           echo "readme=$README" >> "$GITHUB_OUTPUT"
           echo "installation=$INST" >> "$GITHUB_OUTPUT"
@@ -67,13 +112,6 @@ jobs:
           R="${{ steps.pins.outputs.readme }}"
           I="${{ steps.pins.outputs.installation }}"
           S="${{ steps.pins.outputs.sample }}"
-          if [ -z "$R" ] || [ -z "$I" ] || [ -z "$S" ]; then
-            echo "::error::Failed to extract a pin from one or more files."
-            echo "  README.md:         '$R'"
-            echo "  docs/installation: '$I'"
-            echo "  sample/README:     '$S'"
-            exit 1
-          fi
           if [ "$R" != "$I" ] || [ "$R" != "$S" ]; then
             echo "::error::Install pins disagree across files:"
             echo "  README.md:         $R"
