@@ -12,7 +12,7 @@ A coroutine-first wrapper around [Google Play Billing Library 9.x](https://devel
 
 ```kotlin
 dependencies {
-    implementation("com.kanetik.billing:billing:0.1.2")
+    implementation("com.kanetik.billing:billing:0.1.3")
 }
 ```
 
@@ -76,7 +76,7 @@ class CheckoutActivity : ComponentActivity() {
             QueryProductDetailsParams.newBuilder()
                 .setProductList(listOf(
                     QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId("premium_lifetime")
+                        .setProductId("pro_toolkit")
                         .setProductType(BillingClient.ProductType.INAPP)
                         .build()
                 ))
@@ -88,8 +88,8 @@ class CheckoutActivity : ComponentActivity() {
 
     private suspend fun handle(purchase: Purchase) {
         when (val r = billing.handlePurchase(purchase, consume = false)) {
-            HandlePurchaseResult.Success -> grantPremium()
-            HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // safe — no PBL call needed
+            HandlePurchaseResult.Success -> grantEntitlement()
+            HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement() // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
             HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke logic
             is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
@@ -105,7 +105,8 @@ A few things are worth a read once you're past the smoke test, especially if Pla
 
 - [Purchase recovery](https://kanetik.github.io/billing-library/guides/purchase-recovery/) — what the two `PurchaseEvent` tiers actually are, why acknowledgement is a three-day cliff, and what the auto-sweep does about it. Probably the most important read in the docs.
 - [Error handling](https://kanetik.github.io/billing-library/guides/error-handling/) — the typed exception surface and which response codes the library retries automatically.
-- [EntitlementCache](https://kanetik.github.io/billing-library/guides/entitlement-cache/) — opt-in state machine for "is the user entitled right now," including signed/tamper-resistant storage.
+- [EntitlementCache](https://kanetik.github.io/billing-library/guides/entitlement-cache/) — opt-in `EntitlementCache<K>` state machine for "is the user entitled to X right now," per-key. Works for single-entitlement (`K = Unit`) and multi-entitlement apps (game with several SKUs, multiple non-consumable upgrades, etc.). Signed/tamper-resistant storage included.
+- [Consumables ledger](https://kanetik.github.io/billing-library/guides/consumables/) — the wallet-on-the-side pattern for SKUs that are credits, not entitlements (coins, fuel, etc.).
 
 ## Where to go next
 

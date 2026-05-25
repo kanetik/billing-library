@@ -15,7 +15,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -24,18 +24,32 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class EntitlementCacheTest {
 
-    private val premiumProductId = "premium_lifetime"
-    private val premiumPredicate: (Purchase) -> Boolean = { it.products.contains(premiumProductId) }
+    // Multi-entitlement-friendly: a simple sealed pair of keys so tests cover
+    // the per-key semantics (independent grace, per-key revocation matching,
+    // hydration of multiple snapshots, etc.). Single-key tests just use ONE.
+    private enum class TestKey { ONE, TWO }
+
+    private val productIdOne = "shop_unlock_one"
+    private val productIdTwo = "shop_unlock_two"
+
+    private val keySelector: (Purchase) -> TestKey? = { purchase ->
+        when {
+            productIdOne in purchase.products -> TestKey.ONE
+            productIdTwo in purchase.products -> TestKey.TWO
+            else -> null
+        }
+    }
 
     @Test
-    fun `Live with matching purchase transitions to Granted and persists snapshot`() = runTest {
+    fun `Live with matching purchase transitions that key to Granted and persists snapshot`() = runTest {
         val (cache, updates, storage, _, job) = newCache()
 
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok1"))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok1"))))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
-        assertThat(storage.lastWritten).isEqualTo(
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.TWO]).isNull()
+        assertThat(storage.lastWritten(TestKey.ONE)).isEqualTo(
             EntitlementSnapshot(
                 isEntitled = true,
                 confirmedAtMs = INITIAL_CLOCK,
@@ -47,72 +61,81 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Recovered with matching purchase transitions to Granted and persists snapshot`() = runTest {
+    fun `Recovered with matching purchase transitions that key to Granted and persists snapshot`() = runTest {
         val (cache, updates, storage, _, job) = newCache()
 
-        updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok2"))))
+        updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok2"))))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
-        assertThat(storage.lastWritten).isEqualTo(
-            EntitlementSnapshot(
-                isEntitled = true,
-                confirmedAtMs = INITIAL_CLOCK,
-                purchaseToken = "tok2",
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)?.purchaseToken).isEqualTo("tok2")
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `Live containing multiple matching purchases grants all matching keys`() = runTest {
+        val (cache, updates, storage, _, job) = newCache()
+
+        updates.emit(
+            OwnedPurchases.Live(
+                listOf(
+                    fakePurchase(productId = productIdOne, purchaseToken = "tok-one"),
+                    fakePurchase(productId = productIdTwo, purchaseToken = "tok-two"),
+                ),
             ),
         )
+        runCurrent()
+
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.TWO]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)?.purchaseToken).isEqualTo("tok-one")
+        assertThat(storage.lastWritten(TestKey.TWO)?.purchaseToken).isEqualTo("tok-two")
 
         job.cancelAndJoin()
     }
 
     @Test
     fun `Recovered with no matching purchase does NOT revoke a Granted snapshot`() = runTest {
-        // Recovered emits only PURCHASED && !isAcknowledged, filtered against
-        // the library's acknowledgedTokens set (PR #10). An already-acked
-        // entitling purchase will never appear in Recovered; treating an
-        // empty Recovered as "Play revoked the entitlement" would falsely
-        // revoke entitled-but-acked users. The cache treats Recovered as
-        // grant-only — see EntitlementCache class KDoc.
         val storage = FakeEntitlementStorage(
-            initial = EntitlementSnapshot(
-                isEntitled = true,
-                confirmedAtMs = INITIAL_CLOCK - 1_000L,
-                purchaseToken = "tok-prior",
+            initial = mapOf(
+                TestKey.ONE to EntitlementSnapshot(
+                    isEntitled = true,
+                    confirmedAtMs = INITIAL_CLOCK - 1_000L,
+                    purchaseToken = "tok-prior",
+                ),
             ),
         )
         val (cache, updates, _, _, job) = newCache(storage = storage)
         runCurrent()
-        // Sanity: we hydrated from the snapshot.
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
-        // An empty Recovered (e.g. all owned purchases are already acked,
-        // so they're filtered out) must NOT revoke. Same for a Recovered
-        // carrying unrelated unacked purchases.
         updates.emit(OwnedPurchases.Recovered(emptyList()))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = "different-product"))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         job.cancelAndJoin()
     }
 
     @Test
-    fun `PurchaseRevoked matching the cached purchaseToken transitions to Revoked`() = runTest {
+    fun `PurchaseRevoked matching a key's cached token revokes only that key`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        // Establish Granted baseline.
-        val purchase = fakePurchase(productId = premiumProductId, purchaseToken = "premium-tok")
-        updates.emit(OwnedPurchases.Live(listOf(purchase)))
+        // Establish Granted on both keys.
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok-one"))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo, purchaseToken = "tok-two"))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.TWO]).isEqualTo(EntitlementState.Granted)
 
-        // Consumer's RTDN→FCM pipeline pushes a revocation for our cached purchase.
-        updates.emit(PurchaseRevoked(purchaseToken = "premium-tok", reason = RevocationReason.Refunded))
+        updates.emit(PurchaseRevoked(purchaseToken = "tok-one", reason = RevocationReason.Refunded))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.TWO]).isEqualTo(EntitlementState.Granted)
 
         job.cancelAndJoin()
     }
@@ -120,51 +143,49 @@ class EntitlementCacheTest {
     @Test
     fun `PurchaseRevoked for a different token does not affect cached state`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        val purchase = fakePurchase(productId = premiumProductId, purchaseToken = "premium-tok")
-        updates.emit(OwnedPurchases.Live(listOf(purchase)))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok-one"))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
-        // Revocation arrives for an unrelated purchase the consumer is also tracking.
         updates.emit(PurchaseRevoked(purchaseToken = "some-other-tok", reason = RevocationReason.Chargeback))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         job.cancelAndJoin()
     }
 
     @Test
-    fun `Failure with BillingUnavailable response code transitions to InGrace BillingUnavailable`() = runTest {
+    fun `Failure with BillingUnavailable transitions every Granted key to InGrace BillingUnavailable`() = runTest {
         val (cache, updates, _, clock, job) = newCache()
-        // Establish Granted baseline so Failure can move us to InGrace.
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
         updates.emit(FlowOutcome.Failure(billingUnavailableException(), emptyList()))
         runCurrent()
 
-        val state = cache.state.value
-        assertThat(state).isInstanceOf(EntitlementState.InGrace::class.java)
-        val grace = state as EntitlementState.InGrace
-        assertThat(grace.reason).isEqualTo(GraceReason.BillingUnavailable)
-        assertThat(grace.expiresAtMs).isEqualTo(clock() + DEFAULT_BILLING_UNAVAILABLE_MS)
+        for (key in listOf(TestKey.ONE, TestKey.TWO)) {
+            val state = cache.state.value[key]
+            assertThat(state).isInstanceOf(EntitlementState.InGrace::class.java)
+            val grace = state as EntitlementState.InGrace
+            assertThat(grace.reason).isEqualTo(GraceReason.BillingUnavailable)
+            assertThat(grace.expiresAtMs).isEqualTo(clock() + DEFAULT_BILLING_UNAVAILABLE_MS)
+        }
 
         job.cancelAndJoin()
     }
 
     @Test
-    fun `Failure with NetworkError response code transitions to InGrace TransientFailure`() = runTest {
+    fun `Failure with NetworkError transitions every Granted key to InGrace TransientFailure`() = runTest {
         val (cache, updates, _, clock, job) = newCache()
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
 
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
 
-        val state = cache.state.value
+        val state = cache.state.value[TestKey.ONE]
         assertThat(state).isInstanceOf(EntitlementState.InGrace::class.java)
         val grace = state as EntitlementState.InGrace
         assertThat(grace.reason).isEqualTo(GraceReason.TransientFailure)
@@ -177,21 +198,17 @@ class EntitlementCacheTest {
     fun `InGrace transitions to Revoked when grace window expires on next emission`() = runTest {
         val mutableClock = MutableClock(INITIAL_CLOCK)
         val (cache, updates, _, _, job) = newCache(clock = mutableClock::value)
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
-        val grace = cache.state.value as EntitlementState.InGrace
+        val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
 
-        // Advance the clock past the grace window. No tick fires inside this
-        // runCurrent — the next reduce() call re-evaluates expiry on entry.
         mutableClock.advance(grace.expiresAtMs - mutableClock.value + 1L)
-        // Any subsequent emission triggers re-evaluation; pick a benign one
-        // that doesn't otherwise change state (Pending is a no-op).
         updates.emit(FlowOutcome.Pending(emptyList()))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
         job.cancelAndJoin()
     }
 
@@ -203,74 +220,69 @@ class EntitlementCacheTest {
             clock = mutableClock::value,
             graceTickIntervalMs = tickInterval,
         )
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
-        val grace = cache.state.value as EntitlementState.InGrace
+        val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
 
-        // Advance the virtual time + the clock past the grace window.
-        // Use the test scheduler's advanceTimeBy to fire the tick coroutine,
-        // and synchronise our own clock to match.
         val advanceBy = grace.expiresAtMs - mutableClock.value + tickInterval
         mutableClock.advance(advanceBy)
         testScheduler.advanceTimeBy(advanceBy + 1L)
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
         job.cancelAndJoin()
     }
 
     @Test
-    fun `Granted snapshot persists across cache instances via storage`() = runTest {
-        val storage = FakeEntitlementStorage()
+    fun `Granted snapshots persist across cache instances via storage for each key`() = runTest {
+        val storage = FakeEntitlementStorage<TestKey>()
 
-        // First instance: confirm a Live event and let it write through.
         val firstUpdates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val firstCache = EntitlementCache(
             purchasesUpdates = firstUpdates,
             storage = storage,
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
         )
         val firstJob = firstCache.start(this)
         runCurrent()
-        firstUpdates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "tok-rt"))))
+        firstUpdates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok-rt-one"))))
+        firstUpdates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo, purchaseToken = "tok-rt-two"))))
         runCurrent()
-        assertThat(firstCache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(firstCache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(firstCache.state.value[TestKey.TWO]).isEqualTo(EntitlementState.Granted)
         firstJob.cancelAndJoin()
 
-        // Second instance with the same storage hydrates as Granted.
         val secondUpdates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val secondCache = EntitlementCache(
             purchasesUpdates = secondUpdates,
             storage = storage,
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = { INITIAL_CLOCK + 1_000L },
             graceTickIntervalMs = 60_000L,
         )
         val secondJob = secondCache.start(this)
         runCurrent()
-        assertThat(secondCache.state.value).isEqualTo(EntitlementState.Granted)
-        // The persisted snapshot's purchaseToken survived the round trip.
-        assertThat(storage.lastWritten?.purchaseToken).isEqualTo("tok-rt")
+        assertThat(secondCache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(secondCache.state.value[TestKey.TWO]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)?.purchaseToken).isEqualTo("tok-rt-one")
+        assertThat(storage.lastWritten(TestKey.TWO)?.purchaseToken).isEqualTo("tok-rt-two")
         secondJob.cancelAndJoin()
     }
 
     @Test
     fun `Live with matching product but UNSPECIFIED_STATE does NOT grant entitlement`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        // PBL's OK callback can include UNSPECIFIED_STATE entries; the listener
-        // routes them to OwnedPurchases.Live alongside genuinely PURCHASED ones.
-        // The cache must not grant entitlement on those — only on PURCHASED.
         updates.emit(
             OwnedPurchases.Live(
                 listOf(
                     fakePurchase(
-                        productId = premiumProductId,
+                        productId = productIdOne,
                         purchaseToken = "unspecified-tok",
                         purchaseState = Purchase.PurchaseState.UNSPECIFIED_STATE,
                     ),
@@ -278,14 +290,13 @@ class EntitlementCacheTest {
             ),
         )
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.ONE]).isNull()
 
-        // Sanity: a PURCHASED entry for the same product DOES grant.
         updates.emit(
             OwnedPurchases.Live(
                 listOf(
                     fakePurchase(
-                        productId = premiumProductId,
+                        productId = productIdOne,
                         purchaseToken = "purchased-tok",
                         purchaseState = Purchase.PurchaseState.PURCHASED,
                     ),
@@ -293,7 +304,7 @@ class EntitlementCacheTest {
             ),
         )
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         job.cancelAndJoin()
     }
@@ -303,47 +314,38 @@ class EntitlementCacheTest {
         val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
             purchasesUpdates = updates,
-            storage = FakeEntitlementStorage(),
+            storage = FakeEntitlementStorage<TestKey>(),
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
         )
         val first = cache.start(this)
         val second = cache.start(this)
-        // Both calls hand back the same active Job. Cancelling either stops
-        // the cache; there's only one collector + tick.
         assertThat(second).isSameInstanceAs(first)
         assertThat(first.isActive).isTrue()
         first.cancelAndJoin()
     }
 
     @Test
-    fun `restart drains stale buffered snapshot from cancelled session`() = runTest {
-        // Verifies that a snapshot queued just before the previous start()'s
-        // scope is cancelled doesn't leak into the next session and overwrite
-        // hydrated storage. The CONFLATED writeChannel persists across
-        // restarts; start() must drain it.
-        val storage = FakeEntitlementStorage()
+    fun `restart drains stale buffered snapshots from cancelled session`() = runTest {
+        val storage = FakeEntitlementStorage<TestKey>()
         val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
         )
         val first = cache.start(this)
         runCurrent()
-        // Push a snapshot through reduce, but cancel before the writer drains.
-        // The writer is on the same scope, so cancelling first will stop it
-        // before it can write the buffered snapshot.
         cache.reduce(
             OwnedPurchases.Live(
                 listOf(
                     fakePurchase(
-                        productId = premiumProductId,
+                        productId = productIdOne,
                         purchaseToken = "doomed-tok",
                         purchaseState = Purchase.PurchaseState.PURCHASED,
                     ),
@@ -352,37 +354,31 @@ class EntitlementCacheTest {
         )
         first.cancelAndJoin()
 
-        // Pre-seed storage with a different snapshot, then re-start. If the
-        // stale "doomed-tok" snapshot leaked through the channel, it would
-        // overwrite storage's "fresh-tok" after restart's hydration.
-        storage.lastWritten = EntitlementSnapshot(
-            isEntitled = true,
-            confirmedAtMs = INITIAL_CLOCK + 5_000L,
-            purchaseToken = "fresh-tok",
+        storage.put(
+            TestKey.ONE,
+            EntitlementSnapshot(
+                isEntitled = true,
+                confirmedAtMs = INITIAL_CLOCK + 5_000L,
+                purchaseToken = "fresh-tok",
+            ),
         )
         val second = cache.start(this)
         runCurrent()
-        // Give any leaked write a chance to land. (None should.)
         repeat(3) { runCurrent() }
 
-        // Storage should still hold "fresh-tok"; the stale "doomed-tok" was
-        // drained by start() and never written.
-        assertThat(storage.lastWritten?.purchaseToken).isEqualTo("fresh-tok")
+        assertThat(storage.lastWritten(TestKey.ONE)?.purchaseToken).isEqualTo("fresh-tok")
 
         second.cancelAndJoin()
     }
 
     @Test
     fun `start is restartable after the previous Job is cancelled`() = runTest {
-        // Verifies the cache doesn't enter a permanently-dead state when a
-        // start()'s Job (or scope) is cancelled — a second start() retries
-        // hydration + launches a fresh collector.
         val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
             purchasesUpdates = updates,
-            storage = FakeEntitlementStorage(),
+            storage = FakeEntitlementStorage<TestKey>(),
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
         )
@@ -390,61 +386,77 @@ class EntitlementCacheTest {
         first.cancelAndJoin()
         assertThat(first.isActive).isFalse()
 
-        // Fresh start should establish a new active Job.
         val second = cache.start(this)
         runCurrent()
         assertThat(second).isNotSameInstanceAs(first)
         assertThat(second.isActive).isTrue()
 
-        // Sanity: the new collector actually processes events.
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId, purchaseToken = "after-restart"))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne, purchaseToken = "after-restart"))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         second.cancelAndJoin()
     }
 
     @Test
-    fun `Failure while Revoked stays Revoked - no spurious InGrace`() = runTest {
+    fun `Failure while no key is Granted is a no-op - no spurious InGrace`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        // Default state is Revoked; no prior Granted observation.
 
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
         runCurrent()
 
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value).isEmpty()
         job.cancelAndJoin()
     }
 
     @Test
     fun `Live of an unrelated product does not revoke an existing Granted state`() = runTest {
         val (cache, updates, _, _, job) = newCache()
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = premiumProductId))))
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
+        // A consumable currency pack arrives in the Live stream — the selector
+        // returns null for it, so it doesn't grant any key but also must not
+        // revoke the already-granted key.
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = "coins_pack_50"))))
         runCurrent()
 
-        // Live of a non-premium IAP does not negate entitlement; the cache
-        // treats Live and Recovered as grant-only signals and routes
-        // revocation through PurchaseRevoked + grace expiry instead.
-        assertThat(cache.state.value).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `stateFor exposes a per-key Flow that surfaces absent keys as Revoked`() = runTest {
+        val (cache, updates, _, _, job) = newCache()
+        // Sanity: TWO is absent from the map.
+        assertThat(cache.state.value[TestKey.TWO]).isNull()
+
+        val collected = mutableListOf<EntitlementState>()
+        val collectorJob = launch { cache.stateFor(TestKey.TWO).collect { collected.add(it) } }
+        runCurrent()
+        assertThat(collected).containsExactly(EntitlementState.Revoked)
+
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo))))
+        runCurrent()
+        assertThat(collected).containsExactly(EntitlementState.Revoked, EntitlementState.Granted).inOrder()
+
+        collectorJob.cancelAndJoin()
         job.cancelAndJoin()
     }
 
     // -- Test helpers --------------------------------------------------------
 
     private data class CacheUnderTest(
-        val cache: EntitlementCache,
+        val cache: EntitlementCache<TestKey>,
         val updates: MutableSharedFlow<PurchaseEvent>,
-        val storage: FakeEntitlementStorage,
+        val storage: FakeEntitlementStorage<TestKey>,
         val clock: () -> Long,
         val job: Job,
     )
 
     private suspend fun TestScope.newCache(
-        storage: FakeEntitlementStorage = FakeEntitlementStorage(),
+        storage: FakeEntitlementStorage<TestKey> = FakeEntitlementStorage(),
         clock: () -> Long = { INITIAL_CLOCK },
         graceTickIntervalMs: Long = 60_000L,
     ): CacheUnderTest {
@@ -453,7 +465,7 @@ class EntitlementCacheTest {
             purchasesUpdates = updates,
             storage = storage,
             gracePolicy = defaultPolicy(),
-            productPredicate = premiumPredicate,
+            productKeySelector = keySelector,
             clock = clock,
             graceTickIntervalMs = graceTickIntervalMs,
         )
@@ -484,15 +496,21 @@ class EntitlementCacheTest {
     }
 }
 
-private class FakeEntitlementStorage(
-    initial: EntitlementSnapshot? = null,
-) : EntitlementStorage {
-    var lastWritten: EntitlementSnapshot? = initial
+private class FakeEntitlementStorage<K : Any>(
+    initial: Map<K, EntitlementSnapshot> = emptyMap(),
+) : EntitlementStorage<K> {
+    private val store: MutableMap<K, EntitlementSnapshot> = HashMap(initial)
 
-    override suspend fun read(): EntitlementSnapshot? = lastWritten
+    fun lastWritten(key: K): EntitlementSnapshot? = store[key]
 
-    override suspend fun write(snapshot: EntitlementSnapshot) {
-        lastWritten = snapshot
+    fun put(key: K, snapshot: EntitlementSnapshot) {
+        store[key] = snapshot
+    }
+
+    override suspend fun readAll(): Map<K, EntitlementSnapshot> = HashMap(store)
+
+    override suspend fun write(key: K, snapshot: EntitlementSnapshot) {
+        store[key] = snapshot
     }
 }
 

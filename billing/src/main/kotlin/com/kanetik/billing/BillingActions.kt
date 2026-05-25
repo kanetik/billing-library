@@ -160,15 +160,16 @@ public interface BillingActions {
      *
      * Granting entitlement on a failed acknowledge is the most common Play
      * Billing bug: caller writes `runCatching { handlePurchase(...) }` and
-     * `grantPremium()` outside the `.onSuccess { }` branch, Play auto-refunds
-     * the unacknowledged purchase within ~3 days, and the user's premium
-     * silently evaporates. Returning [HandlePurchaseResult] makes the failure
-     * case a sealed-type variant the compiler nudges callers to handle:
+     * `grantEntitlement()` outside the `.onSuccess { }` branch, Play
+     * auto-refunds the unacknowledged purchase within ~3 days, and the
+     * paid-for feature silently evaporates. Returning [HandlePurchaseResult]
+     * makes the failure case a sealed-type variant the compiler nudges callers
+     * to handle:
      *
      * ```
      * when (val r = billing.handlePurchase(purchase, consume = false)) {
-     *     HandlePurchaseResult.Success -> grantPremium()
-     *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made
+     *     HandlePurchaseResult.Success -> grantEntitlement()
+     *     HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement() // no PBL call made
      *     HandlePurchaseResult.NotPurchased -> {} // pending — wait
      *     HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke
      *     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)

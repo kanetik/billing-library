@@ -172,14 +172,14 @@ Beyond the levels above, you'll want to test your own ViewModels, repositories, 
 Many apps short-circuit the real billing repo entirely in debug builds and read entitlement from a `BuildConfig` flag or a debug-menu setting:
 
 ```kotlin
-// debug/.../PremiumManager.kt
-class PremiumManager @Inject constructor(...) {
-    val isPremium: StateFlow<Boolean> = MutableStateFlow(BuildConfig.DEBUG_PREMIUM_OVERRIDE)
+// debug/.../EntitlementManager.kt
+class EntitlementManager @Inject constructor(...) {
+    val isEntitled: StateFlow<Boolean> = MutableStateFlow(BuildConfig.DEBUG_ENTITLEMENT_OVERRIDE)
     // ...
 }
 ```
 
-This lets you develop premium UI without touching billing at all. Combine with Level 1 or Level 2 for tests that actually exercise the billing flow.
+This lets you develop gated UI without touching billing at all. Combine with Level 1 or Level 2 for tests that actually exercise the billing flow.
 
 ### Mocking `BillingRepository` in your unit tests
 
@@ -216,5 +216,5 @@ See the [Roadmap](roadmap.md) for the full v0.2.0 plan.
 | Force a specific BillingResult code | Level 3 — Play Billing Lab Response simulator |
 | Test region-specific pricing | Level 3 — Lab Configuration settings |
 | Test sub grace period / account hold / price change | Level 3 — Lab Subscription settings |
-| Develop premium UI without touching billing | Debug-flavor entitlement override |
+| Develop gated UI without touching billing | Debug-flavor entitlement override |
 | Unit-test code that depends on `BillingRepository` | mockk against the interface (until v0.2.0's `:billing-testing` ships) |

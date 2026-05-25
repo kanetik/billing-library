@@ -25,23 +25,42 @@ import com.android.billingclient.api.ProductDetails
  * ## Offer selection
  *
  * PBL 8.0+ supports one-time products with **multiple offers** (e.g. pre-orders,
- * alternative price tiers). The default [offerSelector] picks the first available
- * offer, which is correct for the dominant case where a product has a single
- * auto-migrated offer entry.
+ * alternative price tiers, rentals). The default [offerSelector] picks the first
+ * available offer, which is correct for the dominant case where a product has a
+ * single auto-migrated offer entry.
  *
  * For products configured with multiple offers, override [offerSelector] to pick
- * the right one — e.g. matching by `offerId`, picking a pre-order over a
- * standard purchase, or applying region-specific logic:
+ * the right one — e.g. matching by `offerId`, picking a pre-order over a standard
+ * purchase via [isPreorder], or applying region-specific logic:
  *
  * ```
  * productDetails.toOneTimeFlowParams(
  *     offerSelector = { offers ->
- *         offers.firstOrNull { it.offerId == "spring-promo" }
+ *         offers.firstOrNull { it.isPreorder }
  *             ?: offers.firstOrNull()
  *     },
- *     obfuscatedAccountId = userId
+ *     obfuscatedAccountId = userId,
  * )
  * ```
+ *
+ * ## Multi-quantity (Play Console + `purchase.quantity`)
+ *
+ * Multi-quantity applies to **consumables** — a multi-quantity purchase
+ * isn't a multi-grant entitlement, it's N units credited to a wallet/ledger.
+ * Configured per-product in Play Console (*Multi-quantity purchases* flag)
+ * and rendered by Play's own purchase dialog — there's no
+ * `setPurchaseQuantity` knob on the PBL 9 client. The dialog lets the user
+ * pick the unit count; the resulting [com.android.billingclient.api.Purchase]
+ * carries `purchase.quantity` (defaults to 1). Your **wallet/ledger credit
+ * code** must read that field and credit `quantity` units, not 1. The
+ * library handles acknowledgement correctly for any quantity (Play's
+ * consume API consumes the whole purchase regardless), so only your
+ * wallet-ledger code needs the awareness — `EntitlementCache` is not
+ * involved (consumables bypass the cache via `productKeySelector` returning
+ * `null` for them; see the consumables guide).
+ *
+ * See the [Consumables ledger guide](https://kanetik.github.io/billing-library/guides/consumables/)
+ * for the wallet-on-the-side pattern that pairs with multi-quantity consumables.
  *
  * @receiver The [ProductDetails] for a one-time product (queried via
  *   [com.kanetik.billing.BillingActions.queryProductDetails]).
@@ -56,24 +75,6 @@ import com.android.billingclient.api.ProductDetails
  *   to set on the flow params. Receives the full list of offers Play returned for
  *   the product; returns the chosen offer (or `null` to omit `setOfferToken`).
  *   Defaults to picking the first available offer.
- *
- * ## Source-compat trade-off
- *
- * Adding [obfuscatedProfileId] necessarily breaks one of two pre-existing
- * Kotlin call patterns. We chose to break the rarer one:
- *  - **Trailing-lambda preserved** — `product.toOneTimeFlowParams { selector }`
- *    and `product.toOneTimeFlowParams(accountId) { selector }` continue to
- *    compile; the trailing lambda binds to the still-last [offerSelector].
- *  - **Positional 2-arg `(accountId, selector)` broken** — calls like
- *    `product.toOneTimeFlowParams("user-id", customSelector)` now bind the
- *    second argument to [obfuscatedProfileId] (a `String?`), producing a
- *    type-mismatch compile error. Migration: switch to named args
- *    (`obfuscatedAccountId = ..., offerSelector = ...`) — the canonical
- *    style this KDoc has always recommended.
- *
- * Trailing-lambda is the idiomatic Kotlin pattern for callbacks; preserving
- * it was the higher priority. Java callers see the new parameter as required
- * (no `@JvmOverloads` bridge); pass `null` explicitly or rebuild.
  */
 public fun ProductDetails.toOneTimeFlowParams(
     obfuscatedAccountId: String? = null,
@@ -101,3 +102,40 @@ public fun ProductDetails.toOneTimeFlowParams(
 
     return builder.build()
 }
+
+/**
+ * Returns `true` if this one-time-product offer is a pre-order — Play hasn't
+ * fulfilled it yet, and the user is signing up to be charged on a future release
+ * date. PBL 8.1+ exposes pre-order metadata via `getPreorderDetails()`; this
+ * extension is sugar over the null-check.
+ *
+ * Pre-order offers have a few wrinkles worth knowing:
+ *
+ *  - The purchase shows up as [com.kanetik.billing.FlowOutcome.Pending] until
+ *    Play fulfills it on the release date — **do not grant entitlement** on
+ *    that pending event. Wait for the matching
+ *    [com.kanetik.billing.OwnedPurchases.Live] update that arrives when the
+ *    fulfillment lands.
+ *  - The user can cancel a pending pre-order from the Play Store before the
+ *    release date; Play surfaces the cancellation via Voided Purchases API
+ *    server-side (no client event today). Apps that pre-grant feature access
+ *    on pre-order signup should reconcile against the Voided Purchases API
+ *    via their backend before treating the entitlement as durable.
+ *  - One product can carry both pre-order and standard offers
+ *    simultaneously. Pass an [offerSelector] to `toOneTimeFlowParams` that
+ *    branches on [isPreorder] to drive the user into the right one.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val params = productDetails.toOneTimeFlowParams(
+ *     offerSelector = { offers ->
+ *         val preorder = offers.firstOrNull { it.isPreorder }
+ *         val regular = offers.firstOrNull { !it.isPreorder }
+ *         if (userOptedIntoPreorder) preorder ?: regular else regular ?: preorder
+ *     }
+ * )
+ * ```
+ */
+public val ProductDetails.OneTimePurchaseOfferDetails.isPreorder: Boolean
+    get() = preorderDetails != null

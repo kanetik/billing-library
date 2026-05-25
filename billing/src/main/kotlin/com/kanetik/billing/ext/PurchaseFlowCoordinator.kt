@@ -60,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * - Doesn't acknowledge or consume purchases — that's the caller's job once a
  *   [com.kanetik.billing.OwnedPurchases.Live] arrives.
- * - Doesn't decide premium-grant rules — that's app business logic.
+ * - Doesn't decide entitlement-grant rules — that's app business logic.
  * - Doesn't track analytics events — wrap [launch] with your own analytics layer
  *   if needed.
  *

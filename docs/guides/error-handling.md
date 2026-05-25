@@ -71,12 +71,12 @@ The library doesn't ship localized user-facing strings; tone, voice, and languag
 
 ## Handling `handlePurchase` failures correctly
 
-`handlePurchase` returns a sealed `HandlePurchaseResult`: `Success`, `AlreadyAcknowledged`, `NotPurchased`, `NotOwned`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else.** Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
+`handlePurchase` returns a sealed `HandlePurchaseResult`: `Success`, `AlreadyAcknowledged`, `NotPurchased`, `NotOwned`, or `Failure(exception)`. The compiler nudges you to branch on each. **Grant entitlement on `Success` and `AlreadyAcknowledged` (both safe), nothing else.** Play auto-refunds the unacknowledged purchase within ~3 days and the paid-for feature silently evaporates if you grant on a `Failure` and the underlying ack call doesn't recover.
 
 ```kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
-    HandlePurchaseResult.Success -> grantPremium()
-    HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // no PBL call made; safe
+    HandlePurchaseResult.Success -> grantEntitlement()
+    HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
     HandlePurchaseResult.NotOwned -> {
         // Play says this purchase isn't owned anymore (stale snapshot,

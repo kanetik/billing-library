@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
  * Stream of purchase events pushed by Play Billing — the coroutine-side analogue of
  * [com.android.billingclient.api.PurchasesUpdatedListener].
  *
- * Collect this flow in your premium / entitlement layer to react to every purchase
+ * Collect this flow in your entitlement / wallet layer to react to every purchase
  * event. Branch on the [PurchaseEvent] sealed-interface roots:
  *  - [OwnedPurchases] (`Live`, `Recovered`) — owned-state events. Hand each
  *    purchase to [com.kanetik.billing.BillingActions.handlePurchase] and

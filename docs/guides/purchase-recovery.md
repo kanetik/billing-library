@@ -11,7 +11,7 @@ PBL gives you one callback, `PurchasesUpdatedListener`, that fires for two seman
 - The user actually owns a purchase — they just completed one through your active flow, or one was already on their account from a prior session that didn't finish processing.
 - A launch attempt produced an outcome that *isn't* a purchase — they canceled the dialog, the product wasn't available in their region, the network dropped.
 
-Both arrive on the same listener with a `BillingResult` and a `List<Purchase>`. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a `USER_CANCELED` outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke premium when the user taps Back on the purchase dialog.
+Both arrive on the same listener with a `BillingResult` and a `List<Purchase>`. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a `USER_CANCELED` outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke a paid entitlement when the user taps Back on the purchase dialog.
 
 The library splits the callback into two sealed roots so the type system can catch this at compile time:
 

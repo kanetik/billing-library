@@ -61,8 +61,8 @@ public data class GracePolicy(
          * Disables grace entirely — every [com.kanetik.billing.FlowOutcome.Failure]
          * transitions a previously-Granted cache straight to
          * [EntitlementState.Revoked]. Use when you'd rather surface the outage
-         * to the user immediately than risk a few extra minutes of premium
-         * during an outage.
+         * to the user immediately than risk a few extra minutes of an
+         * unconfirmed entitlement during an outage.
          */
         public val None: GracePolicy = GracePolicy(
             billingUnavailableMs = 0L,
