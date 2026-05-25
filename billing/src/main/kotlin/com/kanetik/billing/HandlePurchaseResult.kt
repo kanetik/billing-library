@@ -14,8 +14,8 @@ import com.kanetik.billing.exception.BillingException
  *
  * ```
  * when (val r = billing.handlePurchase(purchase, consume = false)) {
- *     HandlePurchaseResult.Success -> grantPremium()              // safe: ack landed
- *     HandlePurchaseResult.AlreadyAcknowledged -> grantPremium()    // safe: ack already in place
+ *     HandlePurchaseResult.Success -> grantEntitlement()           // safe: ack landed
+ *     HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement() // safe: ack already in place
  *     HandlePurchaseResult.NotPurchased -> {}                     // pending — wait for terminal state
  *     HandlePurchaseResult.NotOwned -> {}                          // stale snapshot — defer to grace/revoke
  *     is HandlePurchaseResult.Failure -> {

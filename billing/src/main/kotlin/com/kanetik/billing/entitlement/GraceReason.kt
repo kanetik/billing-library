@@ -10,8 +10,8 @@ package com.kanetik.billing.entitlement
  *    device (Play Services missing, account ineligible, region restriction,
  *    feature not supported). These outages are typically longer-lived than
  *    transient network blips, so [GracePolicy] exposes them as a separate
- *    knob — apps may want a longer grace window before yanking premium for
- *    "Play Store isn't working" vs. "user just lost wifi".
+ *    knob — apps may want a longer grace window before yanking a paid
+ *    entitlement for "Play Store isn't working" vs. "user just lost wifi".
  *  - [TransientFailure] — anything else: classification uses the
  *    [com.kanetik.billing.exception.BillingErrorCategory] from
  *    [com.kanetik.billing.exception.BillingException.userFacingCategory],
@@ -19,9 +19,9 @@ package com.kanetik.billing.entitlement
  *    falls into this bucket — including network errors, service
  *    disconnections, generic billing errors, AND terminal failures like
  *    `DeveloperError` or `FatalError`. The cache treats all of those as
- *    "give the user a short grace window before yanking premium"; consumers
- *    that want fatal errors to revoke immediately should pass
- *    [GracePolicy.None] (or set `transientFailureMs = 0`).
+ *    "give the user a short grace window before yanking the paid
+ *    entitlement"; consumers that want fatal errors to revoke immediately
+ *    should pass [GracePolicy.None] (or set `transientFailureMs = 0`).
  */
 public enum class GraceReason {
 

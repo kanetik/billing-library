@@ -68,6 +68,7 @@ nav:
       - Logging: guides/logging.md
       - Dependency injection: guides/dependency-injection.md
       - Multi-quantity purchases: guides/multi-quantity.md
+      - Consumables ledger: guides/consumables.md
       - Multi-offer products: guides/multi-offer-products.md
       - Product-details caching: guides/product-details-caching.md
       - In-app messaging: guides/in-app-messaging.md

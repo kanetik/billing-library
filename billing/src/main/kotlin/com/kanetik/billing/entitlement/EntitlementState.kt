@@ -1,21 +1,23 @@
 package com.kanetik.billing.entitlement
 
 /**
- * The cached entitlement state surfaced by [EntitlementCache].
+ * The cached entitlement state for a single key, surfaced by
+ * [EntitlementCache] via its `state: StateFlow<Map<K, EntitlementState>>`
+ * (and the per-key [EntitlementCache.stateFor] convenience).
  *
  * Three terminal states cover the full lifecycle of an "is the user entitled
- * to premium right now?" question:
+ * to this thing right now?" question:
  *
  *  - [Granted] — the cache has confirmed the user owns a matching purchase.
- *    Show premium UI.
+ *    Show the gated UI / unlock the feature / etc.
  *  - [InGrace] — the cache recently saw entitlement, then hit a transient
  *    failure (network outage, billing service unavailable, etc.) before it
- *    could re-confirm. The user is still treated as entitled until
+ *    could re-confirm. The key is still treated as entitled until
  *    [InGrace.expiresAtMs] passes; after that the cache transitions to
- *    [Revoked]. Lets premium features keep working through a brief outage
+ *    [Revoked]. Lets gated features keep working through a brief outage
  *    instead of yanking them out from under a paid user.
- *  - [Revoked] — the cache has either never seen entitlement, or grace has
- *    expired without a successful re-check. Hide premium UI.
+ *  - [Revoked] — the cache has either never seen entitlement for this key,
+ *    or grace has expired without a successful re-check. Hide the gated UI.
  *
  * Branch on the sealed type to render UI rather than comparing instances by
  * equality. The [InGrace.expiresAtMs] timestamp is set once when the
@@ -28,11 +30,12 @@ package com.kanetik.billing.entitlement
 public sealed interface EntitlementState {
 
     /**
-     * The user owns a matching purchase. Show premium UI.
+     * The user owns a matching purchase for this key. Show the gated UI /
+     * unlock the corresponding feature.
      *
      * Reached on:
      *  - A [com.kanetik.billing.OwnedPurchases.Live] containing a purchase
-     *    matching the cache's `productPredicate`.
+     *    that this cache's `productKeySelector` maps to this key.
      *  - A [com.kanetik.billing.OwnedPurchases.Recovered] containing a
      *    matching purchase (the recovery sweep on connect).
      *  - A persisted [EntitlementSnapshot] read at start with `isEntitled = true`.
@@ -42,7 +45,7 @@ public sealed interface EntitlementState {
     /**
      * Entitlement was recently confirmed but a subsequent
      * [com.kanetik.billing.FlowOutcome.Failure] prevented re-confirmation.
-     * Treat the user as entitled until [expiresAtMs]; after that the cache
+     * Treat the key as entitled until [expiresAtMs]; after that the cache
      * transitions to [Revoked].
      *
      * @property expiresAtMs Wall-clock time (in `System.currentTimeMillis()`
@@ -57,17 +60,17 @@ public sealed interface EntitlementState {
     ) : EntitlementState
 
     /**
-     * No entitlement. Hide premium UI.
+     * No entitlement for this key. Hide the gated UI.
      *
      * Reached on:
      *  - A [com.kanetik.billing.PurchaseRevoked] event whose `purchaseToken`
-     *    matches the cached snapshot's last confirmed purchase. The consumer
-     *    pushes these via `emitExternalRevocation` from their RTDN→FCM (or
-     *    polling, or deeplink) pipeline.
+     *    matches the cached snapshot's last confirmed purchase for this key.
+     *    The consumer pushes these via `emitExternalRevocation` from their
+     *    RTDN→FCM (or polling, or deeplink) pipeline.
      *  - An [InGrace] state whose [InGrace.expiresAtMs] has elapsed without
      *    a fresh `Granted` confirmation.
-     *  - The default state when no prior snapshot exists and nothing has
-     *    arrived yet.
+     *  - The implicit default for any key absent from the state map (no
+     *    prior snapshot, nothing has arrived yet).
      *
      * Notably **not** reached on a non-matching `OwnedPurchases.Recovered`
      * (or `Live`) event. Recovered only emits the unacknowledged subset of

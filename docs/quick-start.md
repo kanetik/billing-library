@@ -58,7 +58,7 @@ class CheckoutActivity : ComponentActivity() {
             QueryProductDetailsParams.newBuilder()
                 .setProductList(listOf(
                     QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId("premium_lifetime")
+                        .setProductId("pro_toolkit")
                         .setProductType(BillingClient.ProductType.INAPP)
                         .build()
                 ))
@@ -72,8 +72,8 @@ class CheckoutActivity : ComponentActivity() {
         // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
         // See Error handling for the full pattern.
         when (val r = billing.handlePurchase(purchase, consume = false)) {
-            HandlePurchaseResult.Success -> grantPremium()
-            HandlePurchaseResult.AlreadyAcknowledged -> grantPremium() // safe — no PBL call needed
+            HandlePurchaseResult.Success -> grantEntitlement()
+            HandlePurchaseResult.AlreadyAcknowledged -> grantEntitlement() // safe — no PBL call needed
             HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
             HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke logic
             is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)

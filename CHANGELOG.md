@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-25
+
+### Breaking
+
+- **`EntitlementCache` is now generic on `K : Any`.** Previously the cache
+  modeled a single binary entitlement — fine for "premium unlock" apps,
+  wrong for any app with multiple non-consumable SKUs (a game with several
+  unlockable upgrades, an app with a Pro toolkit *and* an expansion pack,
+  etc.). The new shape is `EntitlementCache<K>` where `K` is whatever your
+  app uses to discriminate entitlements (`Unit` for the single-flag case,
+  `String` for product-ID-keyed maps, an `enum class` or sealed class for
+  named entitlements). The state map is `StateFlow<Map<K, EntitlementState>>`;
+  per-key access via the new `stateFor(key: K): Flow<EntitlementState>`
+  convenience.
+
+  - `productPredicate: (Purchase) -> Boolean` renamed to
+    `productKeySelector: (Purchase) -> K?` — returning `null` means
+    "this purchase doesn't grant any tracked entitlement" (use this for
+    consumables and any other ignored SKUs).
+  - `EntitlementStorage` is now `EntitlementStorage<K>`:
+    `readAll(): Map<K, EntitlementSnapshot>` + `write(key: K, snapshot: EntitlementSnapshot)`.
+    Single-snapshot implementations from 0.1.2 need to be ported to the
+    per-key map shape.
+  - `SignedEntitlementStorage` is now `SignedEntitlementStorage<K>` with
+    a required `keyToStorageId: (K) -> String` lambda — the serialized key
+    is used as the lookup ID in `SignatureStore` and is also included in
+    the v2 canonical bytes (cross-key signature swaps now fail verification).
+  - `SignatureStore` is now per-entitlement-key:
+    `readSignature(entitlementKey: String) / writeSignature(entitlementKey, signature) / clearSignature(entitlementKey)`.
+    The bundled `SharedPreferencesSignatureStore` stores blobs under
+    `"signature:" + entitlementKey` — distinct from the v0.1.2 `"signature"`
+    key, so the first read after upgrade fires `TamperEvent.MissingSignature`
+    once per entitlement and the recovery sweep re-confirms truth.
+  - `migrateUnsignedSnapshot` now takes `entitlementKey: String` +
+    `entitlementCacheKey: K` parameters so consumers running their own
+    pre-upgrade migration can target each key.
+  - `SnapshotCanonicalBytes` bumped to v2 (key included in canonical
+    encoding). v1 sigs continue to verify on read (the v1 encoder still
+    exists and ignores the key), so v0.1.2 single-entitlement consumers
+    upgrading with `K = Unit` and an empty `keyToStorageId` see no spurious
+    `InvalidSignature` events.
+  - `onTamperDetected` callback signature changed from
+    `(TamperEvent) -> Unit` to `(entitlementKey: String, TamperEvent) -> Unit`.
+
+  Migration for single-entitlement consumers: pick `K = Unit` (or a `data object`
+  key), have `productKeySelector` return that key for the matching product
+  and `null` otherwise, and port your `EntitlementStorage` to read/write a
+  one-entry map. The single-line `stateFor(yourKey)` returns the same
+  per-key `Flow<EntitlementState>` you'd previously bound to the UI.
+
+### Added
+
+- **`OneTimePurchaseOfferDetails.isPreorder` extension property.** Sugar
+  over PBL 8.1+'s `getPreorderDetails()` null-check, for use in
+  `toOneTimeFlowParams`'s `offerSelector`. New
+  [Pre-order / multi-offer products](https://kanetik.github.io/billing-library/guides/multi-offer-products/)
+  guide entry covers the pre-order pending-fulfillment / cancellation
+  caveats.
+- **Consumables ledger guide.** New
+  [docs page](https://kanetik.github.io/billing-library/guides/consumables/)
+  documenting the wallet-on-the-side pattern for consumable SKUs (coins,
+  fuel, gems) — explicitly distinct from `EntitlementCache`, with a
+  worked example showing how a multi-quantity consume + grant works
+  alongside `productKeySelector` returning `null` for consumables.
+- **Docs sweep: example framing.** KDoc and guide examples updated from
+  "premium unlock" framing to use-case-agnostic naming (one non-consumable
+  upgrade + one consumable currency pack, multi-entitlement games, etc.).
+  No API impact; aimed at first-time readers who weren't building a
+  premium-unlock app and bounced off the previous framing.
+
+### Notes
+
+- The original v0.1.3 scope included a `setPurchaseQuantity` knob on
+  `toOneTimeFlowParams` — dropped because PBL 9 doesn't expose
+  `setPurchaseQuantity` on `BillingFlowParams.ProductDetailsParams.Builder`.
+  In PBL 9, multi-quantity is Play-Console-flag + Play-dialog-driven only;
+  the client reads `purchase.quantity` on the way back. The
+  [Multi-quantity purchases](https://kanetik.github.io/billing-library/guides/multi-quantity/)
+  guide was updated to make this explicit.
+
 ## [0.1.2] - 2026-05-24
 
 ### Added

@@ -44,7 +44,11 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 
     // Demo-only in-memory storage. Real apps implement EntitlementStorage
     // against DataStore / EncryptedSharedPreferences / signed prefs.
-    private val entitlementStorage: EntitlementStorage = InMemoryEntitlementStorage()
+    //
+    // Single-entitlement sample uses K = Unit. Multi-entitlement apps would
+    // pick a String / enum / sealed-class key here. See the EntitlementCache
+    // KDoc for the K = String + multi-product example.
+    private val entitlementStorage: EntitlementStorage<Unit> = InMemoryEntitlementStorage()
 
     private val entitlementCache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
@@ -56,7 +60,13 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
             billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
             transientFailureMs = TimeUnit.HOURS.toMillis(6),
         ),
-        productPredicate = { it.products.contains(TEST_PRODUCT_ID) },
+        productKeySelector = { purchase ->
+            // For multi-entitlement apps, branch on `purchase.products` and
+            // return the corresponding K. Return null for purchases that
+            // don't grant any tracked entitlement (e.g. consumable currency
+            // packs — those go through a wallet ledger, not this cache).
+            if (purchase.products.contains(TEST_PRODUCT_ID)) Unit else null
+        },
         logger = BillingLogger.Android,
     ).also {
         // start() suspends until hydration completes — launch it from the
@@ -71,7 +81,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
-            entitlementCache.state.collect { entitlement ->
+            entitlementCache.stateFor(Unit).collect { entitlement ->
                 _state.update { it.copy(entitlement = entitlement) }
                 appendLog("entitlement -> ${entitlement::class.simpleName}")
             }
@@ -101,11 +111,12 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                         // Recovered is no longer required.
                     }
                     is PurchaseRevoked -> {
-                        // Real apps revoke entitlement here (clear premium flag, kick
-                        // back to a paywall, etc.). The sample just logs — the goal of
-                        // showing this branch is to demonstrate that revocation events
-                        // arrive on the same flow as OwnedPurchases / FlowOutcome, so
-                        // consumers don't need to maintain a parallel pipeline.
+                        // Real apps revoke entitlement here (clear the unlock flag,
+                        // kick back to a paywall, etc.). The sample just logs — the
+                        // goal of showing this branch is to demonstrate that
+                        // revocation events arrive on the same flow as
+                        // OwnedPurchases / FlowOutcome, so consumers don't need to
+                        // maintain a parallel pipeline.
                         appendLog("revoked: ${event.purchaseToken} (${event.reason})")
                     }
                 }
@@ -238,13 +249,18 @@ data class SampleUiState(
  * Demo-only [EntitlementStorage] backed by an in-process variable. Survives
  * the activity lifecycle (the ViewModel survives configuration changes) but
  * not process death. Real apps implement against DataStore / signed prefs.
+ *
+ * Single-key (K = Unit) for the sample's one test SKU. A multi-entitlement
+ * app would back this with a `Map<K, EntitlementSnapshot>` in DataStore or
+ * Room and key reads/writes by `K`.
  */
-private class InMemoryEntitlementStorage : EntitlementStorage {
+private class InMemoryEntitlementStorage : EntitlementStorage<Unit> {
     @Volatile private var snapshot: EntitlementSnapshot? = null
 
-    override suspend fun read(): EntitlementSnapshot? = snapshot
+    override suspend fun readAll(): Map<Unit, EntitlementSnapshot> =
+        snapshot?.let { mapOf(Unit to it) } ?: emptyMap()
 
-    override suspend fun write(snapshot: EntitlementSnapshot) {
+    override suspend fun write(key: Unit, snapshot: EntitlementSnapshot) {
         this.snapshot = snapshot
     }
 }

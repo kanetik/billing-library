@@ -25,9 +25,10 @@ import java.security.spec.X509EncodedKeySpec
  * ## Why verify
  *
  * Without signature verification, any client able to forge a Play Store purchase
- * response could grant themselves premium for free. Verification is the difference
- * between "anyone with `adb` can flip the premium flag" and "you'd need Google's
- * signing key to forge a grant." Take the 2 minutes to wire this up.
+ * response could grant themselves a paid entitlement for free. Verification is
+ * the difference between "anyone with `adb` can flip the entitlement flag" and
+ * "you'd need Google's signing key to forge a grant." Take the 2 minutes to
+ * wire this up.
  *
  * ## Usage
  *

@@ -11,174 +11,238 @@ import javax.crypto.spec.SecretKeySpec
 
 class SignedEntitlementStorageTest {
 
-    private val sampleSnapshot = EntitlementSnapshot(
+    private val keyOne = "entitlement_one"
+    private val keyTwo = "entitlement_two"
+
+    private val sampleSnapshotOne = EntitlementSnapshot(
         isEntitled = true,
         confirmedAtMs = 1_700_000_000_000L,
         purchaseToken = "tok-1",
     )
+    private val sampleSnapshotTwo = EntitlementSnapshot(
+        isEntitled = true,
+        confirmedAtMs = 1_700_000_005_000L,
+        purchaseToken = "tok-2",
+    )
 
     @Test
-    fun `write then read roundtrips the same snapshot`() = runTest {
+    fun `write then readAll roundtrips the same snapshot for one key`() = runTest {
         val (storage, delegate, sigStore) = newStorage()
 
-        storage.write(sampleSnapshot)
+        storage.write(keyOne, sampleSnapshotOne)
 
-        assertThat(delegate.lastWritten).isEqualTo(sampleSnapshot)
-        assertThat(sigStore.last).isNotNull()
-        assertThat(storage.read()).isEqualTo(sampleSnapshot)
+        assertThat(delegate.last(keyOne)).isEqualTo(sampleSnapshotOne)
+        assertThat(sigStore.lastFor(keyOne)).isNotNull()
+        assertThat(storage.readAll()).containsExactly(keyOne, sampleSnapshotOne)
     }
 
     @Test
-    fun `read returns null without firing callback when delegate has no snapshot`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, _) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `write then readAll roundtrips snapshots for multiple keys`() = runTest {
+        val (storage, _, _) = newStorage()
+        storage.write(keyOne, sampleSnapshotOne)
+        storage.write(keyTwo, sampleSnapshotTwo)
 
-        assertThat(storage.read()).isNull()
+        assertThat(storage.readAll())
+            .containsExactly(keyOne, sampleSnapshotOne, keyTwo, sampleSnapshotTwo)
+    }
+
+    @Test
+    fun `readAll returns empty without firing callback when delegate has no snapshots`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, _) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
+
+        assertThat(storage.readAll()).isEmpty()
         assertThat(tamperEvents).isEmpty()
     }
 
     @Test
-    fun `read fires MissingSignature when snapshot present but signature missing`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, delegate, _) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires MissingSignature when snapshot present but signature missing`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, delegate, _) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        delegate.lastWritten = sampleSnapshot
+        delegate.put(keyOne, sampleSnapshotOne)
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.MissingSignature)
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.MissingSignature)
     }
 
     @Test
-    fun `read fires InvalidSignature when snapshot mutated after signing`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, delegate, _) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires InvalidSignature when snapshot mutated after signing`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, delegate, _) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        delegate.lastWritten = sampleSnapshot.copy(isEntitled = false)
+        storage.write(keyOne, sampleSnapshotOne)
+        delegate.put(keyOne, sampleSnapshotOne.copy(isEntitled = false))
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.InvalidSignature)
     }
 
     @Test
-    fun `read fires InvalidSignature when signature byte mutated`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires InvalidSignature when signature byte mutated`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        val mutated = sigStore.last!!.copyOf()
+        storage.write(keyOne, sampleSnapshotOne)
+        val original = sigStore.lastFor(keyOne)!!
+        val mutated = original.copyOf()
         mutated[mutated.size - 1] = (mutated[mutated.size - 1].toInt() xor 0xff).toByte()
-        sigStore.last = mutated
+        sigStore.put(keyOne, mutated)
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.InvalidSignature)
     }
 
     @Test
-    fun `read fires UnsupportedVersion when blob declares version above MAX_SUPPORTED_VERSION`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `cross-key signature swap fails verification`() = runTest {
+        // The strong guarantee from including the entitlement key in v2
+        // canonical bytes: a sig for keyOne can't validate a snapshot stored
+        // under keyTwo (and vice versa) even when both pairs share the same
+        // underlying snapshot fields.
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        val futureBlob = ByteBuffer.allocate(36).apply {
-            putInt(SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION + 1)
-            put(sigStore.last!!.copyOfRange(4, 36))
-        }.array()
-        sigStore.last = futureBlob
+        // Identical snapshot bytes under both keys.
+        storage.write(keyOne, sampleSnapshotOne)
+        storage.write(keyTwo, sampleSnapshotOne)
 
-        assertThat(storage.read()).isNull()
+        // Swap the signature blobs.
+        val sigOne = sigStore.lastFor(keyOne)!!
+        val sigTwo = sigStore.lastFor(keyTwo)!!
+        sigStore.put(keyOne, sigTwo)
+        sigStore.put(keyTwo, sigOne)
+
+        assertThat(storage.readAll()).isEmpty()
         assertThat(tamperEvents).containsExactly(
-            TamperEvent.UnsupportedVersion(SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION + 1),
+            keyOne to TamperEvent.InvalidSignature,
+            keyTwo to TamperEvent.InvalidSignature,
         )
     }
 
     @Test
-    fun `read fires UnsupportedVersion when blob declares version 0`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires UnsupportedVersion when blob declares version above MAX_SUPPORTED_VERSION`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        val zeroVersionBlob = ByteBuffer.allocate(36).apply {
+        storage.write(keyOne, sampleSnapshotOne)
+        val originalBlob = sigStore.lastFor(keyOne)!!
+        val futureBlob = ByteBuffer.allocate(36).apply {
+            putInt(SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION + 1)
+            put(originalBlob.copyOfRange(4, 36))
+        }.array()
+        sigStore.put(keyOne, futureBlob)
+
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(
+            keyOne to TamperEvent.UnsupportedVersion(SnapshotCanonicalBytes.MAX_SUPPORTED_VERSION + 1),
+        )
+    }
+
+    @Test
+    fun `readAll fires UnsupportedVersion when blob declares version 0`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
+
+        storage.write(keyOne, sampleSnapshotOne)
+        val zeroBlob = ByteBuffer.allocate(36).apply {
             putInt(0)
-            put(sigStore.last!!.copyOfRange(4, 36))
+            put(sigStore.lastFor(keyOne)!!.copyOfRange(4, 36))
         }.array()
-        sigStore.last = zeroVersionBlob
+        sigStore.put(keyOne, zeroBlob)
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.UnsupportedVersion(0))
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.UnsupportedVersion(0))
     }
 
     @Test
-    fun `read fires UnsupportedVersion when blob declares negative version`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires UnsupportedVersion when blob declares negative version`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        val negativeVersionBlob = ByteBuffer.allocate(36).apply {
+        storage.write(keyOne, sampleSnapshotOne)
+        val negativeBlob = ByteBuffer.allocate(36).apply {
             putInt(-1)
-            put(sigStore.last!!.copyOfRange(4, 36))
+            put(sigStore.lastFor(keyOne)!!.copyOfRange(4, 36))
         }.array()
-        sigStore.last = negativeVersionBlob
+        sigStore.put(keyOne, negativeBlob)
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.UnsupportedVersion(-1))
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.UnsupportedVersion(-1))
     }
 
     @Test
-    fun `read fires InvalidSignature when blob is truncated below expected size`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires InvalidSignature when blob is truncated below expected size`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        sigStore.last = sigStore.last!!.copyOfRange(0, 10)
+        storage.write(keyOne, sampleSnapshotOne)
+        sigStore.put(keyOne, sigStore.lastFor(keyOne)!!.copyOfRange(0, 10))
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.InvalidSignature)
     }
 
     @Test
-    fun `read fires InvalidSignature when blob has trailing bytes beyond expected size`() = runTest {
-        val tamperEvents = mutableListOf<TamperEvent>()
-        val (storage, _, sigStore) = newStorage(onTamperDetected = { tamperEvents += it })
+    fun `readAll fires InvalidSignature when blob has trailing bytes beyond expected size`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, _, sigStore) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
 
-        storage.write(sampleSnapshot)
-        sigStore.last = sigStore.last!! + ByteArray(4) { 0x42 }
+        storage.write(keyOne, sampleSnapshotOne)
+        sigStore.put(keyOne, sigStore.lastFor(keyOne)!! + ByteArray(4) { 0x42 })
 
-        assertThat(storage.read()).isNull()
-        assertThat(tamperEvents).containsExactly(TamperEvent.InvalidSignature)
+        assertThat(storage.readAll()).isEmpty()
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.InvalidSignature)
+    }
+
+    @Test
+    fun `one key's tamper does not affect other verified keys`() = runTest {
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
+        val (storage, delegate, _) = newStorage(onTamperDetected = { key, e -> tamperEvents += key to e })
+
+        storage.write(keyOne, sampleSnapshotOne)
+        storage.write(keyTwo, sampleSnapshotTwo)
+        delegate.put(keyOne, sampleSnapshotOne.copy(isEntitled = false))   // mutate keyOne's snapshot
+
+        val verified = storage.readAll()
+        assertThat(verified).containsExactly(keyTwo, sampleSnapshotTwo)
+        assertThat(tamperEvents).containsExactly(keyOne to TamperEvent.InvalidSignature)
     }
 
     @Test
     fun `write does not persist snapshot when keyProvider sign throws`() = runTest {
-        val delegate = InMemoryStorage()
+        val delegate = InMemoryStorage<String>()
         val sigStore = InMemorySignatureStore()
         val storage = SignedEntitlementStorage(
-            delegate, keyProvider = ThrowingKeyProvider, signatureStore = sigStore,
+            delegate = delegate,
+            keyProvider = ThrowingKeyProvider,
+            signatureStore = sigStore,
+            keyToStorageId = { it },
         )
 
         try {
-            storage.write(sampleSnapshot)
+            storage.write(keyOne, sampleSnapshotOne)
             error("Expected IllegalStateException from sign()")
         } catch (e: IllegalStateException) {
             // expected
         }
 
-        assertThat(delegate.lastWritten).isNull()
-        assertThat(sigStore.last).isNull()
+        assertThat(delegate.last(keyOne)).isNull()
+        assertThat(sigStore.lastFor(keyOne)).isNull()
     }
 
     @Test
     fun `write throws when keyProvider produces wrong-sized hmac`() = runTest {
         val storage = SignedEntitlementStorage(
-            delegate = InMemoryStorage(),
+            delegate = InMemoryStorage<String>(),
             keyProvider = object : HmacKeyProvider {
                 override suspend fun sign(data: ByteArray): ByteArray = ByteArray(16) { 0x01 }
             },
             signatureStore = InMemorySignatureStore(),
+            keyToStorageId = { it },
         )
 
         try {
-            storage.write(sampleSnapshot)
+            storage.write(keyOne, sampleSnapshotOne)
             error("Expected IllegalArgumentException")
         } catch (e: IllegalArgumentException) {
             assertThat(e.message).contains("16-byte")
@@ -188,80 +252,80 @@ class SignedEntitlementStorageTest {
 
     @Test
     fun `migrateUnsignedSnapshot returns false when delegate has no snapshot`() = runTest {
-        val delegate = InMemoryStorage()
+        val delegate = InMemoryStorage<String>()
         val sigStore = InMemorySignatureStore()
         val keyProvider = FixedKeyHmacProvider(KEY_BYTES)
 
-        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(delegate, keyProvider, sigStore)
+        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(
+            entitlementKey = keyOne,
+            entitlementCacheKey = keyOne,
+            delegate = delegate,
+            keyProvider = keyProvider,
+            signatureStore = sigStore,
+        )
 
         assertThat(migrated).isFalse()
-        assertThat(sigStore.last).isNull()
+        assertThat(sigStore.lastFor(keyOne)).isNull()
     }
 
     @Test
     fun `migrateUnsignedSnapshot signs existing snapshot and subsequent reads succeed without callback`() = runTest {
-        val delegate = InMemoryStorage().also { it.lastWritten = sampleSnapshot }
+        val delegate = InMemoryStorage<String>().also { it.put(keyOne, sampleSnapshotOne) }
         val sigStore = InMemorySignatureStore()
         val keyProvider = FixedKeyHmacProvider(KEY_BYTES)
-        val tamperEvents = mutableListOf<TamperEvent>()
+        val tamperEvents = mutableListOf<Pair<String, TamperEvent>>()
 
-        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(delegate, keyProvider, sigStore)
+        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(
+            entitlementKey = keyOne,
+            entitlementCacheKey = keyOne,
+            delegate = delegate,
+            keyProvider = keyProvider,
+            signatureStore = sigStore,
+        )
         assertThat(migrated).isTrue()
-        assertThat(sigStore.last).isNotNull()
+        assertThat(sigStore.lastFor(keyOne)).isNotNull()
 
         val storage = SignedEntitlementStorage(
-            delegate, keyProvider, sigStore,
-            onTamperDetected = { tamperEvents += it },
+            delegate = delegate,
+            keyProvider = keyProvider,
+            signatureStore = sigStore,
+            keyToStorageId = { it },
+            onTamperDetected = { key, e -> tamperEvents += key to e },
         )
-        assertThat(storage.read()).isEqualTo(sampleSnapshot)
+        assertThat(storage.readAll()).containsExactly(keyOne, sampleSnapshotOne)
         assertThat(tamperEvents).isEmpty()
-    }
-
-    @Test
-    fun `migrateUnsignedSnapshot does not read delegate when signature already present`() = runTest {
-        val keyProvider = FixedKeyHmacProvider(KEY_BYTES)
-        val sigStore = InMemorySignatureStore().also { it.last = ByteArray(36) }
-        val delegate = object : EntitlementStorage {
-            var readCalls = 0
-            override suspend fun read(): EntitlementSnapshot? {
-                readCalls++; return null
-            }
-            override suspend fun write(snapshot: EntitlementSnapshot) = error("unexpected")
-        }
-
-        val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(delegate, keyProvider, sigStore)
-
-        assertThat(migrated).isFalse()
-        assertThat(delegate.readCalls).isEqualTo(0)
     }
 
     @Test
     fun `migrateUnsignedSnapshot is a no-op when signature already present`() = runTest {
         val (storage, _, sigStore) = newStorage()
-        storage.write(sampleSnapshot)
-        val firstBlob = sigStore.last!!.copyOf()
+        storage.write(keyOne, sampleSnapshotOne)
+        val firstBlob = sigStore.lastFor(keyOne)!!.copyOf()
 
         val migrated = SignedEntitlementStorage.migrateUnsignedSnapshot(
+            entitlementKey = keyOne,
+            entitlementCacheKey = keyOne,
             delegate = storage,
             keyProvider = FixedKeyHmacProvider(KEY_BYTES),
             signatureStore = sigStore,
         )
 
         assertThat(migrated).isFalse()
-        assertThat(sigStore.last).isEqualTo(firstBlob)
+        assertThat(sigStore.lastFor(keyOne)).isEqualTo(firstBlob)
     }
 
     // -- helpers -----------------------------------------------------------
 
     private fun newStorage(
-        onTamperDetected: (TamperEvent) -> Unit = {},
-    ): Triple<SignedEntitlementStorage, InMemoryStorage, InMemorySignatureStore> {
-        val delegate = InMemoryStorage()
+        onTamperDetected: (String, TamperEvent) -> Unit = { _, _ -> },
+    ): Triple<SignedEntitlementStorage<String>, InMemoryStorage<String>, InMemorySignatureStore> {
+        val delegate = InMemoryStorage<String>()
         val sigStore = InMemorySignatureStore()
         val storage = SignedEntitlementStorage(
             delegate = delegate,
             keyProvider = FixedKeyHmacProvider(KEY_BYTES),
             signatureStore = sigStore,
+            keyToStorageId = { it },
             onTamperDetected = onTamperDetected,
         )
         return Triple(storage, delegate, sigStore)
@@ -272,23 +336,39 @@ class SignedEntitlementStorageTest {
     }
 }
 
-private class InMemoryStorage : EntitlementStorage {
-    var lastWritten: EntitlementSnapshot? = null
+private class InMemoryStorage<K : Any> : EntitlementStorage<K> {
+    private val store: MutableMap<K, EntitlementSnapshot> = HashMap()
 
-    override suspend fun read(): EntitlementSnapshot? = lastWritten
+    fun last(key: K): EntitlementSnapshot? = store[key]
 
-    override suspend fun write(snapshot: EntitlementSnapshot) {
-        lastWritten = snapshot
+    fun put(key: K, snapshot: EntitlementSnapshot) {
+        store[key] = snapshot
+    }
+
+    override suspend fun readAll(): Map<K, EntitlementSnapshot> = HashMap(store)
+
+    override suspend fun write(key: K, snapshot: EntitlementSnapshot) {
+        store[key] = snapshot
     }
 }
 
 private class InMemorySignatureStore : SignatureStore {
-    var last: ByteArray? = null
+    private val store: MutableMap<String, ByteArray> = HashMap()
 
-    override suspend fun readSignature(): ByteArray? = last
+    fun lastFor(entitlementKey: String): ByteArray? = store[entitlementKey]
 
-    override suspend fun writeSignature(signature: ByteArray) {
-        last = signature
+    fun put(entitlementKey: String, signature: ByteArray) {
+        store[entitlementKey] = signature
+    }
+
+    override suspend fun readSignature(entitlementKey: String): ByteArray? = store[entitlementKey]
+
+    override suspend fun writeSignature(entitlementKey: String, signature: ByteArray) {
+        store[entitlementKey] = signature
+    }
+
+    override suspend fun clearSignature(entitlementKey: String) {
+        store.remove(entitlementKey)
     }
 }
 
