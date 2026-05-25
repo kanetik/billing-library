@@ -23,9 +23,9 @@ If you haven't shipped a Play Billing integration before, these are the guides t
 - [Logging](guides/logging.md) — Noop/Android default + Crashlytics adapter sketch.
 - [Dependency injection](guides/dependency-injection.md) — Hilt and Koin module shapes.
 - [Multi-quantity purchases](guides/multi-quantity.md) — granting `purchase.quantity` for consumables.
-- [Multi-offer products](guides/multi-offer-products.md) — picking an offer for PBL 8 multi-offer one-time products.
+- [Multi-offer products](guides/multi-offer-products.md) — picking an offer for multi-offer one-time products.
 - [Product-details caching](guides/product-details-caching.md) — the recommended consumer-side `StateFlow` pattern.
-- [In-app messaging](guides/in-app-messaging.md) — surfacing PBL 8's transactional messaging UI.
+- [In-app messaging](guides/in-app-messaging.md) — surfacing Play Billing's transactional messaging UI.
 - [Subscriptions (v0.1.x)](guides/subscriptions.md) — what works at the protocol level today; the gap closes in v0.2.0.
 
 ## Reference

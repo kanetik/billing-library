@@ -1,6 +1,6 @@
 # Pre-order / multi-offer one-time products
 
-PBL 8 lets a one-time product carry multiple offers (e.g., a pre-order discount alongside the regular price). The `toOneTimeFlowParams` extension takes an optional selector:
+Play Billing lets a one-time product carry multiple offers (e.g., a pre-order discount alongside the regular price). The `toOneTimeFlowParams` extension takes an optional selector:
 
 ```kotlin
 val params = productDetails.toOneTimeFlowParams(

@@ -221,7 +221,7 @@ public sealed class BillingException(
      * **This is a bug in your code, not a runtime condition** — the exception
      * carries a debug message in [result] explaining what was wrong.
      *
-     * Common causes (under PBL 8):
+     * Common causes:
      *  - Forgetting to pass `offerToken` for a one-time product (fix: use
      *    [com.kanetik.billing.ext.toOneTimeFlowParams]).
      *  - Launching a flow against a finishing/destroyed activity (fix: use

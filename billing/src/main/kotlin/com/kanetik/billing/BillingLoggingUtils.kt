@@ -48,7 +48,7 @@ internal object BillingLoggingUtils {
     }
 
     /**
-     * Logs billing failures with enhanced PBL 8 context (sub-response codes etc.) at warn level.
+     * Logs billing failures with enhanced context (sub-response codes etc.) at warn level.
      */
     fun logBillingFailure(
         logger: BillingLogger,

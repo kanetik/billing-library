@@ -1,6 +1,6 @@
 # In-app messaging
 
-Surface PBL 8's transactional messaging UI to prompt users to fix failed payment methods (typical for subscriptions, also reachable for IAP):
+Surface Play Billing's transactional messaging UI to prompt users to fix failed payment methods (typical for subscriptions, also reachable for IAP):
 
 ```kotlin
 val result = billing.showInAppMessages(
