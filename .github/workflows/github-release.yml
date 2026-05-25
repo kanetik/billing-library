@@ -1,0 +1,158 @@
+name: GitHub Release
+
+# Creates a GitHub Release whose body is the matching `## [X.Y.Z] - <date>`
+# section from CHANGELOG.md at the tagged commit.
+#
+# Runs in parallel with `publish.yml` (Maven Central staging upload) and
+# `post-release-doc-bump.yml` (install pin + CHANGELOG sync). There is no
+# ordering requirement — this workflow only depends on the tag existing
+# and CHANGELOG.md being committed at the tagged commit.
+#
+# Maven Central caveat: a successful run here only means a GitHub Release
+# page exists. The Maven coordinate may not resolve for ~30 min after the
+# human clicks "Release" in the Sonatype Central Portal — consumers who
+# pin to the new version immediately after seeing the GH Release will hit
+# a resolution error until Central propagates. Acceptable in practice;
+# the alternative (gating GH Release on Central propagation) would need
+# a polling step against repo1.maven.org that doesn't add much value.
+#
+# Idempotent: if a release for the tag already exists, the workflow is
+# a no-op — it does NOT overwrite the body. To regenerate, delete the
+# release manually and re-run via workflow_dispatch.
+#
+# Stable vs pre-release: tags containing `-` (e.g., `v0.1.3-beta1`) are
+# marked `--prerelease`. Matches the `post-release-doc-bump.yml` skip
+# rule for what counts as a stable tag.
+#
+# `workflow_dispatch` accepts a `version` input for backfill — useful
+# when this workflow was added after a tag was pushed, or when a prior
+# run failed and was deleted.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to create a GitHub Release for (e.g., 0.1.3 or v0.1.3). Must have a matching '## [X.Y.Z] - <date>' section in CHANGELOG.md at the tagged commit."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Queue rather than cancel — release creation is short and shouldn't be
+# interrupted by a rapid second tag push.
+concurrency:
+  group: github-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need full history so the dispatch path can check out the tagged
+          # commit. Tag pushes already check out the tag, so this is mainly
+          # for workflow_dispatch backfill.
+          fetch-depth: 0
+
+      - name: Derive version + tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT="${{ inputs.version }}"
+          else
+            INPUT="${GITHUB_REF_NAME}"
+          fi
+          # Accept both `v0.1.3` and `0.1.3` forms; canonicalize.
+          VERSION="${INPUT#v}"
+          TAG="v${VERSION}"
+          # Pre-release detection: anything containing `-` (e.g., `0.1.3-beta1`).
+          if printf '%s' "$VERSION" | grep -q -- '-'; then
+            PRERELEASE=true
+          else
+            PRERELEASE=false
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Creating GitHub Release for tag: $TAG (prerelease=$PRERELEASE)"
+
+      - name: Check out tagged commit (dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        # CHANGELOG.md must be read at the tagged commit, not at the
+        # default branch HEAD — main may have moved on since the tag.
+        # Tag pushes already check out the tag; only the dispatch path
+        # needs the explicit switch.
+        run: |
+          if ! git rev-parse --verify "refs/tags/${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::Tag ${{ steps.meta.outputs.tag }} does not exist. Create + push the tag before running this workflow."
+            exit 1
+          fi
+          git checkout "${{ steps.meta.outputs.tag }}"
+
+      - name: Skip if release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::notice::Release ${{ steps.meta.outputs.tag }} already exists — skipping. (To regenerate, delete the release and re-run via workflow_dispatch.)"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract CHANGELOG section
+        if: steps.existing.outputs.exists == 'false'
+        id: extract
+        run: |
+          VER="${{ steps.meta.outputs.version }}"
+          BODY_FILE="$(mktemp)"
+          # index()-based matching (not regex) so `[`, `]`, and `.` in the
+          # version need no escaping. Print everything from the
+          # `## [VER] - ` line (exclusive) up to (but excluding) the next
+          # `## [...` heading. Trim leading + trailing blank lines so the
+          # release body starts at the first content line and ends cleanly.
+          awk -v ver="$VER" '
+            BEGIN { needle = "## [" ver "] - "; found = 0 }
+            index($0, needle) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { lines[++n] = $0 }
+            END {
+              first = 1
+              while (first <= n && lines[first] == "") first++
+              while (n >= first && lines[n] == "") n--
+              for (i = first; i <= n; i++) print lines[i]
+            }
+          ' CHANGELOG.md > "$BODY_FILE"
+          if [ ! -s "$BODY_FILE" ]; then
+            echo "::error::No '## [${VER}] - <date>' section found in CHANGELOG.md at this commit, or section is empty."
+            echo "Confirm the heading uses the exact form '## [${VER}] - YYYY-MM-DD'."
+            exit 1
+          fi
+          echo "body_file=$BODY_FILE" >> "$GITHUB_OUTPUT"
+          echo "Extracted $(wc -l < "$BODY_FILE") lines of release notes."
+
+      - name: Create GitHub Release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRE_FLAG=""
+          if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
+            PRE_FLAG="--prerelease"
+          fi
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --title "${{ steps.meta.outputs.tag }}" \
+            --notes-file "${{ steps.extract.outputs.body_file }}" \
+            --verify-tag \
+            $PRE_FLAG
+          echo "::notice::Created release at https://github.com/${{ github.repository }}/releases/tag/${{ steps.meta.outputs.tag }}"
