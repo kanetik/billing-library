@@ -6,7 +6,7 @@ The library is published to Maven Central as `com.kanetik.billing:billing`.
 
 ```kotlin
 dependencies {
-    implementation("com.kanetik.billing:billing:0.1.2")
+    implementation("com.kanetik.billing:billing:0.1.3")
 }
 ```
 
@@ -14,7 +14,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'com.kanetik.billing:billing:0.1.2'
+    implementation 'com.kanetik.billing:billing:0.1.3'
 }
 ```
 
@@ -22,7 +22,7 @@ dependencies {
 
 ```toml
 [versions]
-kanetik-billing = "0.1.2"
+kanetik-billing = "0.1.3"
 
 [libraries]
 kanetik-billing = { module = "com.kanetik.billing:billing", version.ref = "kanetik-billing" }
@@ -42,7 +42,7 @@ dependencies {
 <dependency>
     <groupId>com.kanetik.billing</groupId>
     <artifactId>billing</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
 </dependency>
 ```
 
