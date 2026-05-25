@@ -34,6 +34,12 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref — matches the pattern in ci.yml and
+# docs.yml. Force-pushes / rapid commits shouldn't leave stale checks queued.
+concurrency:
+  group: docs-freshness-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check-pins:
     name: Install pins match Maven Central
