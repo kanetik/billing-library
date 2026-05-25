@@ -1,7 +1,10 @@
 name: GitHub Release
 
-# Creates a GitHub Release whose body is the matching `## [X.Y.Z] - <date>`
-# section from CHANGELOG.md at the tagged commit.
+# Creates a GitHub Release whose body is the *contents* of the matching
+# `## [X.Y.Z] - <date>` section in CHANGELOG.md at the tagged commit —
+# the heading itself is excluded (the GH Release page already shows the
+# tag as the title; duplicating `## [X.Y.Z] - <date>` in the body would
+# be redundant).
 #
 # Runs in parallel with `publish.yml` (Maven Central staging upload) and
 # `post-release-doc-bump.yml` (install pin + CHANGELOG sync). There is no
@@ -41,12 +44,6 @@ on:
 
 permissions:
   contents: write
-
-# Queue rather than cancel — release creation is short and shouldn't be
-# interrupted by a rapid second tag push.
-concurrency:
-  group: github-release-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   create-release:
@@ -134,8 +131,8 @@ jobs:
             }
           ' CHANGELOG.md > "$BODY_FILE"
           if [ ! -s "$BODY_FILE" ]; then
-            echo "::error::No '## [${VER}] - <date>' section found in CHANGELOG.md at this commit, or section is empty."
-            echo "Confirm the heading uses the exact form '## [${VER}] - YYYY-MM-DD'."
+            echo "::error::No '## [${VER}] - ' heading found in CHANGELOG.md at this commit, or section is empty."
+            echo "Confirm a section heading starting with the exact prefix '## [${VER}] - ' exists (Keep-a-Changelog convention is '## [${VER}] - YYYY-MM-DD')."
             exit 1
           fi
           echo "body_file=$BODY_FILE" >> "$GITHUB_OUTPUT"
