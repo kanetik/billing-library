@@ -1,0 +1,198 @@
+name: Docs freshness
+
+# Backstop for the post-release-doc-bump workflow. Fails CI when the
+# install pins in user-facing docs drift behind the latest stable version
+# published to Maven Central, or when pin sites disagree with one another.
+#
+# Four asserts, in order of likely failure:
+#   1. Each file is internally consistent — every install pin found inside
+#      a single file (Kotlin DSL / Groovy / version catalog / Maven for
+#      `docs/installation.md`; one Maven-coordinate form for the other two
+#      files) is the same version. (Catches partial intra-file edits.)
+#   2. The 3 files agree with one another on that single version.
+#      (Catches partial cross-file edits.)
+#   3. The agreed pin is >= the latest *stable* release on Maven Central
+#      (per `sort -V`). Equal = caught up. Ahead = release in flight (e.g.,
+#      this PR is the bump itself, or Central staging hasn't been released
+#      yet). Behind = stale; fail. "Stable" means we filter pre-releases
+#      (anything containing `-`, like `0.1.3-beta1`) out of the `<versions>`
+#      list before picking the max. Maven's `<release>` field can point to
+#      a pre-release — using it directly would permanently fail this check
+#      after any beta publish, since `post-release-doc-bump` intentionally
+#      skips beta tags and doc pins stay on the stable line.
+#   4. CHANGELOG.md has a `## [<pin>] - <date>` section. (Catches the
+#      drift mode that motivated this workflow: pins moved but CHANGELOG
+#      stayed under `[Unreleased]`.)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref — matches the pattern in ci.yml and
+# docs.yml. Force-pushes / rapid commits shouldn't leave stale checks queued.
+concurrency:
+  group: docs-freshness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-pins:
+    name: Install pins match Maven Central
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest stable release from Maven Central
+        id: mc
+        run: |
+          # --retry + --retry-all-errors covers transient blips at repo1
+          # (occasional 5xx, connection resets) without flaking unrelated PRs.
+          # --connect-timeout caps the wait per attempt so a hanging DNS / TCP
+          # connect doesn't drag the whole job out.
+          #
+          # We pull from <versions> (not <release>) and filter out anything
+          # containing `-` so a published pre-release (e.g. 0.1.3-beta1)
+          # doesn't displace 0.1.2 as the freshness target. `<release>` in
+          # Maven metadata means "non-SNAPSHOT", which still includes betas.
+          METADATA=$(curl -fsS --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 \
+            'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml')
+          # Trailing `|| true` keeps the assignment alive when the pipeline
+          # fails — e.g., the first `grep -oP` finds no <version> matches (HTML
+          # error page, truncated XML, or `grep -v -- '-'` filters every
+          # candidate). GHA's default shell runs with `-eo pipefail`, so
+          # without this guard the step would exit at the assignment and the
+          # diagnostic block below would never fire.
+          RELEASE=$(printf '%s' "$METADATA" \
+            | grep -oP '(?<=<version>)[^<]+(?=</version>)' \
+            | grep -v -- '-' \
+            | sort -V \
+            | tail -1 || true)
+          if [ -z "$RELEASE" ]; then
+            echo "::error::Could not find a stable release in Maven Central <versions>."
+            echo "Metadata fetched:" >&2
+            printf '%s\n' "$METADATA" >&2
+            exit 1
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "Latest stable on Maven Central = $RELEASE"
+
+      - name: Extract + validate pin from each doc file
+        id: pins
+        run: |
+          # For each file, pull every relevant install-pin version and assert
+          # the file is internally consistent (all pins in that file are the
+          # same version). Then emit that single agreed pin.
+          #
+          # `docs/installation.md` has three pin patterns:
+          #   - `com.kanetik.billing:billing:X.Y.Z`  (Kotlin DSL + Groovy)
+          #   - `kanetik-billing = "X.Y.Z"`          (version catalog)
+          #   - `<version>X.Y.Z</version>`           (Maven)
+          # The other two files only have the coord form.
+          extract_file_pins() {
+            local file="$1"
+            case "$file" in
+              docs/installation.md)
+                {
+                  grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                  grep -oP 'kanetik-billing = "\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                  grep -oP '<version>\K[0-9]+\.[0-9]+\.[0-9]+(?=</version>)' "$file" || true
+                }
+                ;;
+              *)
+                grep -oP 'com\.kanetik\.billing:billing:\K[0-9]+\.[0-9]+\.[0-9]+' "$file" || true
+                ;;
+            esac
+          }
+
+          # check_file is invoked via `$(...)` command substitution, so its
+          # stdout is captured into a variable — `::error::` annotations and
+          # diagnostic lines need to go to STDERR or they're silently swallowed
+          # and don't surface in the Actions log/annotations. The single line
+          # on stdout (the pin value) is the function's return channel.
+          check_file() {
+            local file="$1"
+            local pins
+            pins=$(extract_file_pins "$file" | sort -uV)
+            if [ -z "$pins" ]; then
+              echo "::error::No install pin found in $file (expected at least one 'com.kanetik.billing:billing:X.Y.Z')." >&2
+              return 1
+            fi
+            local count
+            count=$(printf '%s\n' "$pins" | wc -l)
+            if [ "$count" -gt 1 ]; then
+              {
+                echo "::error::$file contains multiple pin versions — file is internally inconsistent:"
+                printf '%s\n' "$pins" | sed 's/^/  /'
+                echo "  Fix: set every pin in this file to the same version."
+              } >&2
+              return 1
+            fi
+            printf '%s' "$pins"
+          }
+
+          README=$(check_file README.md) || exit 1
+          INST=$(check_file docs/installation.md) || exit 1
+          SAMPLE=$(check_file sample/README.md) || exit 1
+          echo "README pin:       $README"
+          echo "installation pin: $INST  (Kotlin DSL + Groovy + version catalog + Maven all agree)"
+          echo "sample pin:       $SAMPLE"
+          echo "readme=$README" >> "$GITHUB_OUTPUT"
+          echo "installation=$INST" >> "$GITHUB_OUTPUT"
+          echo "sample=$SAMPLE" >> "$GITHUB_OUTPUT"
+
+      - name: Check pins agree across files
+        run: |
+          R="${{ steps.pins.outputs.readme }}"
+          I="${{ steps.pins.outputs.installation }}"
+          S="${{ steps.pins.outputs.sample }}"
+          if [ "$R" != "$I" ] || [ "$R" != "$S" ]; then
+            echo "::error::Install pins disagree across files:"
+            echo "  README.md:         $R"
+            echo "  docs/installation: $I"
+            echo "  sample/README:     $S"
+            echo "All three should match. Set them to the same version."
+            exit 1
+          fi
+          echo "All three files pin: $R"
+
+      - name: Check pin >= latest stable on Maven Central
+        run: |
+          PIN="${{ steps.pins.outputs.readme }}"
+          REL="${{ steps.mc.outputs.release }}"
+          if [ "$PIN" = "$REL" ]; then
+            echo "Pin matches latest stable on Maven Central ($REL). OK."
+            exit 0
+          fi
+          LOWEST=$(printf '%s\n%s\n' "$PIN" "$REL" | sort -V | head -1)
+          if [ "$LOWEST" = "$REL" ]; then
+            echo "Pin ($PIN) is ahead of latest stable on Maven Central ($REL). OK — release in flight."
+            exit 0
+          fi
+          echo "::error::Install pins ($PIN) are behind latest stable on Maven Central ($REL)."
+          echo "Either:"
+          echo "  1. Run the 'Post-release doc bump' workflow (workflow_dispatch with version=$REL), or"
+          echo "  2. Bump pins + stamp CHANGELOG manually."
+          exit 1
+
+      - name: Check CHANGELOG has section for the pinned version
+        run: |
+          PIN="${{ steps.pins.outputs.readme }}"
+          # Escape regex metacharacters in $PIN before interpolating into the
+          # grep -E pattern (dots in X.Y.Z would otherwise act as wildcards).
+          PIN_ESC=$(printf '%s' "$PIN" | sed 's/\./\\./g')
+          if grep -qE "^## \[${PIN_ESC}\] - " CHANGELOG.md; then
+            echo "CHANGELOG has section [${PIN}]. OK."
+            exit 0
+          fi
+          echo "::error::CHANGELOG.md has no '## [${PIN}] - <date>' section."
+          echo "Pins moved to $PIN without stamping CHANGELOG. Either:"
+          echo "  1. Rename '## [Unreleased]' → '## [${PIN}] - YYYY-MM-DD' and add a fresh '## [Unreleased]' above, or"
+          echo "  2. Run the 'Post-release doc bump' workflow which does both."
+          exit 1
