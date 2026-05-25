@@ -8,7 +8,7 @@ package com.kanetik.billing
  * decide whether to surface an error immediately or wait for the next attempt.
  *
  *  - [SIMPLE_RETRY] — a short fixed-delay retry; the error is typically transient
- *    (e.g. service disconnected; PBL 8's auto-reconnect needs a moment).
+ *    (e.g. service disconnected; PBL's auto-reconnect needs a moment).
  *  - [EXPONENTIAL_RETRY] — back off and try again; the error is recoverable but
  *    may need network or service recovery time.
  *  - [REQUERY_PURCHASE_RETRY] — re-query owned purchases before retrying. Used for

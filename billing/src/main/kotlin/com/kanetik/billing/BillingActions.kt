@@ -334,7 +334,7 @@ public interface BillingActions {
      * to minutes — pending purchases can sit unresolved indefinitely).
      *
      * For one-time products, prefer [com.kanetik.billing.ext.toOneTimeFlowParams] to
-     * build [params] correctly under PBL 8's offer-token rules. For higher-level
+     * build [params] correctly under PBL's offer-token rules. For higher-level
      * orchestration (in-flight guard, watchdog, typed result), see
      * [com.kanetik.billing.ext.PurchaseFlowCoordinator].
      *
