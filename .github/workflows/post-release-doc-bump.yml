@@ -148,13 +148,35 @@ jobs:
           if grep -qE "^## \\[${VER_ESC}\\] - " CHANGELOG.md; then
             echo "CHANGELOG already has a section for ${VER}; skipping stamp."
           else
-            awk -v ver="$VER" -v date="$DATE" '
+            # When [Unreleased] is empty between releases, the CHANGELOG
+            # carries a placeholder line so the section doesn't look like
+            # an orphaned heading. On stamp:
+            #   1. Emit [Unreleased] + placeholder so the new release leaves
+            #      the next [Unreleased] in the same "empty + labeled" shape.
+            #   2. Insert the dated heading below.
+            #   3. Drop the OLD placeholder + its surrounding blanks from the
+            #      input so it doesn't fall through and reappear under the
+            #      new dated section. Any real entries that were under
+            #      [Unreleased] still fall through and land under the new
+            #      dated heading as before.
+            awk -v ver="$VER" -v date="$DATE" -v placeholder="No unreleased items at this time." '
               /^## \[Unreleased\]$/ && !done {
                 print
                 print ""
+                print placeholder
+                print ""
                 print "## [" ver "] - " date
+                print ""
                 done = 1
+                consume = 1
                 next
+              }
+              consume {
+                # Drop leading blanks and any existing placeholder until we
+                # hit real content. First non-blank, non-placeholder line
+                # exits consume mode and falls through to the default print.
+                if ($0 == "" || $0 == placeholder) next
+                consume = 0
               }
               { print }
             ' CHANGELOG.md > CHANGELOG.md.new && mv CHANGELOG.md.new CHANGELOG.md
