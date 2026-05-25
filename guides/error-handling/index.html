@@ -775,6 +775,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../multi-offer-products/" class="md-nav__link">
         
   
@@ -1250,11 +1271,11 @@ catch (e: BillingException) {
 }</code></p>
 <p>The library doesn't ship localized user-facing strings; tone, voice, and language coverage are app concerns.</p>
 <h2 id="handling-handlepurchase-failures-correctly">Handling <code>handlePurchase</code> failures correctly<a class="headerlink" href="#handling-handlepurchase-failures-correctly" title="Permanent link">&para;</a></h2>
-<p><code>handlePurchase</code> returns a sealed <code>HandlePurchaseResult</code>: <code>Success</code>, <code>AlreadyAcknowledged</code>, <code>NotPurchased</code>, <code>NotOwned</code>, or <code>Failure(exception)</code>. The compiler nudges you to branch on each. <strong>Grant entitlement on <code>Success</code> and <code>AlreadyAcknowledged</code> (both safe), nothing else.</strong> Play auto-refunds the unacknowledged purchase within ~3 days and the user's premium silently evaporates if you grant on a <code>Failure</code> and the underlying ack call doesn't recover.</p>
+<p><code>handlePurchase</code> returns a sealed <code>HandlePurchaseResult</code>: <code>Success</code>, <code>AlreadyAcknowledged</code>, <code>NotPurchased</code>, <code>NotOwned</code>, or <code>Failure(exception)</code>. The compiler nudges you to branch on each. <strong>Grant entitlement on <code>Success</code> and <code>AlreadyAcknowledged</code> (both safe), nothing else.</strong> Play auto-refunds the unacknowledged purchase within ~3 days and the paid-for feature silently evaporates if you grant on a <code>Failure</code> and the underlying ack call doesn't recover.</p>
 <p><code>kotlin
 when (val r = billing.handlePurchase(purchase, consume = false)) {
-    HandlePurchaseResult.Success -&gt; grantPremium()
-    HandlePurchaseResult.AlreadyAcknowledged -&gt; grantPremium() // no PBL call made; safe
+    HandlePurchaseResult.Success -&gt; grantEntitlement()
+    HandlePurchaseResult.AlreadyAcknowledged -&gt; grantEntitlement() // no PBL call made; safe
     HandlePurchaseResult.NotPurchased -&gt; {} // pending — wait for terminal state
     HandlePurchaseResult.NotOwned -&gt; {
         // Play says this purchase isn't owned anymore (stale snapshot,

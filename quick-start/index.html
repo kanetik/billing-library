@@ -761,6 +761,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/multi-offer-products/" class="md-nav__link">
         
   
@@ -1164,7 +1185,7 @@ fun onBuyClicked() = lifecycleScope.launch {
         QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(
                 QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId("premium_lifetime")
+                    .setProductId("pro_toolkit")
                     .setProductType(BillingClient.ProductType.INAPP)
                     .build()
             ))
@@ -1178,8 +1199,8 @@ private suspend fun handle(purchase: Purchase) {
     // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
     // See Error handling for the full pattern.
     when (val r = billing.handlePurchase(purchase, consume = false)) {
-        HandlePurchaseResult.Success -&gt; grantPremium()
-        HandlePurchaseResult.AlreadyAcknowledged -&gt; grantPremium() // safe — no PBL call needed
+        HandlePurchaseResult.Success -&gt; grantEntitlement()
+        HandlePurchaseResult.AlreadyAcknowledged -&gt; grantEntitlement() // safe — no PBL call needed
         HandlePurchaseResult.NotPurchased -&gt; {} // pending — wait for terminal state
         HandlePurchaseResult.NotOwned -&gt; {} // Play says not owned — defer to grace/revoke logic
         is HandlePurchaseResult.Failure -&gt; showError(r.exception.userFacingCategory)

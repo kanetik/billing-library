@@ -16,7 +16,7 @@
         <link rel="prev" href="../dependency-injection/">
       
       
-        <link rel="next" href="../multi-offer-products/">
+        <link rel="next" href="../consumables/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -705,6 +705,17 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Multi-quantity purchases
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -715,6 +726,64 @@
 
       </a>
       
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-controls-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      What the client controls (nothing)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-must-do-read-purchasequantity-and-grant-accordingly" class="md-nav__link">
+    <span class="md-ellipsis">
+      What the client must do (read purchase.quantity and grant accordingly)
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -1042,6 +1111,32 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-controls-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      What the client controls (nothing)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-must-do-read-purchasequantity-and-grant-accordingly" class="md-nav__link">
+    <span class="md-ellipsis">
+      What the client must do (read purchase.quantity and grant accordingly)
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1059,7 +1154,11 @@
 
 
 <h1 id="granting-entitlement-multi-quantity">Granting entitlement: multi-quantity<a class="headerlink" href="#granting-entitlement-multi-quantity" title="Permanent link">&para;</a></h1>
-<p>Play supports multi-quantity purchases for consumables (the <em>Multi-quantity purchases</em> flag must be enabled per-product in Play Console; the user picks the quantity in the Play purchase dialog). Always grant <code>purchase.quantity</code> units, not 1 — and only grant after <code>handlePurchase</code> returns <code>Success</code>:</p>
+<p>Play supports multi-quantity purchases for consumables. The mechanism is entirely Play-Console- and Play-dialog-driven on PBL 9 — there's no client-side <code>setPurchaseQuantity</code> knob — but your code still has to read the resulting quantity off the <code>Purchase</code> and grant accordingly.</p>
+<h2 id="what-the-client-controls-nothing">What the client controls (nothing)<a class="headerlink" href="#what-the-client-controls-nothing" title="Permanent link">&para;</a></h2>
+<p>You enable <em>Multi-quantity purchases</em> on the product in Play Console. From then on, Play's own purchase dialog renders a quantity picker; the user picks N units; Play processes the whole transaction and returns one <code>Purchase</code> whose <code>purchase.quantity</code> field carries the unit count. The library wrapper calls <code>toOneTimeFlowParams(...)</code> the same way for any quantity — there is no per-launch quantity to set from your code on PBL 9.</p>
+<h2 id="what-the-client-must-do-read-purchasequantity-and-grant-accordingly">What the client must do (read <code>purchase.quantity</code> and grant accordingly)<a class="headerlink" href="#what-the-client-must-do-read-purchasequantity-and-grant-accordingly" title="Permanent link">&para;</a></h2>
+<p>Always grant <code>purchase.quantity</code> units, not 1 — and only grant after <code>handlePurchase</code> returns <code>Success</code>:</p>
 <p><code>kotlin
 private suspend fun handle(purchase: Purchase) {
     when (val r = billing.handlePurchase(purchase, consume = true)) {
@@ -1075,7 +1174,8 @@ private suspend fun handle(purchase: Purchase) {
         // never grant on Failure — recovery sweep retries on the next connection
     }
 }</code></p>
-<p><code>purchase.quantity</code> defaults to <code>1</code> so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the <em>acknowledgement</em> side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your entitlement-grant code needs the awareness.</p>
+<p><code>purchase.quantity</code> defaults to <code>1</code> so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the <em>acknowledgement</em> side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your wallet-ledger code needs the awareness.</p>
+<p>For the broader pattern of tracking consumable balances (where multi-quantity purchases land), see the <a href="../consumables/">Consumables ledger guide</a>.</p>
 
 
 

@@ -712,6 +712,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/multi-offer-products/" class="md-nav__link">
         
   
@@ -1689,12 +1710,12 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
 <h3 id="debug-flavor-entitlement-override">Debug-flavor entitlement override<a class="headerlink" href="#debug-flavor-entitlement-override" title="Permanent link">&para;</a></h3>
 <p>Many apps short-circuit the real billing repo entirely in debug builds and read entitlement from a <code>BuildConfig</code> flag or a debug-menu setting:</p>
 <p><code>kotlin
-// debug/.../PremiumManager.kt
-class PremiumManager @Inject constructor(...) {
-    val isPremium: StateFlow&lt;Boolean&gt; = MutableStateFlow(BuildConfig.DEBUG_PREMIUM_OVERRIDE)
+// debug/.../EntitlementManager.kt
+class EntitlementManager @Inject constructor(...) {
+    val isEntitled: StateFlow&lt;Boolean&gt; = MutableStateFlow(BuildConfig.DEBUG_ENTITLEMENT_OVERRIDE)
     // ...
 }</code></p>
-<p>This lets you develop premium UI without touching billing at all. Combine with Level 1 or Level 2 for tests that actually exercise the billing flow.</p>
+<p>This lets you develop gated UI without touching billing at all. Combine with Level 1 or Level 2 for tests that actually exercise the billing flow.</p>
 <h3 id="mocking-billingrepository-in-your-unit-tests">Mocking <code>BillingRepository</code> in your unit tests<a class="headerlink" href="#mocking-billingrepository-in-your-unit-tests" title="Permanent link">&para;</a></h3>
 <p>Until v0.2.0 ships the official <code>:billing-testing</code> artifact (with a built-in <code>FakeBillingRepository</code>), the cleanest approach in your own test code is mockk against the <code>BillingRepository</code> interface:</p>
 <p><code>kotlin
@@ -1741,7 +1762,7 @@ every { billing.observePurchaseUpdates() } returns flowOf(OwnedPurchases.Live(li
 <td>Level 3 — Lab Subscription settings</td>
 </tr>
 <tr>
-<td>Develop premium UI without touching billing</td>
+<td>Develop gated UI without touching billing</td>
 <td>Debug-flavor entitlement override</td>
 </tr>
 <tr>

@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.2-SNAPSHOT        </div>
+0.1.3-SNAPSHOT        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -103,12 +103,12 @@
         </nav>
         <div id="resizer" class="resizer" data-item-type="BAR"></div>
         <div id="main" data-item-type="SECTION" role="main">
-<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing.entitlement/EntitlementStorage/write/#com.kanetik.billing.entitlement.EntitlementSnapshot/PointingToDeclaration//-593106385">
+<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing.entitlement/EntitlementStorage/write/#TypeParam(bounds=[kotlin.Any])#com.kanetik.billing.entitlement.EntitlementSnapshot/PointingToDeclaration//-593106385">
   <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.entitlement</a><span class="delimiter">/</span><a href="index.html">EntitlementStorage</a><span class="delimiter">/</span><span class="current">write</span></div>
   <div class="cover ">
     <h1 class="cover"><span><span>write</span></span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="write.html"><span class="token function">write</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">snapshot<span class="token operator">: </span><a href="../-entitlement-snapshot/index.html">EntitlementSnapshot</a></span></span><span class="token punctuation">)</span></div><p class="paragraph">Persists <a href="write.html">snapshot</a>. Should be atomic with respect to a subsequent <a href="read.html">read</a> call; see the interface-level KDoc for the full contract.</p></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="write.html"><span class="token function">write</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="index.html">K</a><span class="token punctuation">, </span></span><span class="parameter ">snapshot<span class="token operator">: </span><a href="../-entitlement-snapshot/index.html">EntitlementSnapshot</a></span></span><span class="token punctuation">)</span></div><p class="paragraph">Persists <a href="write.html">snapshot</a> under <a href="write.html">key</a>. Upsert semantics: replaces any previous snapshot for the same key. Should be atomic with respect to a subsequent <a href="read-all.html">readAll</a> call; see the interface-level KDoc for the full contract.</p></div></div>
 </div>
     <div class="footer">
         <div class="footer--container">

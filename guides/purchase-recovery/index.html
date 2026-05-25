@@ -811,6 +811,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../multi-offer-products/" class="md-nav__link">
         
   
@@ -1213,7 +1234,7 @@
 <li>The user actually owns a purchase — they just completed one through your active flow, or one was already on their account from a prior session that didn't finish processing.</li>
 <li>A launch attempt produced an outcome that <em>isn't</em> a purchase — they canceled the dialog, the product wasn't available in their region, the network dropped.</li>
 </ul>
-<p>Both arrive on the same listener with a <code>BillingResult</code> and a <code>List&lt;Purchase&gt;</code>. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a <code>USER_CANCELED</code> outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke premium when the user taps Back on the purchase dialog.</p>
+<p>Both arrive on the same listener with a <code>BillingResult</code> and a <code>List&lt;Purchase&gt;</code>. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a <code>USER_CANCELED</code> outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke a paid entitlement when the user taps Back on the purchase dialog.</p>
 <p>The library splits the callback into two sealed roots so the type system can catch this at compile time:</p>
 <ul>
 <li><code>OwnedPurchases</code> — the user owns these. Acknowledge / consume / grant entitlement. Two variants:<ul>

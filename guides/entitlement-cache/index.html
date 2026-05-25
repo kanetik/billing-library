@@ -616,6 +616,42 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#choosing-k" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing K
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-entitlement-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Single-entitlement wiring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-entitlement-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-entitlement wiring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state" class="md-nav__link">
+    <span class="md-ellipsis">
+      State
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-to-use-it" class="md-nav__link">
     <span class="md-ellipsis">
       When to use it
@@ -792,6 +828,27 @@
   
   <span class="md-ellipsis">
     Multi-quantity purchases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
   </span>
   
 
@@ -1130,6 +1187,42 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#choosing-k" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing K
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-entitlement-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Single-entitlement wiring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-entitlement-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-entitlement wiring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state" class="md-nav__link">
+    <span class="md-ellipsis">
+      State
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-to-use-it" class="md-nav__link">
     <span class="md-ellipsis">
       When to use it
@@ -1201,12 +1294,21 @@
 <h1 id="entitlementcache-opt-in">EntitlementCache (opt-in)<a class="headerlink" href="#entitlementcache-opt-in" title="Permanent link">&para;</a></h1>
 <p>Once your code can answer "did the user buy this" in the moment, three follow-up questions usually land within a few weeks of shipping:</p>
 <ul>
-<li>How do I render premium UI on cold start, <em>before</em> the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)</li>
+<li>How do I render gated UI on cold start, <em>before</em> the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)</li>
 <li>What do I do when Play is unreachable for an hour or two: flip every paid user back to the free tier, or wait it out?</li>
 <li>How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?</li>
 </ul>
-<p>PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same <code>(isEntitled, lastConfirmedTimestamp, source)</code> state machine: take the raw <code>PurchaseEvent</code> stream, decide which purchases grant a given entitlement, persist the verdict so premium UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. <code>EntitlementCache</code> (in <code>com.kanetik.billing.entitlement</code>) is that state machine, opt-in.</p>
+<p>PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same <code>(isEntitled, lastConfirmedTimestamp, source) per entitlement</code> state machine: take the raw <code>PurchaseEvent</code> stream, decide which purchases grant which entitlement, persist the verdict so gated UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. <code>EntitlementCache&lt;K&gt;</code> (in <code>com.kanetik.billing.entitlement</code>) is that state machine, opt-in.</p>
 <p>It listens to <code>observePurchaseUpdates()</code>, so it benefits from the auto-recovery sweep. See <a href="../purchase-recovery/">Purchase recovery</a> for what <code>OwnedPurchases.Live</code> vs <code>OwnedPurchases.Recovered</code> actually mean and why you can't just write the callback's <code>purchases</code> list to your storage and call it done.</p>
+<h2 id="choosing-k">Choosing K<a class="headerlink" href="#choosing-k" title="Permanent link">&para;</a></h2>
+<p><code>K</code> is whatever type your app uses to discriminate entitlements:</p>
+<ul>
+<li><strong>One non-consumable unlock</strong> (e.g. "ad removal"): <code>K = Unit</code>. The state map collapses to <code>{Unit -&gt; ...}</code> and <code>stateFor(Unit)</code> gives you a single <code>Flow&lt;EntitlementState&gt;</code>.</li>
+<li><strong>A few non-consumable upgrades</strong> (e.g. a game with a "Pro toolkit" + an "Expansion pack"): <code>K = String</code> (product IDs) or <code>enum class Entitlement { PRO_TOOLKIT, EXPANSION }</code>.</li>
+<li><strong>Consumables</strong> (coins, gems, fuel): the cache is <strong>not</strong> the right shape — see the <a href="../consumables/">Consumables ledger guide</a>. Your <code>productKeySelector</code> should return <code>null</code> for consumable SKUs so they bypass the cache entirely.</li>
+</ul>
+<p>Consumables and entitlements often coexist in the same app; the <code>productKeySelector</code> is the seam where you tell the cache "ignore these, they're wallet credits."</p>
+<h2 id="single-entitlement-wiring">Single-entitlement wiring<a class="headerlink" href="#single-entitlement-wiring" title="Permanent link">&para;</a></h2>
 <p>```kotlin
 import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementState
@@ -1214,9 +1316,9 @@ import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementStorage
 import com.kanetik.billing.entitlement.GracePolicy
 import java.util.concurrent.TimeUnit</p>
-<p>class PremiumViewModel(
+<p>class AdRemovalViewModel(
     billing: BillingRepository,
-    storage: EntitlementStorage, // your impl — see below
+    storage: EntitlementStorage<Unit>, // your impl — see below
 ) : ViewModel() {</p>
 <pre><code>private val cache = EntitlementCache(
     purchasesUpdates = billing.observePurchaseUpdates(),
@@ -1225,82 +1327,136 @@ import java.util.concurrent.TimeUnit</p>
         billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
         transientFailureMs   = TimeUnit.HOURS.toMillis(6),
     ),
-    productPredicate = { it.products.contains("premium_lifetime") },
+    productKeySelector = { purchase -&gt;
+        if (purchase.products.contains("ad_removal")) Unit else null
+    },
 )
 
 init {
     // start() is suspend so hydration completes before it returns —
     // the first read of cache.state.value reflects the persisted
-    // snapshot, not the default Revoked. Launch it from viewModelScope
+    // snapshot, not the default empty map. Launch it from viewModelScope
     // so init isn't blocked.
     viewModelScope.launch { cache.start(viewModelScope) }
 }
 
-val isPremium: StateFlow&lt;Boolean&gt; = cache.state
-    .map { it !is EntitlementState.Revoked }
+val adsRemoved: StateFlow&lt;Boolean&gt; = cache.stateFor(Unit)
+    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
     .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 </code></pre>
 <p>}
 ```</p>
-<p>The cache exposes a <code>StateFlow&lt;EntitlementState&gt;</code> with three terminal states:</p>
-<ul>
-<li><code>Granted</code> — confirmed entitlement; show premium UI.</li>
-<li><code>InGrace(expiresAtMs, reason)</code> — recently confirmed, then a <code>FlowOutcome.Failure</code> arrived. Treat as entitled until <code>expiresAtMs</code>; after that the cache transitions to <code>Revoked</code>. Reason is one of <code>BillingUnavailable</code> (Play Services missing, account ineligible, region restriction) or <code>TransientFailure</code> (network error, service disconnect, generic billing error).</li>
-<li><code>Revoked</code> — no entitlement; hide premium UI.</li>
-</ul>
-<p>Grace expiry is re-evaluated on every emission and on a periodic tick, so an extended outage correctly transitions <code>InGrace → Revoked</code> even when no further updates arrive in between.</p>
-<h2 id="when-to-use-it">When to use it<a class="headerlink" href="#when-to-use-it" title="Permanent link">&para;</a></h2>
-<p>Use <code>EntitlementCache</code> when you want a simple <code>is the user entitled right now?</code> flow off the side of your existing <code>observePurchaseUpdates()</code> integration. The cache is purely observational; it does <strong>not</strong> call <code>handlePurchase</code> for you. Acknowledge / consume + entitlement grant remain your collector's job. The cache just tracks the resulting confirmed observation.</p>
-<p>Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, multi-entitlement dispatch). Write a thin custom layer for those.</p>
-<p>The cache reacts to four event paths:</p>
-<ul>
-<li><code>OwnedPurchases.Live</code> and <code>OwnedPurchases.Recovered</code> are <strong>grant-only</strong>. A match against the cache's <code>productPredicate</code> transitions to <code>Granted</code> and persists the snapshot. A <em>non-match</em> on either does <strong>not</strong> revoke. <code>Live</code> can carry <code>UNSPECIFIED_STATE</code> entries or products unrelated to the predicate, and <code>Recovered</code> only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.</li>
-<li><code>FlowOutcome.Failure</code> triggers <code>InGrace</code> (or transitions straight to <code>Revoked</code> if the policy window is zero or has already elapsed since the last confirmation).</li>
-<li><code>PurchaseRevoked</code> matched against <code>lastConfirmedSnapshot.purchaseToken</code> transitions to <code>Revoked</code> immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire <code>emitExternalRevocation</code> against their RTDN→FCM pipeline (or whatever transport carries refund/chargeback signals); see <a href="../server-driven-revocation/">Server-driven revocation</a>.</li>
-</ul>
-<p>The remaining <code>FlowOutcome</code> variants (<code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>UnknownResponse</code>) are no-ops; they don't change owned-purchase state, and <code>Pending</code> must not grant entitlement (per Play's rules).</p>
-<h2 id="storage-is-your-responsibility">Storage is your responsibility<a class="headerlink" href="#storage-is-your-responsibility" title="Permanent link">&para;</a></h2>
-<p>The library doesn't pick a persistence library. Implement <code>EntitlementStorage</code> against whatever your app already uses (DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key). The interface is two suspend functions:</p>
-<p><code>kotlin
-interface EntitlementStorage {
-    suspend fun read(): EntitlementSnapshot?
-    suspend fun write(snapshot: EntitlementSnapshot)
-}</code></p>
-<p><code>EntitlementSnapshot</code> is plain data: <code>(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)</code>. The cache calls <code>read()</code> once on <code>start()</code> to hydrate, then <code>write()</code> on every entitlement-affecting transition. <code>InGrace</code> is <strong>not</strong> persisted — grace re-derives from the most recent confirmed <code>confirmedAtMs</code> on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.</p>
-<p>For most apps the on-device storage is fine: a tampered snapshot gets overwritten the next time <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirms (or fails to confirm via <code>PurchaseRevoked</code>) the entitlement. The cache trusts what storage returns.</p>
-<h2 id="tamper-resistant-storage">Tamper-resistant storage<a class="headerlink" href="#tamper-resistant-storage" title="Permanent link">&para;</a></h2>
-<p>If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where premium has real value), wrap your <code>EntitlementStorage</code> in <code>SignedEntitlementStorage</code>. The decorator signs the snapshot on every write and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start and the next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> re-confirms truth).</p>
+<h2 id="multi-entitlement-wiring">Multi-entitlement wiring<a class="headerlink" href="#multi-entitlement-wiring" title="Permanent link">&para;</a></h2>
 <p>```kotlin
-import com.kanetik.billing.entitlement.signed.*</p>
-<p>val storage: EntitlementStorage = SignedEntitlementStorage(
-    delegate = MyDataStoreEntitlementStorage(context),
-    keyProvider = KeystoreBackedKeyProvider.create(),
-    signatureStore = SharedPreferencesSignatureStore(context),
-    onTamperDetected = { event -&gt;
-        when (event) {
-            TamperEvent.MissingSignature -&gt; logger.info("First read after upgrade")
-            TamperEvent.InvalidSignature -&gt; logger.warn("Possible tampering detected")
-            is TamperEvent.UnsupportedVersion -&gt; logger.warn("Unknown sig version ${event.version}")
+enum class GameEntitlement { PRO_TOOLKIT, EXPANSION_PACK }</p>
+<p>class ShopViewModel(
+    billing: BillingRepository,
+    storage: EntitlementStorage<GameEntitlement>,
+) : ViewModel() {</p>
+<pre><code>private val cache = EntitlementCache(
+    purchasesUpdates = billing.observePurchaseUpdates(),
+    storage = storage,
+    gracePolicy = GracePolicy(
+        billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
+        transientFailureMs   = TimeUnit.HOURS.toMillis(6),
+    ),
+    productKeySelector = { purchase -&gt;
+        when {
+            "pro_toolkit"    in purchase.products -&gt; GameEntitlement.PRO_TOOLKIT
+            "expansion_pack" in purchase.products -&gt; GameEntitlement.EXPANSION_PACK
+            else -&gt; null   // consumable currency packs bypass the cache; see the consumables guide
         }
     },
 )
-val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productPredicate)
+
+init { viewModelScope.launch { cache.start(viewModelScope) } }
+
+val hasProToolkit: Flow&lt;Boolean&gt; = cache.stateFor(GameEntitlement.PRO_TOOLKIT)
+    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+
+val hasExpansion: Flow&lt;Boolean&gt; = cache.stateFor(GameEntitlement.EXPANSION_PACK)
+    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+</code></pre>
+<p>}
 ```</p>
-<p><code>SignedEntitlementStorage</code> keeps the library neutral on the persistence backend — the underlying <code>EntitlementStorage</code> still owns the snapshot bytes, the signature blob lives separately in <code>SignatureStore</code>. Pick <code>KeystoreBackedKeyProvider</code> (the recommended default; uses Android Keystore HMAC keys, hardware-backed where available) or <code>ServerSeededKeyProvider</code> (per-install seed from your backend, cached locally — see its KDoc for the plaintext-cache caveat). The library can't enforce key non-extractability and isn't a replacement for server-side validation; both caveats are documented on the relevant types.</p>
-<p><code>onTamperDetected</code> distinguishes three cases via the <code>TamperEvent</code> sealed type. The most common one in practice is <code>MissingSignature</code> — fired the first time the decorator reads a snapshot that was written by a release without <code>SignedEntitlementStorage</code>. Treat it differently from <code>InvalidSignature</code> in your telemetry; the latter is the strong tamper indicator.</p>
-<h3 id="migrating-an-existing-unsigned-snapshot">Migrating an existing unsigned snapshot<a class="headerlink" href="#migrating-an-existing-unsigned-snapshot" title="Permanent link">&para;</a></h3>
-<p>By default, the first read after wrapping an existing unsigned snapshot fires <code>TamperEvent.MissingSignature</code> and returns null — a one-time cold-start. The next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.</p>
-<p>If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call <code>SignedEntitlementStorage.migrateUnsignedSnapshot</code> once on first launch after upgrade, guarded by your own marker. <code>migrateUnsignedSnapshot</code> is <code>suspend</code>, so call it from a coroutine — and call it <strong>before</strong> constructing the <code>SignedEntitlementStorage</code> that wraps the same trio, so the cache's first read sees the signature you just wrote:</p>
+<h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
+<p>The cache exposes a <code>StateFlow&lt;Map&lt;K, EntitlementState&gt;&gt;</code>. Keys absent from the map are implicitly <code>EntitlementState.Revoked</code> (the cache hasn't observed a granting purchase for them). Each per-key value is one of three terminal states:</p>
+<ul>
+<li><code>Granted</code> — confirmed entitlement; show the gated UI / unlock the feature.</li>
+<li><code>InGrace(expiresAtMs, reason)</code> — recently confirmed, then a <code>FlowOutcome.Failure</code> arrived. Treat as entitled until <code>expiresAtMs</code>; after that the cache transitions to <code>Revoked</code>. Reason is one of <code>BillingUnavailable</code> (Play Services missing, account ineligible, region restriction) or <code>TransientFailure</code> (network error, service disconnect, generic billing error).</li>
+<li><code>Revoked</code> — no entitlement; hide the gated UI.</li>
+</ul>
+<p><code>stateFor(key: K)</code> returns a <code>Flow&lt;EntitlementState&gt;</code> that surfaces absent keys as <code>Revoked</code> and is <code>distinctUntilChanged()</code> against unchanged values — usually what you want for UI binding.</p>
+<p>Grace expiry is re-evaluated on every emission and on a periodic tick, per key, so an extended outage correctly transitions <code>InGrace → Revoked</code> even when no further updates arrive in between.</p>
+<h2 id="when-to-use-it">When to use it<a class="headerlink" href="#when-to-use-it" title="Permanent link">&para;</a></h2>
+<p>Use <code>EntitlementCache</code> when you want a simple <code>is the user entitled to X right now?</code> flow off the side of your existing <code>observePurchaseUpdates()</code> integration. The cache is purely observational; it does <strong>not</strong> call <code>handlePurchase</code> for you. Acknowledge / consume + entitlement grant remain your collector's job. The cache just tracks the resulting confirmed observation.</p>
+<p>Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, dynamically-added entitlements). Write a thin custom layer for those.</p>
+<p>The cache reacts to four event paths:</p>
+<ul>
+<li><code>OwnedPurchases.Live</code> and <code>OwnedPurchases.Recovered</code> are <strong>grant-only</strong>. For each <code>PURCHASED</code>-state purchase, <code>productKeySelector</code> is applied; a non-null result transitions that key to <code>Granted</code> and persists. A <em>non-match</em> (selector returns null) does <strong>not</strong> revoke. <code>Live</code> can carry <code>UNSPECIFIED_STATE</code> entries or products unrelated to any tracked entitlement, and <code>Recovered</code> only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.</li>
+<li><code>FlowOutcome.Failure</code> triggers <code>InGrace</code> for every currently-Granted or InGrace key (or transitions them straight to <code>Revoked</code> if the policy window is zero or has already elapsed since that key's last confirmation).</li>
+<li><code>PurchaseRevoked</code> matched against <em>any</em> key's <code>lastConfirmedSnapshot.purchaseToken</code> transitions that key (and only that key) to <code>Revoked</code> immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire <code>emitExternalRevocation</code> against their RTDN→FCM pipeline; see <a href="../server-driven-revocation/">Server-driven revocation</a>.</li>
+</ul>
+<p>The remaining <code>FlowOutcome</code> variants (<code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>UnknownResponse</code>) are no-ops; they don't change owned-purchase state, and <code>Pending</code> must not grant entitlement (per Play's rules).</p>
+<h2 id="storage-is-your-responsibility">Storage is your responsibility<a class="headerlink" href="#storage-is-your-responsibility" title="Permanent link">&para;</a></h2>
+<p>The library doesn't pick a persistence library. Implement <code>EntitlementStorage&lt;K&gt;</code> against whatever your app already uses (DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key). The interface is two suspend functions:</p>
+<p><code>kotlin
+interface EntitlementStorage&lt;K : Any&gt; {
+    suspend fun readAll(): Map&lt;K, EntitlementSnapshot&gt;
+    suspend fun write(key: K, snapshot: EntitlementSnapshot)
+}</code></p>
+<p>Your implementation is responsible for serializing <code>K</code> to a stable on-disk identifier. For <code>String</code> keys that's the identity; for <code>enum class</code> keys use <code>K.name</code> (not <code>toString()</code> — it's overridable); for sealed classes pick a stable discriminator field. Stability across app upgrades matters — renaming an enum constant breaks the on-disk mapping.</p>
+<p><code>EntitlementSnapshot</code> is plain data: <code>(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)</code>. The cache calls <code>readAll()</code> once on <code>start()</code> to hydrate, then <code>write(key, snapshot)</code> on every entitlement-affecting transition. <code>InGrace</code> is <strong>not</strong> persisted — grace re-derives from the most recent confirmed <code>confirmedAtMs</code> on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.</p>
+<p>For most apps the on-device storage is fine: a tampered snapshot gets overwritten the next time <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirms (or fails to confirm via <code>PurchaseRevoked</code>) the entitlement. The cache trusts what storage returns.</p>
+<h2 id="tamper-resistant-storage">Tamper-resistant storage<a class="headerlink" href="#tamper-resistant-storage" title="Permanent link">&para;</a></h2>
+<p>If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where the paid entitlement has real value), wrap your <code>EntitlementStorage&lt;K&gt;</code> in <code>SignedEntitlementStorage&lt;K&gt;</code>. The decorator signs each snapshot on every write (using a key-aware canonical encoding so cross-key sig swaps fail verification) and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start for that key, and the next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> re-confirms truth).</p>
 <p>```kotlin
-suspend fun bootstrapEntitlementStorage(context: Context): EntitlementStorage {
+import com.kanetik.billing.entitlement.signed.*</p>
+<p>val storage: EntitlementStorage<GameEntitlement> = SignedEntitlementStorage(
+    delegate = MyDataStoreEntitlementStorage(context),
+    keyProvider = KeystoreBackedKeyProvider.create(),
+    signatureStore = SharedPreferencesSignatureStore(context),
+    keyToStorageId = { it.name },   // stable string per K instance
+    onTamperDetected = { entitlementKey, event -&gt;
+        when (event) {
+            TamperEvent.MissingSignature -&gt; logger.info("First read for $entitlementKey")
+            TamperEvent.InvalidSignature -&gt; logger.warn("Possible tampering on $entitlementKey")
+            is TamperEvent.UnsupportedVersion -&gt;
+                logger.warn("Unknown sig version ${event.version} on $entitlementKey")
+        }
+    },
+)
+val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productKeySelector)
+```</p>
+<p><code>SignedEntitlementStorage</code> keeps the library neutral on the persistence backend — the underlying <code>EntitlementStorage</code> still owns the snapshot bytes, the signature blobs (one per entitlement key) live separately in <code>SignatureStore</code>. Pick <code>KeystoreBackedKeyProvider</code> (the recommended default; uses Android Keystore HMAC keys, hardware-backed where available) or <code>ServerSeededKeyProvider</code> (per-install seed from your backend, cached locally — see its KDoc for the plaintext-cache caveat). The library can't enforce key non-extractability and isn't a replacement for server-side validation; both caveats are documented on the relevant types.</p>
+<p><code>onTamperDetected</code> receives the entitlement key (as serialized via <code>keyToStorageId</code>) along with the typed <code>TamperEvent</code>. A tamper on one key doesn't affect the others — verified snapshots for the unaffected keys still flow through. The most common event in practice is <code>MissingSignature</code> — fired the first time the decorator reads a snapshot that was written by a release without <code>SignedEntitlementStorage</code>. Treat it differently from <code>InvalidSignature</code> in your telemetry; the latter is the strong tamper indicator.</p>
+<h3 id="migrating-an-existing-unsigned-snapshot">Migrating an existing unsigned snapshot<a class="headerlink" href="#migrating-an-existing-unsigned-snapshot" title="Permanent link">&para;</a></h3>
+<p>By default, the first read after wrapping an existing unsigned snapshot fires <code>TamperEvent.MissingSignature</code> and omits that key from the verified map — a one-time cold-start for that entitlement. The next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.</p>
+<p>If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call <code>SignedEntitlementStorage.migrateUnsignedSnapshot</code> once per entitlement on first launch after upgrade, guarded by your own marker:</p>
+<p>```kotlin
+suspend fun bootstrapEntitlementStorage(context: Context): EntitlementStorage<GameEntitlement> {
     val rawStorage = MyDataStoreEntitlementStorage(context)
     val keyProvider = KeystoreBackedKeyProvider.create()
     val sigStore = SharedPreferencesSignatureStore(context)</p>
 <pre><code>if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
-    SignedEntitlementStorage.migrateUnsignedSnapshot(rawStorage, keyProvider, sigStore)
+    for (entitlement in GameEntitlement.values()) {
+        SignedEntitlementStorage.migrateUnsignedSnapshot(
+            entitlementKey = entitlement.name,
+            entitlementCacheKey = entitlement,
+            delegate = rawStorage,
+            keyProvider = keyProvider,
+            signatureStore = sigStore,
+        )
+    }
     prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
 }
-return SignedEntitlementStorage(rawStorage, keyProvider, sigStore, onTamperDetected = { ... })
+return SignedEntitlementStorage(
+    delegate = rawStorage,
+    keyProvider = keyProvider,
+    signatureStore = sigStore,
+    keyToStorageId = { it.name },
+    onTamperDetected = { _, _ -&gt; },
+)
 </code></pre>
 <p>}
 ```</p>

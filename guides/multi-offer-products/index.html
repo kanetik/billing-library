@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://kanetik.github.io/billing-library/guides/multi-offer-products/">
       
       
-        <link rel="prev" href="../multi-quantity/">
+        <link rel="prev" href="../consumables/">
       
       
         <link rel="next" href="../product-details-caching/">
@@ -714,6 +714,27 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../consumables/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Consumables ledger
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -726,6 +747,17 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Multi-offer products
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -735,6 +767,34 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pre-orders-use-ispreorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-orders: use isPreorder
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1042,6 +1102,23 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pre-orders-use-ispreorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-orders: use isPreorder
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1059,7 +1136,7 @@
 
 
 <h1 id="pre-order-multi-offer-one-time-products">Pre-order / multi-offer one-time products<a class="headerlink" href="#pre-order-multi-offer-one-time-products" title="Permanent link">&para;</a></h1>
-<p>Play Billing lets a one-time product carry multiple offers (e.g., a pre-order discount alongside the regular price). The <code>toOneTimeFlowParams</code> extension takes an optional selector:</p>
+<p>Play Billing lets a one-time product carry multiple offers — a pre-order discount alongside the regular price, alternative price tiers, etc. The <code>toOneTimeFlowParams</code> extension takes an optional selector:</p>
 <p><code>kotlin
 val params = productDetails.toOneTimeFlowParams(
     offerSelector = { offers -&gt;
@@ -1068,6 +1145,24 @@ val params = productDetails.toOneTimeFlowParams(
     }
 )</code></p>
 <p>Default selector picks the first offer. If your app has only one offer per product, you can ignore the parameter.</p>
+<h2 id="pre-orders-use-ispreorder">Pre-orders: use <code>isPreorder</code><a class="headerlink" href="#pre-orders-use-ispreorder" title="Permanent link">&para;</a></h2>
+<p>PBL 8.1+ exposes pre-order metadata via <code>OneTimePurchaseOfferDetails.preorderDetails</code>. The library wraps that as a <code>Boolean</code> extension for ergonomic switching:</p>
+<p>```kotlin
+import com.kanetik.billing.ext.isPreorder</p>
+<p>val params = productDetails.toOneTimeFlowParams(
+    offerSelector = { offers -&gt;
+        val preorder = offers.firstOrNull { it.isPreorder }
+        val regular = offers.firstOrNull { !it.isPreorder }
+        if (userOptedIntoPreorder) preorder ?: regular else regular ?: preorder
+    }
+)
+```</p>
+<p>Three wrinkles to remember when wiring pre-orders:</p>
+<ul>
+<li>The purchase shows up as <code>FlowOutcome.Pending</code> until Play fulfills it on the release date — <strong>do not grant entitlement on that pending event</strong>. Wait for the matching <code>OwnedPurchases.Live</code> update that arrives when fulfillment lands.</li>
+<li>The user can cancel a pending pre-order from the Play Store before the release date. Play surfaces the cancellation server-side via the Voided Purchases API (no client event today). Apps that pre-grant feature access on pre-order signup should reconcile against the Voided Purchases API via their backend before treating the entitlement as durable.</li>
+<li>One product can carry both pre-order and standard offers simultaneously. The <code>isPreorder</code> predicate is how you branch the selector.</li>
+</ul>
 
 
 

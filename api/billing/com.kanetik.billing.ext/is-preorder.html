@@ -2,9 +2,9 @@
 <html class="no-js" lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
-    <title>read</title>
-    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
-        <script>var pathToRoot = "../../../";</script>
+    <title>isPreorder</title>
+    <link href="../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../";</script>
     <script>document.documentElement.classList.replace("no-js", "js");</script>
     <script>const storage = localStorage.getItem("dokka-dark-mode")
       if (storage == null) {
@@ -19,23 +19,23 @@
         }
       }
     </script>
-<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
-<link href="../../../styles/style.css" rel="Stylesheet">
-<link href="../../../styles/main.css" rel="Stylesheet">
-<link href="../../../styles/prism.css" rel="Stylesheet">
-<link href="../../../styles/logo-styles.css" rel="Stylesheet">
-<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
-<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
-<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
-<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
-<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
-<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
-<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+<script type="text/javascript" src="../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../styles/style.css" rel="Stylesheet">
+<link href="../../styles/main.css" rel="Stylesheet">
+<link href="../../styles/prism.css" rel="Stylesheet">
+<link href="../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../ui-kit/ui-kit.min.js" defer="defer"></script>
 </head>
 <body>
 <div class="root">
     <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
-            <a class="library-name--link" href="../../../index.html" tabindex="1">
+            <a class="library-name--link" href="../../index.html" tabindex="1">
                     billing
             </a>
         <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.2-SNAPSHOT        </div>
+0.1.3-SNAPSHOT        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -103,12 +103,12 @@
         </nav>
         <div id="resizer" class="resizer" data-item-type="BAR"></div>
         <div id="main" data-item-type="SECTION" role="main">
-<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing.entitlement/EntitlementStorage/read/#/PointingToDeclaration//-593106385">
-  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.entitlement</a><span class="delimiter">/</span><a href="index.html">EntitlementStorage</a><span class="delimiter">/</span><span class="current">read</span></div>
+<div class="main-content" data-page-type="member" id="content" pageIds="billing::com.kanetik.billing.ext//isPreorder/com.android.billingclient.api.ProductDetails.OneTimePurchaseOfferDetails#/PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../index.html">billing</a><span class="delimiter">/</span><a href="index.html">com.kanetik.billing.ext</a><span class="delimiter">/</span><span class="current">isPreorder</span></div>
   <div class="cover ">
-    <h1 class="cover"><span><span>read</span></span></h1>
+    <h1 class="cover"><span>is</span><wbr></wbr><span><span>Preorder</span></span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="read.html"><span class="token function">read</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-entitlement-snapshot/index.html">EntitlementSnapshot</a><span class="token operator">?</span></div><span class="kdoc-tag"><h4 class="">Return</h4><p class="paragraph">the most recently persisted snapshot, or <code class="lang-kotlin">null</code> if none exists (first run, or the snapshot was cleared).</p></span></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><span data-unresolved-link="com.android.billingclient.api/ProductDetails.OneTimePurchaseOfferDetails///PointingToDeclaration/">ProductDetails.OneTimePurchaseOfferDetails</span><span class="token punctuation">.</span><a href="is-preorder.html">isPreorder</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><p class="paragraph">Returns <code class="lang-kotlin">true</code> if this one-time-product offer is a pre-order — Play hasn't fulfilled it yet, and the user is signing up to be charged on a future release date. PBL 8.1+ exposes pre-order metadata via <code class="lang-kotlin">getPreorderDetails()</code>; this extension is sugar over the null-check.</p><p class="paragraph">Pre-order offers have a few wrinkles worth knowing:</p><ul><li><p class="paragraph">The purchase shows up as <a href="../com.kanetik.billing/-flow-outcome/-pending/index.html">com.kanetik.billing.FlowOutcome.Pending</a> until     Play fulfills it on the release date — <strong>do not grant entitlement</strong> on     that pending event. Wait for the matching     <a href="../com.kanetik.billing/-owned-purchases/-live/index.html">com.kanetik.billing.OwnedPurchases.Live</a> update that arrives when the     fulfillment lands.</p></li><li><p class="paragraph">The user can cancel a pending pre-order from the Play Store before the     release date; Play surfaces the cancellation via Voided Purchases API     server-side (no client event today). Apps that pre-grant feature access     on pre-order signup should reconcile against the Voided Purchases API     via their backend before treating the entitlement as durable.</p></li><li><p class="paragraph">One product can carry both pre-order and standard offers     simultaneously. Pass an offerSelector to <code class="lang-kotlin">toOneTimeFlowParams</code> that     branches on <a href="is-preorder.html">isPreorder</a> to drive the user into the right one.</p></li></ul><p class="paragraph">Example:</p><div class="sample-container"><pre><code class="block lang-kotlin" theme="idea">val params = productDetails.toOneTimeFlowParams(<br>    offerSelector = { offers -&gt;<br>        val preorder = offers.firstOrNull { it.isPreorder }<br>        val regular = offers.firstOrNull { !it.isPreorder }<br>        if (userOptedIntoPreorder) preorder ?: regular else regular ?: preorder<br>    }<br>)</code></pre><span class="copy-tooltip"><div class="copy-popup-wrapper popup-to-left"><span class="copy-popup-icon"></span><span>Content copied to clipboard</span></div><span class="copy-icon"></span></span></div></div></div>
 </div>
     <div class="footer">
         <div class="footer--container">
