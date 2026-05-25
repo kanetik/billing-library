@@ -165,9 +165,14 @@ jobs:
           # still open), skip `gh pr create` — the force-push above already
           # updated the diff on the existing PR. Only create a new PR when
           # none is open.
-          EXISTING=$(gh pr list --head "$BRANCH" --state open --json number,url --jq '.[0].number')
+          # `--jq '.[0].number'` on an empty match returns the literal string
+          # `null` (jq's representation of JSON null), which `[ -n "$X" ]` reads
+          # as non-empty. The `// empty` alternative operator substitutes an
+          # empty string when the LHS is null/false, so the existence check
+          # works correctly when no PR is open.
+          EXISTING=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
-            EXISTING_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url')
+            EXISTING_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
             echo "PR #${EXISTING} already open for branch ${BRANCH} (${EXISTING_URL})."
             echo "Force-pushed branch with the refreshed diff; existing PR will pick it up."
             exit 0
