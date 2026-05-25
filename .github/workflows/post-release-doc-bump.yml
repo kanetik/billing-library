@@ -4,8 +4,10 @@ name: Post-release doc bump
 #   - Bumps install pins in README.md, docs/installation.md (Kotlin DSL /
 #     Groovy / version catalog / Maven), and sample/README.md to the new
 #     version.
-#   - Stamps CHANGELOG.md: renames `## [Unreleased]` → `## [<VERSION>] -
-#     <DATE>` and inserts a fresh empty `## [Unreleased]` placeholder above.
+#   - Stamps CHANGELOG.md: keeps the existing `## [Unreleased]` heading in
+#     place (now empty) and inserts a new `## [<VERSION>] - <DATE>` section
+#     immediately below it. The release notes that were sitting under
+#     [Unreleased] visually fall under the new dated section as a result.
 #
 # Beta / pre-release tags (containing `-`, e.g., `v0.1.0-beta1`) are skipped.
 # The user-facing install snippets target the stable release line; betas are
@@ -115,7 +117,12 @@ jobs:
         run: |
           VER="${{ steps.meta.outputs.version }}"
           DATE="${{ steps.meta.outputs.date }}"
-          if grep -qE "^## \\[${VER}\\] - " CHANGELOG.md; then
+          # Escape regex metacharacters in $VER before interpolating into the
+          # grep -E pattern. Versions today are X.Y.Z (dot is the only
+          # metachar in play), but defensively escape so future format changes
+          # don't introduce false matches.
+          VER_ESC=$(printf '%s' "$VER" | sed 's/\./\\./g')
+          if grep -qE "^## \\[${VER_ESC}\\] - " CHANGELOG.md; then
             echo "CHANGELOG already has a section for ${VER}; skipping stamp."
           else
             awk -v ver="$VER" -v date="$DATE" '

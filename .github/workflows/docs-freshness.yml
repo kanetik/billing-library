@@ -172,7 +172,10 @@ jobs:
       - name: Check CHANGELOG has section for the pinned version
         run: |
           PIN="${{ steps.pins.outputs.readme }}"
-          if grep -qE "^## \[${PIN}\] - " CHANGELOG.md; then
+          # Escape regex metacharacters in $PIN before interpolating into the
+          # grep -E pattern (dots in X.Y.Z would otherwise act as wildcards).
+          PIN_ESC=$(printf '%s' "$PIN" | sed 's/\./\\./g')
+          if grep -qE "^## \[${PIN_ESC}\] - " CHANGELOG.md; then
             echo "CHANGELOG has section [${PIN}]. OK."
             exit 0
           fi
