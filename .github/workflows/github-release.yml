@@ -62,14 +62,39 @@ jobs:
 
       - name: Derive version + tag
         id: meta
+        # User-controlled inputs (workflow_dispatch input, tag ref name) are
+        # passed via `env:` rather than `${{ ... }}` template interpolation
+        # inside the shell script. Template interpolation rewrites the script
+        # text before bash sees it, so a malicious tag like
+        # `v0.1.3$(rm -rf /)` would trigger command substitution at assignment
+        # time, BEFORE any validation could run. Env vars are bound at
+        # process start and accessed via normal parameter expansion ("$VAR"),
+        # which treats the value literally.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_REF: ${{ github.ref_name }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            INPUT="${{ inputs.version }}"
+            INPUT="$INPUT_VERSION"
           else
-            INPUT="${GITHUB_REF_NAME}"
+            INPUT="$INPUT_REF"
           fi
           # Accept both `v0.1.3` and `0.1.3` forms; canonicalize.
           VERSION="${INPUT#v}"
+          # SemVer-shaped validation: X.Y.Z with an optional pre-release
+          # suffix of dot-separated alphanumeric identifiers (e.g., `beta1`,
+          # `rc.2`). Rejects whitespace, control chars, and shell
+          # metacharacters by construction — the character class is narrow.
+          # Defense in depth: the env-var path above already prevents
+          # injection at assignment time; this regex enforces "the value is
+          # a release version we know how to handle" so downstream steps
+          # (gh release create, git checkout, CHANGELOG match) don't get
+          # surprising tag shapes.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Version '$VERSION' is not a valid X.Y.Z or X.Y.Z-<prerelease> form."
+            echo "Accepted: '0.1.3', '0.1.3-beta1', '0.1.3-rc.2'. Rejected: anything with whitespace, slashes, or shell metacharacters."
+            exit 1
+          fi
           TAG="v${VERSION}"
           # Pre-release detection: anything containing `-` (e.g., `0.1.3-beta1`).
           if printf '%s' "$VERSION" | grep -q -- '-'; then
@@ -88,20 +113,23 @@ jobs:
         # default branch HEAD — main may have moved on since the tag.
         # Tag pushes already check out the tag; only the dispatch path
         # needs the explicit switch.
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          if ! git rev-parse --verify "refs/tags/${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
-            echo "::error::Tag ${{ steps.meta.outputs.tag }} does not exist. Create + push the tag before running this workflow."
+          if ! git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG does not exist. Create + push the tag before running this workflow."
             exit 1
           fi
-          git checkout "${{ steps.meta.outputs.tag }}"
+          git checkout "$TAG"
 
       - name: Skip if release already exists
         id: existing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          if gh release view "${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
-            echo "::notice::Release ${{ steps.meta.outputs.tag }} already exists — skipping. (To regenerate, delete the release and re-run via workflow_dispatch.)"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists — skipping. (To regenerate, delete the release and re-run via workflow_dispatch.)"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -110,8 +138,9 @@ jobs:
       - name: Extract CHANGELOG section
         if: steps.existing.outputs.exists == 'false'
         id: extract
+        env:
+          VER: ${{ steps.meta.outputs.version }}
         run: |
-          VER="${{ steps.meta.outputs.version }}"
           BODY_FILE="$(mktemp)"
           # index()-based matching (not regex) so `[`, `]`, and `.` in the
           # version need no escaping. Print everything from the
@@ -142,14 +171,18 @@ jobs:
         if: steps.existing.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          BODY_FILE: ${{ steps.extract.outputs.body_file }}
+          REPO: ${{ github.repository }}
         run: |
           PRE_FLAG=""
-          if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
+          if [ "$PRERELEASE" = "true" ]; then
             PRE_FLAG="--prerelease"
           fi
-          gh release create "${{ steps.meta.outputs.tag }}" \
-            --title "${{ steps.meta.outputs.tag }}" \
-            --notes-file "${{ steps.extract.outputs.body_file }}" \
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file "$BODY_FILE" \
             --verify-tag \
             $PRE_FLAG
-          echo "::notice::Created release at https://github.com/${{ github.repository }}/releases/tag/${{ steps.meta.outputs.tag }}"
+          echo "::notice::Created release at https://github.com/$REPO/releases/tag/$TAG"
