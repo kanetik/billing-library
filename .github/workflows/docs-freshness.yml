@@ -41,7 +41,12 @@ jobs:
       - name: Fetch Maven Central <release>
         id: mc
         run: |
-          RELEASE=$(curl -fsS 'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml' \
+          # --retry + --retry-all-errors covers transient blips at repo1
+          # (occasional 5xx, connection resets) without flaking unrelated PRs.
+          # --connect-timeout caps the wait per attempt so a hanging DNS / TCP
+          # connect doesn't drag the whole job out.
+          RELEASE=$(curl -fsS --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 \
+              'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml' \
             | grep -oP '<release>\K[^<]+')
           if [ -z "$RELEASE" ]; then
             echo "::error::Could not parse <release> from Maven Central maven-metadata.xml"
@@ -78,20 +83,27 @@ jobs:
             esac
           }
 
+          # check_file is invoked via `$(...)` command substitution, so its
+          # stdout is captured into a variable — `::error::` annotations and
+          # diagnostic lines need to go to STDERR or they're silently swallowed
+          # and don't surface in the Actions log/annotations. The single line
+          # on stdout (the pin value) is the function's return channel.
           check_file() {
             local file="$1"
             local pins
             pins=$(extract_file_pins "$file" | sort -uV)
             if [ -z "$pins" ]; then
-              echo "::error::No install pin found in $file (expected at least one 'com.kanetik.billing:billing:X.Y.Z')."
+              echo "::error::No install pin found in $file (expected at least one 'com.kanetik.billing:billing:X.Y.Z')." >&2
               return 1
             fi
             local count
             count=$(printf '%s\n' "$pins" | wc -l)
             if [ "$count" -gt 1 ]; then
-              echo "::error::$file contains multiple pin versions — file is internally inconsistent:"
-              printf '%s\n' "$pins" | sed 's/^/  /'
-              echo "  Fix: set every pin in this file to the same version."
+              {
+                echo "::error::$file contains multiple pin versions — file is internally inconsistent:"
+                printf '%s\n' "$pins" | sed 's/^/  /'
+                echo "  Fix: set every pin in this file to the same version."
+              } >&2
               return 1
             fi
             printf '%s' "$pins"
