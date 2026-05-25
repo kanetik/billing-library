@@ -11,10 +11,15 @@ name: Docs freshness
 #      files) is the same version. (Catches partial intra-file edits.)
 #   2. The 3 files agree with one another on that single version.
 #      (Catches partial cross-file edits.)
-#   3. The agreed pin is >= the Maven Central <release> version (per
-#      `sort -V`). Equal = caught up. Ahead = release in flight (e.g.,
-#      this PR is the bump itself, or Central staging hasn't been
-#      released yet). Behind = stale; fail.
+#   3. The agreed pin is >= the latest *stable* release on Maven Central
+#      (per `sort -V`). Equal = caught up. Ahead = release in flight (e.g.,
+#      this PR is the bump itself, or Central staging hasn't been released
+#      yet). Behind = stale; fail. "Stable" means we filter pre-releases
+#      (anything containing `-`, like `0.1.3-beta1`) out of the `<versions>`
+#      list before picking the max. Maven's `<release>` field can point to
+#      a pre-release — using it directly would permanently fail this check
+#      after any beta publish, since `post-release-doc-bump` intentionally
+#      skips beta tags and doc pins stay on the stable line.
 #   4. CHANGELOG.md has a `## [<pin>] - <date>` section. (Catches the
 #      drift mode that motivated this workflow: pins moved but CHANGELOG
 #      stayed under `[Unreleased]`.)
@@ -38,22 +43,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Maven Central <release>
+      - name: Fetch latest stable release from Maven Central
         id: mc
         run: |
           # --retry + --retry-all-errors covers transient blips at repo1
           # (occasional 5xx, connection resets) without flaking unrelated PRs.
           # --connect-timeout caps the wait per attempt so a hanging DNS / TCP
           # connect doesn't drag the whole job out.
-          RELEASE=$(curl -fsS --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 \
-              'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml' \
-            | grep -oP '<release>\K[^<]+')
+          #
+          # We pull from <versions> (not <release>) and filter out anything
+          # containing `-` so a published pre-release (e.g. 0.1.3-beta1)
+          # doesn't displace 0.1.2 as the freshness target. `<release>` in
+          # Maven metadata means "non-SNAPSHOT", which still includes betas.
+          METADATA=$(curl -fsS --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 \
+            'https://repo1.maven.org/maven2/com/kanetik/billing/billing/maven-metadata.xml')
+          RELEASE=$(printf '%s' "$METADATA" \
+            | grep -oP '(?<=<version>)[^<]+(?=</version>)' \
+            | grep -v -- '-' \
+            | sort -V \
+            | tail -1)
           if [ -z "$RELEASE" ]; then
-            echo "::error::Could not parse <release> from Maven Central maven-metadata.xml"
+            echo "::error::Could not find a stable release in Maven Central <versions>."
+            echo "Metadata fetched:" >&2
+            printf '%s\n' "$METADATA" >&2
             exit 1
           fi
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
-          echo "Maven Central <release> = $RELEASE"
+          echo "Latest stable on Maven Central = $RELEASE"
 
       - name: Extract + validate pin from each doc file
         id: pins
@@ -134,20 +150,20 @@ jobs:
           fi
           echo "All three files pin: $R"
 
-      - name: Check pin >= Maven Central <release>
+      - name: Check pin >= latest stable on Maven Central
         run: |
           PIN="${{ steps.pins.outputs.readme }}"
           REL="${{ steps.mc.outputs.release }}"
           if [ "$PIN" = "$REL" ]; then
-            echo "Pin matches Maven Central <release> ($REL). OK."
+            echo "Pin matches latest stable on Maven Central ($REL). OK."
             exit 0
           fi
           LOWEST=$(printf '%s\n%s\n' "$PIN" "$REL" | sort -V | head -1)
           if [ "$LOWEST" = "$REL" ]; then
-            echo "Pin ($PIN) is ahead of Maven Central <release> ($REL). OK — release in flight."
+            echo "Pin ($PIN) is ahead of latest stable on Maven Central ($REL). OK — release in flight."
             exit 0
           fi
-          echo "::error::Install pins ($PIN) are behind Maven Central <release> ($REL)."
+          echo "::error::Install pins ($PIN) are behind latest stable on Maven Central ($REL)."
           echo "Either:"
           echo "  1. Run the 'Post-release doc bump' workflow (workflow_dispatch with version=$REL), or"
           echo "  2. Bump pins + stamp CHANGELOG manually."
