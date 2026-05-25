@@ -77,9 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   No API impact; aimed at first-time readers who weren't building a
   premium-unlock app and bounced off the previous framing.
 
-### Notes
+### Risky items flagged for follow-up
 
-- The original v0.1.3 scope included a `setPurchaseQuantity` knob on
+- **PBL 9 dropped client-side multi-quantity control.** The original v0.1.3
+  scope included a `setPurchaseQuantity` knob on
   `toOneTimeFlowParams` — dropped because PBL 9 doesn't expose
   `setPurchaseQuantity` on `BillingFlowParams.ProductDetailsParams.Builder`.
   In PBL 9, multi-quantity is Play-Console-flag + Play-dialog-driven only;

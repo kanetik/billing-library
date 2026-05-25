@@ -121,8 +121,13 @@ import java.nio.ByteBuffer
  *   See [SignatureStore].
  * @param keyToStorageId serializes `K` to a stable string identifier. The
  *   string is used both as the lookup key in [signatureStore] and is included
- *   in the v2 canonical bytes. Must be stable across app upgrades (renaming
- *   an enum constant breaks verification of that entitlement's old sigs).
+ *   in the v2 canonical bytes. **Must be injective** — two distinct `K` values
+ *   must never serialize to the same string, or their snapshots / signatures
+ *   collide in storage and verification behaves unpredictably. **Must also be
+ *   stable across app upgrades** — renaming an enum constant breaks
+ *   verification of that entitlement's old sigs. The library does not
+ *   validate collisions defensively; injectivity and stability are caller
+ *   contracts.
  * @param onTamperDetected invoked from [readAll] when verification fails for
  *   a key. Receives the entitlement key (as serialized via [keyToStorageId])
  *   and the typed event. Runs on whatever dispatcher the read is invoked

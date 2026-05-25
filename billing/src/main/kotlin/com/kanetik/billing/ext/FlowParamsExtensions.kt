@@ -45,15 +45,19 @@ import com.android.billingclient.api.ProductDetails
  *
  * ## Multi-quantity (Play Console + `purchase.quantity`)
  *
- * Multi-quantity for consumables is configured per-product in Play Console
- * (*Multi-quantity purchases* flag) and rendered by Play's own purchase dialog
- * — there's no `setPurchaseQuantity` knob on the PBL 9 client. The dialog lets
- * the user pick the unit count; the resulting [com.android.billingclient.api.Purchase]
- * carries `purchase.quantity` (defaults to 1). Your entitlement-grant code must
- * read that field and grant `quantity` units, not 1. The library handles
- * acknowledgement correctly for any quantity (Play's consume API consumes the
- * whole purchase regardless), so only your wallet-ledger code needs the
- * awareness.
+ * Multi-quantity applies to **consumables** — a multi-quantity purchase
+ * isn't a multi-grant entitlement, it's N units credited to a wallet/ledger.
+ * Configured per-product in Play Console (*Multi-quantity purchases* flag)
+ * and rendered by Play's own purchase dialog — there's no
+ * `setPurchaseQuantity` knob on the PBL 9 client. The dialog lets the user
+ * pick the unit count; the resulting [com.android.billingclient.api.Purchase]
+ * carries `purchase.quantity` (defaults to 1). Your **wallet/ledger credit
+ * code** must read that field and credit `quantity` units, not 1. The
+ * library handles acknowledgement correctly for any quantity (Play's
+ * consume API consumes the whole purchase regardless), so only your
+ * wallet-ledger code needs the awareness — `EntitlementCache` is not
+ * involved (consumables bypass the cache via `productKeySelector` returning
+ * `null` for them; see the consumables guide).
  *
  * See the [Consumables ledger guide](https://kanetik.github.io/billing-library/guides/consumables/)
  * for the wallet-on-the-side pattern that pairs with multi-quantity consumables.

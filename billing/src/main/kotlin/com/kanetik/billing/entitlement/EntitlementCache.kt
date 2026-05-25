@@ -255,8 +255,10 @@ public class EntitlementCache<K : Any>(
     /**
      * The current entitlement state per key. Keys absent from the map are
      * implicitly [EntitlementState.Revoked] (the cache hasn't observed a
-     * granting purchase for them). Empty until [start] hydrates from storage
-     * and the first event arrives.
+     * granting purchase for them). Empty until [start] runs hydration — if
+     * storage holds snapshots, [start] populates [state] from them before
+     * returning; if storage is empty, [state] stays empty until the first
+     * granting purchase is observed.
      */
     public val state: StateFlow<Map<K, EntitlementState>> = _state.asStateFlow()
 

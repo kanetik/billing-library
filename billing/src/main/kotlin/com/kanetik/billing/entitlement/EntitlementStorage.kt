@@ -22,8 +22,17 @@ package com.kanetik.billing.entitlement
  * identifier. For `String` keys that's the identity; for `enum class` keys
  * use `K.name` (the constant identifier, not `toString()` — `toString()` can
  * be overridden); for sealed classes pick a stable discriminator field.
- * Stability across app upgrades matters — renaming an enum constant breaks
- * the on-disk mapping.
+ *
+ * Two requirements on the serialization:
+ *
+ *  - **Injective.** Two distinct `K` values must never serialize to the same
+ *    on-disk identifier. Collisions cause snapshot overwrites and (when paired
+ *    with [com.kanetik.billing.entitlement.signed.SignedEntitlementStorage])
+ *    cross-key signature collisions / spurious tamper events. The library
+ *    does not validate this defensively; it's a caller contract.
+ *  - **Stable across app upgrades.** Renaming an enum constant breaks the
+ *    on-disk mapping for that entitlement and surfaces as the snapshot
+ *    appearing to vanish (re-confirmed on the next live purchase event).
  *
  * ## Contract
  *
