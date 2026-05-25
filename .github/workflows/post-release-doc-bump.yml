@@ -155,10 +155,14 @@ jobs:
           git checkout -B "$BRANCH"
           git add README.md docs/installation.md sample/README.md CHANGELOG.md
           git commit -m "chore: post-release doc bump for ${VER}"
-          # Force-with-lease so a re-run safely overwrites the branch with the
-          # fresh diff. The lease guards against clobbering a teammate's commits
-          # if someone pushed to this auto-branch directly (rare but possible).
-          git push -u --force-with-lease origin "$BRANCH"
+          # Plain `--force` (not `--force-with-lease`) because:
+          #   1. The auto-branch is 100% automation-owned — no human pushes here.
+          #   2. `actions/checkout@v4 with ref: main` only fetches `main`, so
+          #      `refs/remotes/origin/$BRANCH` isn't present locally and
+          #      `--force-with-lease` can't form a meaningful "expected" ref,
+          #      which on some git versions causes a stale-info rejection.
+          # Re-runs on the same tag are intentional (resync the auto-PR's diff).
+          git push -u --force origin "$BRANCH"
 
           # Idempotent PR handling: if an open PR already exists for this
           # branch (e.g., the workflow is being re-run while a prior auto-PR is
