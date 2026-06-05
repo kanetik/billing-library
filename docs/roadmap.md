@@ -35,7 +35,7 @@ The review surfaced a few small, **optional** additive helpers worth tracking. N
 
 ### Multi-quantity `quantity` passthrough — *optional*
 
-Today `purchase.quantity` is documented as the consumer's responsibility ([Multi-quantity guide](guides/multi-quantity.md), `PurchaseEvent` / `BillingActions` KDoc) but the library never surfaces it. A consumer who forgets to read the field silently under-grants a multi-quantity consumable to a single unit — a real footgun that only shows up once someone enables multi-quantity SKUs in the Play Console.
+Today `purchase.quantity` is reachable — the `Purchase` objects ride through on `OwnedPurchases.purchases`, and the KDoc calls the field out ([Multi-quantity guide](guides/multi-quantity.md), `PurchaseEvent` / `BillingActions` KDoc) — but the library provides no dedicated accessor and never reads or applies the field itself; granting the right number of units is left entirely to the consumer. A consumer who forgets to read it silently under-grants a multi-quantity consumable to a single unit — a real footgun that only shows up once someone enables multi-quantity SKUs in the Play Console.
 
 **Value if done:** a thin, side-effect-free accessor (a `Purchase.grantQuantity` extension, or carrying `quantity` alongside the relevant emission) makes the field impossible to miss at the grant site, turning a doc-enforced rule into a typed one. Cost is ~a one-line getter plus a test. The only argument against is that it *is* a one-line getter the consumer can write themselves. Worth it mainly once a consumer ships multi-quantity consumables.
 
