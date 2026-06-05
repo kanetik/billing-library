@@ -1030,6 +1030,48 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#v01x-optional-ergonomics-revenuecat-edge-case-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.1.x — optional ergonomics (RevenueCat edge-case review)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.1.x — optional ergonomics (RevenueCat edge-case review)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-quantity-quantity-passthrough-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-quantity quantity passthrough — optional
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standalone-linkedpurchasetoken-accessor-optional-stopgap" class="md-nav__link">
+    <span class="md-ellipsis">
+      Standalone linkedPurchaseToken accessor — optional (stopgap)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-id-accessor-optional-low-priority-likely-wont-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      Order-ID accessor — optional (low priority, likely won't do)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v020-subscriptions-testing-artifact" class="md-nav__link">
     <span class="md-ellipsis">
       v0.2.0 — Subscriptions + testing artifact
@@ -1293,6 +1335,48 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#v01x-optional-ergonomics-revenuecat-edge-case-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.1.x — optional ergonomics (RevenueCat edge-case review)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.1.x — optional ergonomics (RevenueCat edge-case review)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-quantity-quantity-passthrough-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-quantity quantity passthrough — optional
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standalone-linkedpurchasetoken-accessor-optional-stopgap" class="md-nav__link">
+    <span class="md-ellipsis">
+      Standalone linkedPurchaseToken accessor — optional (stopgap)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-id-accessor-optional-low-priority-likely-wont-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      Order-ID accessor — optional (low priority, likely won't do)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v020-subscriptions-testing-artifact" class="md-nav__link">
     <span class="md-ellipsis">
       v0.2.0 — Subscriptions + testing artifact
@@ -1512,6 +1596,19 @@
 → minor release. "Does this fix or improve something we already shipped?"
 → patch release.</p>
 <hr />
+<h2 id="v01x-optional-ergonomics-revenuecat-edge-case-review">v0.1.x — optional ergonomics (RevenueCat edge-case review)<a class="headerlink" href="#v01x-optional-ergonomics-revenuecat-edge-case-review" title="Permanent link">&para;</a></h2>
+<p>These came out of a June 2026 review of RevenueCat's <a href="https://www.revenuecat.com/blog/engineering/google-play-edge-cases/">"Google Play Billing edge cases"</a> article against the shipped surface. Most of the article's edge cases are <strong>already handled</strong> in v0.1.x — pending-purchase partitioning, <code>ITEM_ALREADY_OWNED</code> requery, the unacknowledged-at-startup recovery sweep, acknowledge-vs-consume routing, the three-day acknowledgement cliff, disconnect/reconnect (PBL 8+ auto-reconnection plus a retry layer — fixed-delay on <code>SERVICE_DISCONNECTED</code>, exponential backoff on transient network / <code>SERVICE_UNAVAILABLE</code> operations), and retryable-vs-terminal error classification (see <a href="../design-notes/">Design notes</a>, <a href="../guides/purchase-recovery/">Purchase recovery</a>, and <a href="../guides/error-handling/">Error handling</a>). A few of the article's "solutions" are now stale: enabling pending purchases and reconnection backoff were manual in its era but are first-class in PBL 8/9, which the library already opts into.</p>
+<p>The review surfaced a few small, <strong>optional</strong> additive helpers worth tracking. None fixes a correctness bug in what's shipped — each just moves a currently-documented <em>consumer responsibility</em> into the library so it's harder to get wrong. All are v0.1.x-eligible (improvements to existing surface, per the policy above) and demand-driven: build when a real consumer hits the friction, not before.</p>
+<h3 id="multi-quantity-quantity-passthrough-optional">Multi-quantity <code>quantity</code> passthrough — <em>optional</em><a class="headerlink" href="#multi-quantity-quantity-passthrough-optional" title="Permanent link">&para;</a></h3>
+<p>Today <code>purchase.quantity</code> is reachable — the <code>Purchase</code> objects ride through on <code>OwnedPurchases.purchases</code>, and the KDoc calls the field out (<a href="../guides/multi-quantity/">Multi-quantity guide</a>, <code>PurchaseEvent</code> / <code>BillingActions</code> KDoc) — but the library provides no dedicated accessor and never reads or applies the field itself; granting the right number of units is left entirely to the consumer. A consumer who forgets to read it silently under-grants a multi-quantity consumable to a single unit — a real footgun that only shows up once someone enables multi-quantity SKUs in the Play Console.</p>
+<p><strong>Value if done:</strong> a thin, side-effect-free accessor (a <code>Purchase.grantQuantity</code> extension, or carrying <code>quantity</code> alongside the relevant emission) makes the field impossible to miss at the grant site, turning a doc-enforced rule into a typed one. Cost is ~a one-line getter plus a test. The only argument against is that it <em>is</em> a one-line getter the consumer can write themselves. Worth it mainly once a consumer ships multi-quantity consumables.</p>
+<h3 id="standalone-linkedpurchasetoken-accessor-optional-stopgap">Standalone <code>linkedPurchaseToken</code> accessor — <em>optional (stopgap)</em><a class="headerlink" href="#standalone-linkedpurchasetoken-accessor-optional-stopgap" title="Permanent link">&para;</a></h3>
+<p>The full fix is the typed <code>OwnedPurchases.SubscriptionReplacement</code> variant in the v0.2.0 plan below. But the README already advertises subscriptions at the protocol level in v0.1.x, and those early adopters currently have to copy-paste an <code>originalJson</code> JSON-parse snippet to read <code>linkedPurchaseToken</code> (PBL exposes no getter — see the v0.2.0 section for why).</p>
+<p><strong>Value if done:</strong> a single <code>Purchase.linkedPurchaseToken(): String?</code> extension removes that copy-paste and gives pre-v0.2.0 subscription adopters a supported way to detect plan-change replacements — and avoid double-granting entitlement — before the typed variant lands. It's a <em>bridge</em>, superseded by (not competing with) the v0.2.0 variant. Skip it entirely if no consumer does subscriptions before v0.2.0 ships.</p>
+<h3 id="order-id-accessor-optional-low-priority-likely-wont-do">Order-ID accessor — <em>optional (low priority, likely won't do)</em><a class="headerlink" href="#order-id-accessor-optional-low-priority-likely-wont-do" title="Permanent link">&para;</a></h3>
+<p>The article treats order IDs as state-machine identifiers, and flags that prepaid / pending purchases have no order ID until the payment confirms. But PBL already exposes <code>purchase.orderId</code> directly on the <code>Purchase</code> the consumer holds, so there's essentially nothing to add.</p>
+<p><strong>Value if done:</strong> near-zero beyond documentation — the field is already reachable. Captured only so the review is complete. The genuinely useful related note (no order ID until a pending/prepaid payment confirms — don't gate state-machine logic on its presence) is already on the v0.2.0 pending-purchase docs list below.</p>
+<hr />
 <h2 id="v020-subscriptions-testing-artifact">v0.2.0 — Subscriptions + testing artifact<a class="headerlink" href="#v020-subscriptions-testing-artifact" title="Permanent link">&para;</a></h2>
 <p>Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.</p>
 <p><strong>Scope discipline:</strong> v0.2.0 is for <em>new capabilities only</em>. If a quality-of-life
@@ -1580,6 +1677,7 @@ public sealed class SubscriptionChange {
 <p>Consumers who genuinely need a non-default mode can drop down to a lower-level <code>toSubscriptionFlowParams(replacementMode = ...)</code> overload. The sealed-type API is the front door; the raw mode is the escape hatch.</p>
 <h4 id="linkedpurchasetoken-surface-as-a-typed-sealed-variant">linkedPurchaseToken: surface as a typed sealed variant<a class="headerlink" href="#linkedpurchasetoken-surface-as-a-typed-sealed-variant" title="Permanent link">&para;</a></h4>
 <p>When a subscription replacement completes, the new <code>Purchase</code> carries a <code>linkedPurchaseToken</code> field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's <code>Purchase</code> API doesn't expose a getter for it — <code>Purchase.AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>; <code>linkedPurchaseToken</code> is only present in <code>purchase.originalJson</code>. Right now the library would emit a replacement purchase as <code>OwnedPurchases.Live</code> / <code>OwnedPurchases.Recovered</code>, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.</p>
+<p>(RevenueCat's edge-case article — see the <a href="#v01x-optional-ergonomics-revenuecat-edge-case-review">v0.1.x section above</a> — independently flags this exact double-grant trap, which validates the typed-variant approach. The standalone <code>Purchase.linkedPurchaseToken()</code> accessor noted there is the v0.1.x <em>stopgap</em> for protocol-level subscription adopters; this typed variant is the real fix and supersedes it.)</p>
 <p>Fix: add a dedicated <code>OwnedPurchases</code> variant emitted <em>instead of</em> <code>Live</code> (or <code>Recovered</code>) whenever <code>linkedPurchaseToken</code> is non-null:</p>
 <p><code>kotlin
 // Sealed-extends OwnedPurchases so it shares the existing branch
