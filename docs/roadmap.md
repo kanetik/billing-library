@@ -27,6 +27,32 @@ If you're triaging an issue: "does this add a capability we didn't have?"
 
 ---
 
+## v0.1.x — optional ergonomics (RevenueCat edge-case review)
+
+These came out of a June 2026 review of RevenueCat's ["Google Play Billing edge cases"](https://www.revenuecat.com/blog/engineering/google-play-edge-cases/) article against the shipped surface. Most of the article's edge cases are **already handled** in v0.1.x — pending-purchase partitioning, `ITEM_ALREADY_OWNED` requery, the unacknowledged-at-startup recovery sweep, acknowledge-vs-consume routing, the three-day acknowledgement cliff, disconnect/reconnect (PBL 8+ auto-reconnection plus a retry layer — fixed-delay on `SERVICE_DISCONNECTED`, exponential backoff on transient network / `SERVICE_UNAVAILABLE` operations), and retryable-vs-terminal error classification (see [Design notes](design-notes.md), [Purchase recovery](guides/purchase-recovery.md), and [Error handling](guides/error-handling.md)). A few of the article's "solutions" are now stale: enabling pending purchases and reconnection backoff were manual in its era but are first-class in PBL 8/9, which the library already opts into.
+
+The review surfaced a few small, **optional** additive helpers worth tracking. None fixes a correctness bug in what's shipped — each just moves a currently-documented *consumer responsibility* into the library so it's harder to get wrong. All are v0.1.x-eligible (improvements to existing surface, per the policy above) and demand-driven: build when a real consumer hits the friction, not before.
+
+### Multi-quantity `quantity` passthrough — *optional*
+
+Today `purchase.quantity` is reachable — the `Purchase` objects ride through on `OwnedPurchases.purchases`, and the KDoc calls the field out ([Multi-quantity guide](guides/multi-quantity.md), `PurchaseEvent` / `BillingActions` KDoc) — but the library provides no dedicated accessor and never reads or applies the field itself; granting the right number of units is left entirely to the consumer. A consumer who forgets to read it silently under-grants a multi-quantity consumable to a single unit — a real footgun that only shows up once someone enables multi-quantity SKUs in the Play Console.
+
+**Value if done:** a thin, side-effect-free accessor (a `Purchase.grantQuantity` extension, or carrying `quantity` alongside the relevant emission) makes the field impossible to miss at the grant site, turning a doc-enforced rule into a typed one. Cost is ~a one-line getter plus a test. The only argument against is that it *is* a one-line getter the consumer can write themselves. Worth it mainly once a consumer ships multi-quantity consumables.
+
+### Standalone `linkedPurchaseToken` accessor — *optional (stopgap)*
+
+The full fix is the typed `OwnedPurchases.SubscriptionReplacement` variant in the v0.2.0 plan below. But the README already advertises subscriptions at the protocol level in v0.1.x, and those early adopters currently have to copy-paste an `originalJson` JSON-parse snippet to read `linkedPurchaseToken` (PBL exposes no getter — see the v0.2.0 section for why).
+
+**Value if done:** a single `Purchase.linkedPurchaseToken(): String?` extension removes that copy-paste and gives pre-v0.2.0 subscription adopters a supported way to detect plan-change replacements — and avoid double-granting entitlement — before the typed variant lands. It's a *bridge*, superseded by (not competing with) the v0.2.0 variant. Skip it entirely if no consumer does subscriptions before v0.2.0 ships.
+
+### Order-ID accessor — *optional (low priority, likely won't do)*
+
+The article treats order IDs as state-machine identifiers, and flags that prepaid / pending purchases have no order ID until the payment confirms. But PBL already exposes `purchase.orderId` directly on the `Purchase` the consumer holds, so there's essentially nothing to add.
+
+**Value if done:** near-zero beyond documentation — the field is already reachable. Captured only so the review is complete. The genuinely useful related note (no order ID until a pending/prepaid payment confirms — don't gate state-machine logic on its presence) is already on the v0.2.0 pending-purchase docs list below.
+
+---
+
 ## v0.2.0 — Subscriptions + testing artifact
 
 Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.
@@ -82,6 +108,8 @@ Consumers who genuinely need a non-default mode can drop down to a lower-level `
 #### linkedPurchaseToken: surface as a typed sealed variant
 
 When a subscription replacement completes, the new `Purchase` carries a `linkedPurchaseToken` field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's `Purchase` API doesn't expose a getter for it — `Purchase.AccountIdentifiers` only carries `obfuscatedAccountId` / `obfuscatedProfileId`; `linkedPurchaseToken` is only present in `purchase.originalJson`. Right now the library would emit a replacement purchase as `OwnedPurchases.Live` / `OwnedPurchases.Recovered`, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.
+
+(RevenueCat's edge-case article — see the [v0.1.x section above](#v01x-optional-ergonomics-revenuecat-edge-case-review) — independently flags this exact double-grant trap, which validates the typed-variant approach. The standalone `Purchase.linkedPurchaseToken()` accessor noted there is the v0.1.x *stopgap* for protocol-level subscription adopters; this typed variant is the real fix and supersedes it.)
 
 Fix: add a dedicated `OwnedPurchases` variant emitted *instead of* `Live` (or `Recovered`) whenever `linkedPurchaseToken` is non-null:
 
