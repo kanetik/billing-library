@@ -136,11 +136,11 @@ class CoroutinesBillingConnectionFactoryTest {
             startConnectionCount = AtomicInteger()
         )
 
-        val start = currentTime
+        val start = testScheduler.currentTime
         factory.createBillingConnectionFlow(noopListener()).first()
 
         // Two backoffs (attempt 1→2 and 2→3), 500ms each.
-        assertThat(currentTime - start).isEqualTo(1000L)
+        assertThat(testScheduler.currentTime - start).isEqualTo(1000L)
     }
 
     @Test
@@ -155,11 +155,11 @@ class CoroutinesBillingConnectionFactoryTest {
             startConnectionCount = AtomicInteger()
         )
 
-        val start = currentTime
+        val start = testScheduler.currentTime
         factory.createBillingConnectionFlow(noopListener()).first()
 
         // Backoff after attempt 1 = 2000ms, after attempt 2 = 4000ms → 6000ms total.
-        assertThat(currentTime - start).isEqualTo(6000L)
+        assertThat(testScheduler.currentTime - start).isEqualTo(6000L)
     }
 
     @Test
