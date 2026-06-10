@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased items at this time.
+### Added
+
+- **Internal connection retry for transient `startConnection` failures.** When
+  `BillingClient.startConnection` reports a transient setup failure — notably
+  `SERVICE_DISCONNECTED` (classified `SIMPLE_RETRY`) and `SERVICE_UNAVAILABLE`
+  (classified `EXPONENTIAL_RETRY`) — the library now retries the connection
+  internally (bounded attempts + backoff) before surfacing a terminal
+  `BillingConnectionResult.Error`. Previously every transient connection
+  failure was handed straight to the consumer, forcing each one to recognize
+  the transient case by pattern-matching the exception subtype (+ response
+  code) and decide to ignore or retry it — an easy footgun to get wrong (e.g.
+  guarding on `responseCode == 0` when `SERVICE_DISCONNECTED` is actually
+  `-1`). Consumers now only see a connection `Error` once the transient
+  condition is actually persistent. This mirrors the operation-level retry
+  loop already applied to every `BillingActions` call; connection setup was
+  the one path that lacked a retry layer of its own.
+
+- **`ConnectionRetryPolicy`** — configurable policy (max attempts + backoff,
+  with library defaults that match the operation-level loop) controlling the
+  new connection retry. Pass it via the new
+  `BillingRepositoryCreator.create(connectionRetryPolicy = …)` parameter; use
+  `ConnectionRetryPolicy.None` to opt out and surface the first transient
+  failure immediately (the pre-change behavior).
 
 ## [0.1.3] - 2026-05-25
 

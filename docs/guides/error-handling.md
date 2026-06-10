@@ -46,6 +46,32 @@ try {
 
 `RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly: the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
 
+## Connection-setup retry
+
+The retry loop above covers `BillingActions` calls. Establishing the underlying connection gets the same treatment: a transient `BillingClient.startConnection` failure — `SERVICE_DISCONNECTED` (`SIMPLE_RETRY`) or `SERVICE_UNAVAILABLE` / `NETWORK_ERROR` (`EXPONENTIAL_RETRY`) — is retried internally (bounded attempts + backoff) before `BillingConnector.connectToBilling()` emits a terminal `BillingConnectionResult.Error`. So a `connectToBilling()` `Error` means the transient condition was actually *persistent*, not a one-off blip — which is the point at which it's worth acting on. Don't re-derive "is this transient?" by pattern-matching the exception subtype and response code on the consumer side; the library already did, retried, and only surfaced what didn't recover.
+
+Tune or disable this via the `connectionRetryPolicy` parameter on `BillingRepositoryCreator.create`:
+
+```kotlin
+// Defaults (4 attempts; 500ms fixed for SIMPLE_RETRY, 2s×2 backoff for EXPONENTIAL_RETRY):
+val billing = BillingRepositoryCreator.create(context)
+
+// Custom budget:
+val billing = BillingRepositoryCreator.create(
+    context = context,
+    connectionRetryPolicy = ConnectionRetryPolicy(maxAttempts = 6, simpleRetryBackoffMillis = 250L),
+)
+
+// Opt out — surface the first transient connection failure immediately
+// (e.g. if you run your own connection-retry layer):
+val billing = BillingRepositoryCreator.create(
+    context = context,
+    connectionRetryPolicy = ConnectionRetryPolicy.None,
+)
+```
+
+Failures the library classifies as terminal (`BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `FEATURE_NOT_SUPPORTED`, etc.) are *not* retried at the connection layer — they surface immediately, since retrying can't change the outcome.
+
 ## Showing errors to users
 
 **Never display `BillingException.message` in your UI.** It's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
