@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>ConnectionRetryPolicy</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    billing
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.3-SNAPSHOT        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":billing/release">release</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":billing/release"
+                                       data-filter=":billing/release"/>
+                                <span class="checkbox--icon"></span>
+                                release
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    billing
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="billing::com.kanetik.billing/ConnectionRetryPolicy///PointingToDeclaration//-593106385">
+  <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing</a><span class="delimiter">/</span><span class="current">ConnectionRetryPolicy</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Connection</span><wbr></wbr><span>Retry</span><wbr></wbr><span><span>Policy</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="index.html">ConnectionRetryPolicy</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>maxAttempts<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_ATTEMPTS<span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>simpleRetryBackoffMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>DEFAULT_SIMPLE_RETRY_BACKOFF_MILLIS<span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>exponentialBaseBackoffMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>DEFAULT_EXPONENTIAL_BASE_BACKOFF_MILLIS<span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>exponentialBackoffFactor<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_EXPONENTIAL_BACKOFF_FACTOR</span></span><span class="token punctuation">)</span></div><p class="paragraph">Bounded retry policy applied to Play Billing <strong>connection-setup</strong> failures that the library classifies as transient — i.e. those whose <a href="../../com.kanetik.billing.exception/-billing-exception/retry-type.html">com.kanetik.billing.exception.BillingException.retryType</a> is <a href="../-retry-type/-s-i-m-p-l-e_-r-e-t-r-y/index.html">RetryType.SIMPLE_RETRY</a> or <a href="../-retry-type/-e-x-p-o-n-e-n-t-i-a-l_-r-e-t-r-y/index.html">RetryType.EXPONENTIAL_RETRY</a>.</p><h2 class="">Why this exists</h2><p class="paragraph"><code class="lang-kotlin">BillingClient.startConnection</code> can report a transient failure to <code class="lang-kotlin">onBillingSetupFinished</code> — most commonly <code class="lang-kotlin">SERVICE_DISCONNECTED</code> (classified <a href="../-retry-type/-s-i-m-p-l-e_-r-e-t-r-y/index.html">RetryType.SIMPLE_RETRY</a>) and <code class="lang-kotlin">SERVICE_UNAVAILABLE</code> (classified <a href="../-retry-type/-e-x-p-o-n-e-n-t-i-a-l_-r-e-t-r-y/index.html">RetryType.EXPONENTIAL_RETRY</a>). Before this policy existed the library surfaced that straight to consumers as a <a href="../-billing-connection-result/-error/index.html">BillingConnectionResult.Error</a>. Because the failure arrived as a plain <code class="lang-kotlin">Error</code>, every consumer had to recognize the transient case by pattern-matching the exception subtype (+ response code) and decide to ignore or retry it — easy to get subtly wrong (e.g. guarding on <code class="lang-kotlin">responseCode == 0</code> when <code class="lang-kotlin">SERVICE_DISCONNECTED</code> is actually <code class="lang-kotlin">-1</code>, so the guard never matches and every transient disconnect is logged as a non-actionable crash report).</p><p class="paragraph">The library already <i>knows</i> these failures are retryable — it attaches a <a href="../-retry-type/index.html">RetryType</a> to each. This policy lets it act on that knowledge: it retries the connection internally (bounded attempts + backoff) and only emits a terminal <a href="../-billing-connection-result/-error/index.html">BillingConnectionResult.Error</a> once the transient condition turns out to be persistent — which is the point at which the error is actually worth acting on.</p><p class="paragraph">This mirrors the operation-level retry loop already applied to every <a href="../-billing-actions/index.html">BillingActions</a> call; connection setup was simply the one path that had no retry layer of its own. The default backoff values match that loop.</p><p class="paragraph">Failures classified <a href="../-retry-type/-r-e-q-u-e-r-y_-p-u-r-c-h-a-s-e_-r-e-t-r-y/index.html">RetryType.REQUERY_PURCHASE_RETRY</a> or <a href="../-retry-type/-n-o-n-e/index.html">RetryType.NONE</a> are terminal at the connection layer (requerying owned purchases is meaningless before a connection exists), so they surface immediately regardless of this policy.</p></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="CONSTRUCTOR">
+        <h2 class="tableheader">Constructors</h2>
+        <div class="table"><a data-name="1657594961%2FConstructors%2F-593106385" anchor-label="ConnectionRetryPolicy" id="1657594961%2FConstructors%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-togglable="CONSTRUCTOR" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-connection-retry-policy.html"><span>Connection</span><wbr></wbr><span>Retry</span><wbr></wbr><span><span>Policy</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1657594961%2FConstructors%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">maxAttempts<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_ATTEMPTS<span class="token punctuation">, </span></span><span class="parameter ">simpleRetryBackoffMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>DEFAULT_SIMPLE_RETRY_BACKOFF_MILLIS<span class="token punctuation">, </span></span><span class="parameter ">exponentialBaseBackoffMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a><span class="token operator"> = </span>DEFAULT_EXPONENTIAL_BASE_BACKOFF_MILLIS<span class="token punctuation">, </span></span><span class="parameter ">exponentialBackoffFactor<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_EXPONENTIAL_BACKOFF_FACTOR</span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-1853005795%2FClasslikes%2F-593106385" anchor-label="Companion" id="-1853005795%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-companion/index.html"><span><span>Companion</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1853005795%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">object </span><a href="-companion/index.html">Companion</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="-597921166%2FProperties%2F-593106385" anchor-label="exponentialBackoffFactor" id="-597921166%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="exponential-backoff-factor.html"><span>exponential</span><wbr></wbr><span>Backoff</span><wbr></wbr><span><span>Factor</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-597921166%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="exponential-backoff-factor.html">exponentialBackoffFactor</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><div class="brief "><p class="paragraph">Multiplier applied to the exponential delay after each <a href="../-retry-type/-e-x-p-o-n-e-n-t-i-a-l_-r-e-t-r-y/index.html">RetryType.EXPONENTIAL_RETRY</a> attempt. Must be <code class="lang-kotlin">&gt;= 1</code>. Defaults to <a href="-companion/-d-e-f-a-u-l-t_-e-x-p-o-n-e-n-t-i-a-l_-b-a-c-k-o-f-f_-f-a-c-t-o-r.html">DEFAULT_EXPONENTIAL_BACKOFF_FACTOR</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="138821004%2FProperties%2F-593106385" anchor-label="exponentialBaseBackoffMillis" id="138821004%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="exponential-base-backoff-millis.html"><span>exponential</span><wbr></wbr><span>Base</span><wbr></wbr><span>Backoff</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="138821004%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="exponential-base-backoff-millis.html">exponentialBaseBackoffMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">Initial delay for a <a href="../-retry-type/-e-x-p-o-n-e-n-t-i-a-l_-r-e-t-r-y/index.html">RetryType.EXPONENTIAL_RETRY</a>-classified failure (e.g. <code class="lang-kotlin">SERVICE_UNAVAILABLE</code>, <code class="lang-kotlin">NETWORK_ERROR</code>). Grows by <span data-unresolved-link="com.kanetik.billing/ConnectionRetryPolicy//#kotlin.Int#kotlin.Long#kotlin.Long#kotlin.Int/PointingToCallableParameters(3)/">exponentialBackoffFactor</span> after each exponential retry. Must be <code class="lang-kotlin">&gt;= 0</code>. Defaults to <a href="-companion/-d-e-f-a-u-l-t_-e-x-p-o-n-e-n-t-i-a-l_-b-a-s-e_-b-a-c-k-o-f-f_-m-i-l-l-i-s.html">DEFAULT_EXPONENTIAL_BASE_BACKOFF_MILLIS</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1669551884%2FProperties%2F-593106385" anchor-label="maxAttempts" id="1669551884%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="max-attempts.html"><span>max</span><wbr></wbr><span><span>Attempts</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1669551884%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="max-attempts.html">maxAttempts</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><div class="brief "><p class="paragraph">Total number of connection attempts, including the first. Must be <code class="lang-kotlin">&gt;= 1</code>. A value of <code class="lang-kotlin">1</code> disables internal retry — the first transient failure surfaces immediately (the pre-policy behavior). Defaults to <a href="-companion/-d-e-f-a-u-l-t_-m-a-x_-a-t-t-e-m-p-t-s.html">DEFAULT_MAX_ATTEMPTS</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1285338988%2FProperties%2F-593106385" anchor-label="simpleRetryBackoffMillis" id="1285338988%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="simple-retry-backoff-millis.html"><span>simple</span><wbr></wbr><span>Retry</span><wbr></wbr><span>Backoff</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1285338988%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">val </span><a href="simple-retry-backoff-millis.html">simpleRetryBackoffMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">Fixed delay between attempts for a <a href="../-retry-type/-s-i-m-p-l-e_-r-e-t-r-y/index.html">RetryType.SIMPLE_RETRY</a>-classified failure. PBL 8+ auto-reconnection usually re-establishes a dropped IPC connection within a short window, so a brief fixed pause is enough. Must be <code class="lang-kotlin">&gt;= 0</code>. Defaults to <a href="-companion/-d-e-f-a-u-l-t_-s-i-m-p-l-e_-r-e-t-r-y_-b-a-c-k-o-f-f_-m-i-l-l-i-s.html">DEFAULT_SIMPLE_RETRY_BACKOFF_MILLIS</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

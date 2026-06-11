@@ -1735,7 +1735,7 @@
 </table>
 <h2 id="public-surface-v010">Public surface (v0.1.0)<a class="headerlink" href="#public-surface-v010" title="Permanent link">&para;</a></h2>
 <h3 id="entry-point">Entry point<a class="headerlink" href="#entry-point" title="Permanent link">&para;</a></h3>
-<p><code>BillingRepositoryCreator.create(context, logger?, billingClientFactory?, scope?, ioDispatcher?, uiDispatcher?)</code> returns a <code>BillingRepository</code>. <code>BillingClientFactory</code> (interface) and <code>DefaultBillingClientFactory</code> (default impl) are public — this IS the test seam consumers want for swapping the underlying <code>BillingClient</code> builder.</p>
+<p><code>BillingRepositoryCreator.create(context, logger?, billingClientFactory?, scope?, ioDispatcher?, uiDispatcher?, recoverPurchasesOnConnect?, connectionRetryPolicy?)</code> returns a <code>BillingRepository</code>. <code>BillingClientFactory</code> (interface) and <code>DefaultBillingClientFactory</code> (default impl) are public — this IS the test seam consumers want for swapping the underlying <code>BillingClient</code> builder.</p>
 <h3 id="repository-interface">Repository interface<a class="headerlink" href="#repository-interface" title="Permanent link">&para;</a></h3>
 <p><code>BillingRepository : BillingActions, BillingPurchaseUpdatesOwner, BillingConnector</code>. Concrete impl <code>DefaultBillingRepository</code> is internal. The narrower interfaces let consumers depend on only the parts they use (e.g., a UI layer that just observes purchase updates can take <code>BillingPurchaseUpdatesOwner</code> instead of the full repository).</p>
 <h3 id="connection-contract">Connection contract<a class="headerlink" href="#connection-contract" title="Permanent link">&para;</a></h3>

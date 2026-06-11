@@ -595,6 +595,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#connection-setup-retry" class="md-nav__link">
+    <span class="md-ellipsis">
+      Connection-setup retry
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#showing-errors-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       Showing errors to users
@@ -1118,6 +1127,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#connection-setup-retry" class="md-nav__link">
+    <span class="md-ellipsis">
+      Connection-setup retry
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#showing-errors-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       Showing errors to users
@@ -1247,12 +1265,31 @@ try {
 </tr>
 <tr>
 <td><code>WrappedException</code></td>
-<td>Non-PBL throwable wrapped by <code>handlePurchase</code> (NPE, <code>IllegalStateException</code> from a custom <code>BillingActions</code> impl, <code>AssertionError</code> from a fake, etc.). Distinct from <code>UnknownException</code>; carries <code>originalCause</code> for diagnostics.</td>
+<td>Non-PBL throwable wrapped by <code>handlePurchase</code> (NPE, <code>IllegalStateException</code> from a custom <code>BillingActions</code> impl, <code>AssertionError</code> from a fake, etc.) or surfaced while establishing the connection (e.g. a custom <code>BillingClientFactory</code> throwing). Distinct from <code>UnknownException</code>; carries <code>originalCause</code> for diagnostics.</td>
 <td><code>NONE</code></td>
 </tr>
 </tbody>
 </table>
 <p><code>RetryType</code> is exposed on every exception via <code>e.retryType</code>, but you usually don't need to consult it directly: the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.</p>
+<h2 id="connection-setup-retry">Connection-setup retry<a class="headerlink" href="#connection-setup-retry" title="Permanent link">&para;</a></h2>
+<p>The retry loop above covers <code>BillingActions</code> calls. Establishing the underlying connection gets the same treatment: a transient <code>BillingClient.startConnection</code> failure — <code>SERVICE_DISCONNECTED</code> (<code>SIMPLE_RETRY</code>) or <code>SERVICE_UNAVAILABLE</code> / <code>NETWORK_ERROR</code> (<code>EXPONENTIAL_RETRY</code>) — is retried internally (bounded attempts + backoff) before <code>BillingConnector.connectToBilling()</code> emits a terminal <code>BillingConnectionResult.Error</code>. So a <code>connectToBilling()</code> <code>Error</code> means the transient condition was actually <em>persistent</em>, not a one-off blip — which is the point at which it's worth acting on. Don't re-derive "is this transient?" by pattern-matching the exception subtype and response code on the consumer side; the library already did, retried, and only surfaced what didn't recover.</p>
+<p>Tune or disable this via the <code>connectionRetryPolicy</code> parameter on <code>BillingRepositoryCreator.create</code>:</p>
+<p>```kotlin
+// Defaults (4 attempts; 500ms fixed for SIMPLE_RETRY, 2s×2 backoff for EXPONENTIAL_RETRY):
+val billing = BillingRepositoryCreator.create(context)</p>
+<p>// Custom budget:
+val billing = BillingRepositoryCreator.create(
+    context = context,
+    connectionRetryPolicy = ConnectionRetryPolicy(maxAttempts = 6, simpleRetryBackoffMillis = 250L),
+)</p>
+<p>// Opt out — surface the first transient connection failure immediately
+// (e.g. if you run your own connection-retry layer):
+val billing = BillingRepositoryCreator.create(
+    context = context,
+    connectionRetryPolicy = ConnectionRetryPolicy.None,
+)
+```</p>
+<p>Failures the library classifies as terminal (<code>BILLING_UNAVAILABLE</code>, <code>DEVELOPER_ERROR</code>, <code>FEATURE_NOT_SUPPORTED</code>, etc.) are <em>not</em> retried at the connection layer — they surface immediately, since retrying can't change the outcome.</p>
 <h2 id="showing-errors-to-users">Showing errors to users<a class="headerlink" href="#showing-errors-to-users" title="Permanent link">&para;</a></h2>
 <p><strong>Never display <code>BillingException.message</code> in your UI.</strong> It's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like <code>ServiceDisconnectedException</code> and <code>BILLING_RESPONSE_CODE_3</code> into your dialogs.</p>
 <p>For UI, branch on <code>BillingException.userFacingCategory</code> (returns a <code>BillingErrorCategory</code> — seven buckets: <code>UserCanceled</code>, <code>Network</code>, <code>BillingUnavailable</code>, <code>ProductUnavailable</code>, <code>AlreadyOwned</code>, <code>DeveloperError</code>, <code>Other</code>) and localize per bucket from your own string resources:</p>
