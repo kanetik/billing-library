@@ -76,6 +76,13 @@ public object BillingRepositoryCreator {
      *   that drives acknowledgement out-of-band. The default exists because
      *   Play auto-refunds purchases not acknowledged within 3 days, and an app
      *   crash mid-acknowledge will otherwise lose the purchase silently.
+     * @param connectionRetryPolicy Bounded retry applied to transient
+     *   `startConnection` failures (`SERVICE_DISCONNECTED`,
+     *   `SERVICE_UNAVAILABLE`, etc.) before a connection
+     *   [BillingConnectionResult.Error] is surfaced. Defaults to
+     *   [ConnectionRetryPolicy] with library defaults; pass
+     *   [ConnectionRetryPolicy.None] to opt out and surface the first transient
+     *   failure immediately, or a custom policy to tune attempts / backoff.
      */
     public fun create(
         context: Context,
@@ -84,12 +91,15 @@ public object BillingRepositoryCreator {
         scope: CoroutineScope = ProcessLifecycleOwner.get().lifecycleScope,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
         uiDispatcher: CoroutineDispatcher = Dispatchers.Main,
-        recoverPurchasesOnConnect: Boolean = true
+        recoverPurchasesOnConnect: Boolean = true,
+        connectionRetryPolicy: ConnectionRetryPolicy = ConnectionRetryPolicy()
     ): BillingRepository = DefaultBillingRepository(
         billingClientStorage = BillingClientStorage(
             billingFactory = CoroutinesBillingConnectionFactory(
                 context = context,
-                billingClientFactory = billingClientFactory
+                billingClientFactory = billingClientFactory,
+                retryPolicy = connectionRetryPolicy,
+                logger = logger
             ),
             logger = logger,
             connectionShareScope = scope,

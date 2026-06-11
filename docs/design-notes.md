@@ -39,7 +39,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 
 ### Entry point
 
-`BillingRepositoryCreator.create(context, logger?, billingClientFactory?, scope?, ioDispatcher?, uiDispatcher?)` returns a `BillingRepository`. `BillingClientFactory` (interface) and `DefaultBillingClientFactory` (default impl) are public — this IS the test seam consumers want for swapping the underlying `BillingClient` builder.
+`BillingRepositoryCreator.create(context, logger?, billingClientFactory?, scope?, ioDispatcher?, uiDispatcher?, recoverPurchasesOnConnect?, connectionRetryPolicy?)` returns a `BillingRepository`. `BillingClientFactory` (interface) and `DefaultBillingClientFactory` (default impl) are public — this IS the test seam consumers want for swapping the underlying `BillingClient` builder.
 
 ### Repository interface
 
