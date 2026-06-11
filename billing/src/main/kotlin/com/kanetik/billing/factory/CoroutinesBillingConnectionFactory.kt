@@ -63,7 +63,17 @@ internal class CoroutinesBillingConnectionFactory(
                 // awaitClose has a chance to register.
                 awaitClose { }
             } finally {
-                billingClient.endConnectionIfConnected()
+                // Always release the client — not just when isReady. A setup
+                // that failed or was cancelled mid-connect leaves isReady false
+                // yet can still hold a Play service binding, so gating on
+                // isReady would leak it. BillingClient.endConnection() is safe
+                // to call in any state; guard defensively against an unexpected
+                // PBL throw during teardown (best-effort cleanup).
+                try {
+                    billingClient.endConnection()
+                } catch (e: Exception) {
+                    logger.d("Ignoring error while ending billing connection during teardown", e)
+                }
             }
         }.catch { error ->
             emit(convertExceptionIntoErrorResult(error))
@@ -152,13 +162,13 @@ internal class CoroutinesBillingConnectionFactory(
     private fun convertExceptionIntoErrorResult(error: Throwable) = InternalConnectionState.Failed(
         exception = when (error) {
             is BillingException -> error
-            else -> BillingException.UnknownException(BillingResult())
+            // A non-PBL throwable reached the connection flow (e.g. a custom
+            // BillingClientFactory threw, or PBL surfaced a non-billing error).
+            // WrappedException preserves the original cause; the prior
+            // UnknownException(BillingResult()) fallback reported responseCode=OK
+            // (no-arg BillingResult) and discarded the throwable, making these
+            // failures misleading in logs / Crashlytics.
+            else -> BillingException.WrappedException(error)
         }
     )
-
-    private fun BillingClient.endConnectionIfConnected() {
-        if (isReady) {
-            endConnection()
-        }
-    }
 }

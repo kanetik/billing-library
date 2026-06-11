@@ -15,7 +15,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
@@ -181,6 +183,35 @@ class CoroutinesBillingConnectionFactoryTest {
         factory.createBillingConnectionFlow(noopListener()).first()
         // Let the producer's structured-cancellation unwind (and its finally)
         // run to completion on the virtual clock before asserting.
+        testScheduler.advanceUntilIdle()
+
+        verify { client.endConnection() }
+    }
+
+    @Test
+    fun `ends the billing connection when cancelled mid-connect before setup completes`() = runTest {
+        val client = mockk<BillingClient>(relaxed = true)
+        // isReady stays false (relaxed default): the setup never completes, so
+        // this exercises the gap where gating teardown on isReady would leak.
+        every { client.startConnection(any()) } answers {
+            // Capture the listener but never call onBillingSetupFinished — the
+            // connect loop suspends indefinitely awaiting the result.
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = clientFactoryReturning(client),
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = BillingLogger.Noop
+        )
+
+        val collectJob = launch {
+            factory.createBillingConnectionFlow(noopListener()).collect { }
+        }
+        // Let the producer reach awaitSetupResult and suspend there.
+        testScheduler.advanceUntilIdle()
+        // Cancel mid-connect; the finally must still release the client even
+        // though isReady is false.
+        collectJob.cancelAndJoin()
         testScheduler.advanceUntilIdle()
 
         verify { client.endConnection() }

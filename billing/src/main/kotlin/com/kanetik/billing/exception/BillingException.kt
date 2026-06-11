@@ -275,16 +275,22 @@ public sealed class BillingException(
     public class UnknownException(result: BillingResult) : BillingException(result)
 
     /**
-     * A non-Play-Billing throwable surfaced by a custom
-     * [com.kanetik.billing.BillingActions] implementation (or a fake / test
-     * double) and wrapped to honor the
-     * [com.kanetik.billing.HandlePurchaseResult] sealed-result contract.
+     * A non-Play-Billing throwable wrapped so it can ride a typed channel
+     * instead of escaping raw.
      *
-     * The library only synthesizes this from
-     * [com.kanetik.billing.BillingActions.handlePurchase], which catches
-     * `Throwable` to keep its typed-result guarantee airtight (otherwise an
-     * `IllegalStateException` from a fake or an `AssertionError` from a test
-     * double would escape and consumers would have to wrap themselves).
+     * The library synthesizes this in two places:
+     *  - [com.kanetik.billing.BillingActions.handlePurchase], which catches
+     *    `Throwable` to keep its [com.kanetik.billing.HandlePurchaseResult]
+     *    sealed-result guarantee airtight (otherwise an `IllegalStateException`
+     *    from a fake or an `AssertionError` from a test double would escape and
+     *    consumers would have to wrap themselves).
+     *  - The connection flow's error fallback
+     *    ([com.kanetik.billing.factory.BillingConnectionFactory]), when a
+     *    non-`BillingException` throwable surfaces while establishing the
+     *    connection (e.g. a custom
+     *    [com.kanetik.billing.factory.BillingClientFactory] throwing).
+     *    Preserving the cause here keeps such failures from being reported as a
+     *    misleading `responseCode = OK`.
      *
      * Distinct from [UnknownException] (which is reserved for undocumented PBL
      * response codes). [result] is `null` here because no Play Billing call
@@ -303,7 +309,7 @@ public sealed class BillingException(
         }
 
         override val message: String =
-            "handlePurchase wrapped non-BillingException: " +
+            "Wrapped non-BillingException: " +
                 "${originalCause::class.simpleName}: ${originalCause.message}"
     }
 }

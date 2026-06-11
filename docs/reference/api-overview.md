@@ -12,7 +12,7 @@ For full per-class / per-method docs, see the [Dokka API reference](https://kane
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. Transient `startConnection` failures are retried internally per `ConnectionRetryPolicy` before an `Error` is emitted — see [Error handling](../guides/error-handling.md#connection-setup-retry). |
 | `ConnectionRetryPolicy` | Bounded retry (attempts + backoff) for transient connection-setup failures. Pass via `BillingRepositoryCreator.create(connectionRetryPolicy = …)`; `ConnectionRetryPolicy.None` opts out. |
 | `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchaseEvent>`. Hot internally; merges three channels — a no-replay live channel, a replay=1 recovery channel, and a replay=16 revocation channel (for `PurchaseRevoked` events pushed via `emitExternalRevocation`; sized for FCM-burst replay) — see [Replay semantics](replay-semantics.md). |
-| `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase`. |
+| `BillingException` (sealed) | 13 subtypes — 12 covering PBL response codes (each with a `RetryType` hint) plus `WrappedException` for non-PBL throwables surfaced through `handlePurchase` or while establishing the connection. |
 | `BillingClientFactory` | Public test seam — swap `DefaultBillingClientFactory` to alter `BillingClient.Builder`. |
 | `BillingLogger` | Pluggable logger (`Noop`, `Android`, or your own adapter). |
 

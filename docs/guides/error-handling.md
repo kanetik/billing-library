@@ -42,7 +42,7 @@ try {
 | `FeatureNotSupportedException` | Feature missing on this Play version | `NONE` |
 | `UserCanceledException` | User dismissed the purchase flow | `NONE` |
 | `UnknownException` | Response code PBL doesn't document — log it | `NONE` |
-| `WrappedException` | Non-PBL throwable wrapped by `handlePurchase` (NPE, `IllegalStateException` from a custom `BillingActions` impl, `AssertionError` from a fake, etc.). Distinct from `UnknownException`; carries `originalCause` for diagnostics. | `NONE` |
+| `WrappedException` | Non-PBL throwable wrapped by `handlePurchase` (NPE, `IllegalStateException` from a custom `BillingActions` impl, `AssertionError` from a fake, etc.) or surfaced while establishing the connection (e.g. a custom `BillingClientFactory` throwing). Distinct from `UnknownException`; carries `originalCause` for diagnostics. | `NONE` |
 
 `RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly: the library has already retried before throwing. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
 
