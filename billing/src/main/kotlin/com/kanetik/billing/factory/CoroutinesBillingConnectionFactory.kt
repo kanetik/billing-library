@@ -114,7 +114,18 @@ internal class CoroutinesBillingConnectionFactory(
 
             val backoff = when (retryType) {
                 RetryType.EXPONENTIAL_RETRY ->
-                    exponentialDelay.also { exponentialDelay *= retryPolicy.exponentialBackoffFactor }
+                    exponentialDelay.also {
+                        // Saturating growth: a large factor / many attempts could
+                        // otherwise overflow Long and flip the next delay negative,
+                        // which delay() treats as no-wait — silently dropping the
+                        // backoff and logging a misleading time. Clamp to
+                        // Long.MAX_VALUE on overflow instead.
+                        exponentialDelay = try {
+                            Math.multiplyExact(exponentialDelay, retryPolicy.exponentialBackoffFactor.toLong())
+                        } catch (overflow: ArithmeticException) {
+                            Long.MAX_VALUE
+                        }
+                    }
                 else ->
                     retryPolicy.simpleRetryBackoffMillis
             }
