@@ -1,0 +1,13 @@
+# Project-level overrides for the pr-review-loop skill.
+# Merged per-key over bundled defaults and ~/.claude/pr-review.config.yml (this layer wins).
+# Keys not set here (auto_review_grace_seconds, wait_check_cadence_seconds, max_iterations)
+# inherit from the lower layers.
+
+# Codex is a rate-limited deep reviewer: most valuable on its first-look design/correctness
+# pass and as a final adversarial gate, not for iterative polish (Copilot handles that well).
+# So both bots review the first pass, only Copilot drives the convergence loop, and Codex
+# does one final pass after the loop converges.
+request_on_pr_open: [copilot]
+loop_reviewers: [copilot]
+upfront_gate_reviewers: [codex]
+final_gate_reviewers: [codex]
