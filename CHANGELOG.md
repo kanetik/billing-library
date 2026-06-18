@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ConnectionRetryPolicy.None` to opt out and surface the first transient
   failure immediately (the pre-change behavior).
 
+## [0.1.4] - 2026-06-18
+
+### Changed
+
+- Bumped Play Billing Library `9.0.0` → `9.1.0` ([release notes](https://developer.android.com/google/play/billing/release-notes#9.1.0)).
+  Adds Billing Choice APIs (`getBillingChoiceInfoAsync`, `showBillingProgramInformationDialog`,
+  `BillingChoiceInfo`, et al.) — net-new PBL surface the wrapper does not yet expose; see
+  feature-proposal issue for design discussion.
+
 ## [0.1.3] - 2026-05-25
 
 ### Breaking

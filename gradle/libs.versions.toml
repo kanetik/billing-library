@@ -6,7 +6,7 @@
 # pin in sync if AGP is bumped.
 androidGradlePlugin = "9.2.1"
 kotlin = "2.3.21"
-playBillingKtx = "9.0.0"
+playBillingKtx = "9.1.0"
 kotlinxCoroutines = "1.11.0"
 lifecycle = "2.10.0"
 coreKtx = "1.18.0"
