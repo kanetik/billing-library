@@ -17,6 +17,16 @@ import com.kanetik.billing.choice.BillingChoiceActions
  * [ExperimentalBillingChoiceApi][com.kanetik.billing.choice.ExperimentalBillingChoiceApi];
  * inheriting the interface here does not force opt-in on consumers — only
  * *calling* a Billing Choice method does.
+ *
+ * **Implementers, note:** adding [BillingChoiceActions] as a supertype is a
+ * source-breaking change for anyone who implements [BillingRepository]
+ * directly (most commonly a hand-rolled test fake) — those implementations
+ * must now also provide `isBillingChoiceAvailable`, `getBillingChoiceInfo`,
+ * and `showBillingProgramInformationDialog`, or delegate them to a real
+ * repository. The vast majority of consumers obtain the repository from
+ * [BillingRepositoryCreator.create] and are unaffected. (A
+ * `FakeBillingRepository` test artifact that absorbs additions like this is
+ * planned for v0.2.0 — see the roadmap.)
  */
 public interface BillingRepository :
     BillingActions,

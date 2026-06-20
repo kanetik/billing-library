@@ -24,7 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `com.kanetik.billing.choice` package; see the
   [Billing Choice guide](https://kanetik.github.io/billing-library/guides/billing-choice/)
   and [#39](https://github.com/kanetik/billing-library/issues/39). Resolves the
-  "does not yet expose" note from the 0.1.4 PBL 9.1.0 bump.
+  "does not yet expose" note from the 0.1.4 PBL 9.1.0 bump. Note:
+  `BillingRepository` gains `BillingChoiceActions` as a supertype — a
+  source-breaking change for anyone implementing `BillingRepository` directly
+  (e.g. a hand-rolled test fake), who must now also implement the three Billing
+  Choice members. Consumers using `BillingRepositoryCreator.create` are
+  unaffected (pre-1.0; permitted under the [versioning policy](https://kanetik.github.io/billing-library/roadmap/#versioning-policy)).
 
 - **Internal connection retry for transient `startConnection` failures.** When
   `BillingClient.startConnection` reports a transient setup failure — notably
