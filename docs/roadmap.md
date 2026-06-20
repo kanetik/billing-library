@@ -140,11 +140,12 @@ New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:
 
 - `FakeBillingRepository` — in-memory `BillingRepository` for unit tests + debug-flavor DI overrides
 - Test-control API: `setConnectionResult`, `emitPurchaseUpdate`, `setProducts`, `setPurchases`, `throwOnNext(BillingException)`, `simulateLaunchFlowResult`
-- Robolectric included → unblocks the four classes deferred from v0.1.0's test suite:
+- Robolectric included → unblocks the five classes deferred from v0.1.x's test suite:
   - `PurchaseVerifier` (needs `android.util.Base64`)
   - `ProductDetails.toOneTimeFlowParams` (needs real PBL `BillingFlowParams.Builder` to satisfy validation)
   - `DefaultBillingRepository` orchestration (retry loop, `withTimeout`, `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)
   - `showInAppMessages` (needs the real `InAppMessageResult` shape)
+  - Billing Choice wrappers + result mapping (`isBillingChoiceAvailable` / `getBillingChoiceInfo` / `showBillingProgramInformationDialog` and the `mapChoiceScreenType` / `mapBillingChoiceDetails` / `mapBillingChoiceAvailability` helpers — same PBL-callback-over-a-fake-`BillingClient` need as `showInAppMessages`; added experimental in v0.1.x) — [#42](https://github.com/kanetik/billing-library/issues/42)
 - Unit tests covering every state transition the fake claims to support
 - README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example
 - Adopt in Wakey's debug flavor where `DebugConfig.mockUserType` currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds
@@ -270,7 +271,8 @@ Tracked but not committed. Most are build-when-asked.
 
 | Feature | Status | Rationale |
 |---|---|---|
-| External offers / alternative billing / user-choice billing | demand-driven | PBL 8 added external-billing programs. Requires extending `BillingClientFactory` (or adding a parallel factory) to call `enableUserChoiceBilling` / `enableBillingProgram`. Region-gated (EEA + others); only worth it if a consumer needs it. |
+| Billing Choice info + dialog (PBL 9.1.0) | **shipped — experimental** | The 9.1.0 availability → info → dialog surface is wrapped as the experimental `BillingChoiceActions` (gated by `@ExperimentalBillingChoiceApi`), with `BillingChoiceClientFactory` for construction-time enablement. Thin on purpose; promote to a higher-level shape once dog-fooding shows what's needed. See [Billing Choice](guides/billing-choice.md) and [issue #39](https://github.com/kanetik/billing-library/issues/39). |
+| External offers / alternative billing / user-choice *payment* flow | demand-driven | The remaining piece beyond Billing Choice's info/dialog: actually routing a purchase through an alternative payment processor via `enableUserChoiceBilling(UserChoiceBillingListener)` / `enableBillingProgram(EXTERNAL_PAYMENTS)` and handling the developer-billed selection. Region-gated (EEA + others); only worth it if a consumer needs to take external payments, not just inform users. |
 | Real-Time Developer Notifications (RTDN) helpers | likely out of scope | RTDN is server-side (Cloud Pub/Sub from Play). If we add server-side helpers, they ship as a separate artifact (`com.kanetik.billing:billing-server` or similar), not folded into the client lib. README v0.1.0 documents the boundary. |
 | Sub-response codes on the public error surface | demand-driven | `BillingLoggingUtils` already reads `onPurchasesUpdatedSubResponseCode` (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) and emits them in logs, but the wrapper's public error types don't surface them — consumers can't distinguish "insufficient funds" from any other declined purchase in their `BillingException` branch. PBL 9's [migration guide §5](https://developer.android.com/google/play/billing/migrate-gpblv9) flags handling these for "better user experience." Candidate shape: a richer `BillingException.subResponseCode` field, or a sealed sub-type under `UserCanceledException` / `DeveloperErrorException`. Patch- or minor-level work depending on shape. |
 | Virtual installment subscription support | demand-driven | PBL 7+ feature, regional (Brazil, France, Italy, Spain). PBL 9's [migration guide §8](https://developer.android.com/google/play/billing/migrate-gpblv9) re-surfaces this as an optional integration alongside the v9 bump; still scoped to v0.2.0+ subscription work, not the PBL 9 dependency bump itself. Niche; build only on request. |

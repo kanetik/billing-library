@@ -72,6 +72,7 @@ nav:
       - Multi-offer products: guides/multi-offer-products.md
       - Product-details caching: guides/product-details-caching.md
       - In-app messaging: guides/in-app-messaging.md
+      - Billing Choice (experimental): guides/billing-choice.md
       - Subscriptions (v0.1.x): guides/subscriptions.md
   - Reference:
       - API overview: reference/api-overview.md

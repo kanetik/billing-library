@@ -7,8 +7,9 @@ For full per-class / per-method docs, see the [Dokka API reference](https://kane
 | Type | Role |
 |---|---|
 | `BillingRepositoryCreator.create(...)` | Public entry point. Returns `BillingRepository`. |
-| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner` | Composed interface — depend on the narrowest piece you need. Adds `emitExternalRevocation(token, reason)` for transport-agnostic server-driven revocation — see [Server-driven revocation](../guides/server-driven-revocation.md). |
+| `BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner, BillingChoiceActions` | Composed interface — depend on the narrowest piece you need. Adds `emitExternalRevocation(token, reason)` for transport-agnostic server-driven revocation — see [Server-driven revocation](../guides/server-driven-revocation.md). |
 | `BillingActions` | `queryPurchases`, `queryProductDetails`, `consumePurchase`, `acknowledgePurchase`, `handlePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. |
+| `BillingChoiceActions` *(experimental)* | `isBillingChoiceAvailable`, `getBillingChoiceInfo`, `showBillingProgramInformationDialog`. PBL 9.1.0 Billing Choice surface; every method requires `@OptIn(ExperimentalBillingChoiceApi::class)`. Enrollment- and region-gated — see [Billing Choice](../guides/billing-choice.md). |
 | `BillingConnector` | `connectToBilling(): SharedFlow<BillingConnectionResult>`. Transient `startConnection` failures are retried internally per `ConnectionRetryPolicy` before an `Error` is emitted — see [Error handling](../guides/error-handling.md#connection-setup-retry). |
 | `ConnectionRetryPolicy` | Bounded retry (attempts + backoff) for transient connection-setup failures. Pass via `BillingRepositoryCreator.create(connectionRetryPolicy = …)`; `ConnectionRetryPolicy.None` opts out. |
 | `BillingPurchaseUpdatesOwner` | `observePurchaseUpdates(): Flow<PurchaseEvent>`. Hot internally; merges three channels — a no-replay live channel, a replay=1 recovery channel, and a replay=16 revocation channel (for `PurchaseRevoked` events pushed via `emitExternalRevocation`; sized for FCM-burst replay) — see [Replay semantics](replay-semantics.md). |
@@ -26,7 +27,8 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 | `com.kanetik.billing.exception` | `BillingException` (sealed) and its 13 subtypes; `BillingErrorCategory` enum |
 | `com.kanetik.billing.logging` | `BillingLogger` interface + `Noop` + `Android` |
 | `com.kanetik.billing.lifecycle` | `BillingConnectionLifecycleManager` |
-| `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory` |
+| `com.kanetik.billing.factory` | `BillingClientFactory`, `DefaultBillingClientFactory`, `BillingChoiceClientFactory` *(experimental)* |
+| `com.kanetik.billing.choice` *(experimental)* | `BillingChoiceActions`, `BillingChoiceAvailability`, `BillingChoiceDetails`, `ChoiceScreenType`, `ExperimentalBillingChoiceApi` |
 | `com.kanetik.billing.ext` | `validatePurchaseActivity`, `ProductDetails.toOneTimeFlowParams`, `PurchaseFlowCoordinator`, `PurchaseFlowResult` |
 | `com.kanetik.billing.security` | `PurchaseVerifier` |
 | `com.kanetik.billing.entitlement` | `EntitlementCache`, `EntitlementState`, `GracePolicy`, `GraceReason`, `EntitlementSnapshot`, `EntitlementStorage` |

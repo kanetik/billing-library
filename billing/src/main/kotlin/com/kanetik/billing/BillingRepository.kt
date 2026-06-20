@@ -1,16 +1,38 @@
 package com.kanetik.billing
 
+import com.kanetik.billing.choice.BillingChoiceActions
+
 /**
  * The full Kanetik Billing surface: querying products / launching flows /
  * acknowledging / consuming ([BillingActions]), observing purchase updates
- * ([BillingPurchaseUpdatesOwner]), and managing the underlying Play Billing
- * connection ([BillingConnector]).
+ * ([BillingPurchaseUpdatesOwner]), managing the underlying Play Billing
+ * connection ([BillingConnector]), and the experimental Billing Choice surface
+ * ([BillingChoiceActions]).
  *
  * Most consumers inject the full [BillingRepository] in one place and depend
  * on the narrower interface(s) they actually use everywhere else. Obtain an
  * instance via [BillingRepositoryCreator.create].
+ *
+ * The [BillingChoiceActions] methods are gated behind
+ * [ExperimentalBillingChoiceApi][com.kanetik.billing.choice.ExperimentalBillingChoiceApi];
+ * inheriting the interface here does not force opt-in on consumers — only
+ * *calling* a Billing Choice method does.
+ *
+ * **Implementers, note:** adding [BillingChoiceActions] as a supertype is a
+ * source-breaking change for anyone who implements [BillingRepository]
+ * directly (most commonly a hand-rolled test fake) — those implementations
+ * must now also provide `isBillingChoiceAvailable`, `getBillingChoiceInfo`,
+ * and `showBillingProgramInformationDialog`, or delegate them to a real
+ * repository. The vast majority of consumers obtain the repository from
+ * [BillingRepositoryCreator.create] and are unaffected. (A
+ * `FakeBillingRepository` test artifact that absorbs additions like this is
+ * planned for v0.2.0 — see the roadmap.)
  */
-public interface BillingRepository : BillingActions, BillingPurchaseUpdatesOwner, BillingConnector {
+public interface BillingRepository :
+    BillingActions,
+    BillingPurchaseUpdatesOwner,
+    BillingConnector,
+    BillingChoiceActions {
     /**
      * Push a synthetic [PurchaseRevoked] event into
      * [observePurchaseUpdates][BillingPurchaseUpdatesOwner.observePurchaseUpdates].
