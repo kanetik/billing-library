@@ -4,13 +4,18 @@ import android.app.Activity
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import com.android.billingclient.api.AcknowledgePurchaseParams
+import com.android.billingclient.api.BillingChoiceInfo
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingClient.FeatureType
 import com.android.billingclient.api.BillingFlowParams
+import com.android.billingclient.api.BillingProgramAvailabilityDetails
+import com.android.billingclient.api.BillingProgramAvailabilityDetails.BillingChoiceAvailabilityDetails.ChoiceScreenType as PblChoiceScreenType
+import com.android.billingclient.api.BillingProgramInformationDialogParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.ConsumeResult
+import com.android.billingclient.api.GetBillingChoiceInfoParams
 import com.android.billingclient.api.InAppMessageParams
 import com.android.billingclient.api.InAppMessageResult
 import com.android.billingclient.api.ProductDetails
@@ -23,6 +28,10 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
 import com.android.billingclient.api.consumePurchase
 import com.android.billingclient.api.queryPurchasesAsync
+import com.kanetik.billing.choice.BillingChoiceAvailability
+import com.kanetik.billing.choice.BillingChoiceDetails
+import com.kanetik.billing.choice.ChoiceScreenType
+import com.kanetik.billing.choice.ExperimentalBillingChoiceApi
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -256,6 +265,123 @@ internal class DefaultBillingRepository(
             }
             else -> BillingInAppMessageResult.NoActionNeeded
         }
+    }
+
+    // --- Billing Choice (experimental, PBL 9.1.0) ---------------------------
+    // Thin mirrors of PBL's availability -> info -> dialog surface. Each reuses
+    // connectToClientAndCall (connection wait) + suspendCancellableCoroutine,
+    // same as showInAppMessages above. The @OptIn on each override is required
+    // because the BillingChoiceActions members carry the experimental marker.
+
+    @AnyThread
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    override suspend fun isBillingChoiceAvailable(): BillingChoiceAvailability =
+        connectToClientAndCall { client ->
+            withContext(ioDispatcher) {
+                suspendCancellableCoroutine { cont ->
+                    client.isBillingProgramAvailableAsync(
+                        BillingClient.BillingProgram.BILLING_CHOICE
+                    ) { billingResult, details ->
+                        try {
+                            cont.resume(mapBillingChoiceAvailability(billingResult, details))
+                        } catch (e: IllegalStateException) {
+                            logger.w(
+                                "isBillingProgramAvailableAsync callback fired after continuation was already resumed",
+                                e
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+    @AnyThread
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    override suspend fun getBillingChoiceInfo(
+        params: GetBillingChoiceInfoParams
+    ): BillingChoiceDetails = connectToClientAndCall { client ->
+        withContext(ioDispatcher) {
+            suspendCancellableCoroutine { cont ->
+                client.getBillingChoiceInfoAsync(params) { billingResult, info ->
+                    try {
+                        if (billingResult.responseCode == BillingResponseCode.OK) {
+                            cont.resume(mapBillingChoiceDetails(info))
+                        } else {
+                            cont.resumeWith(
+                                Result.failure(BillingException.fromResult(billingResult))
+                            )
+                        }
+                    } catch (e: IllegalStateException) {
+                        logger.w(
+                            "getBillingChoiceInfoAsync callback fired after continuation was already resumed",
+                            e
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @UiThread
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    override suspend fun showBillingProgramInformationDialog(
+        activity: Activity,
+        params: BillingProgramInformationDialogParams
+    ): Unit = connectToClientAndCall { client ->
+        withContext(uiDispatcher) {
+            suspendCancellableCoroutine { cont ->
+                client.showBillingProgramInformationDialog(activity, params) { billingResult ->
+                    try {
+                        if (billingResult.responseCode == BillingResponseCode.OK) {
+                            cont.resume(Unit)
+                        } else {
+                            cont.resumeWith(
+                                Result.failure(BillingException.fromResult(billingResult))
+                            )
+                        }
+                    } catch (e: IllegalStateException) {
+                        logger.w(
+                            "showBillingProgramInformationDialog callback fired after continuation was already resumed",
+                            e
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    private fun mapBillingChoiceAvailability(
+        billingResult: BillingResult,
+        details: BillingProgramAvailabilityDetails
+    ): BillingChoiceAvailability {
+        if (billingResult.responseCode != BillingResponseCode.OK) {
+            logger.d(
+                "Billing Choice availability query returned ${billingResult.responseCode} — reporting Unavailable"
+            )
+            return BillingChoiceAvailability.Unavailable
+        }
+        val choice = details.billingChoiceAvailabilityDetails
+            ?: return BillingChoiceAvailability.Unavailable
+        return BillingChoiceAvailability.Available(
+            choiceScreenType = mapChoiceScreenType(choice.choiceScreenType),
+            externalLinkAvailable = choice.isExternalLinkAvailable
+        )
+    }
+
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    private fun mapBillingChoiceDetails(info: BillingChoiceInfo?): BillingChoiceDetails =
+        BillingChoiceDetails(
+            imageUrl = info?.playBillingChoiceImageUrl,
+            loyaltyInfo = info?.playBillingLoyaltyInfo
+        )
+
+    @OptIn(ExperimentalBillingChoiceApi::class)
+    private fun mapChoiceScreenType(code: Int): ChoiceScreenType = when (code) {
+        PblChoiceScreenType.DEVELOPER_RENDERED -> ChoiceScreenType.DEVELOPER_RENDERED
+        PblChoiceScreenType.GOOGLE_RENDERED -> ChoiceScreenType.GOOGLE_RENDERED
+        PblChoiceScreenType.UNSPECIFIED -> ChoiceScreenType.UNSPECIFIED
+        else -> ChoiceScreenType.UNKNOWN
     }
 
     @AnyThread

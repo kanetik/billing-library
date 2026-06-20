@@ -26,6 +26,7 @@ If you haven't shipped a Play Billing integration before, these are the guides t
 - [Multi-offer products](guides/multi-offer-products.md) — picking an offer for multi-offer one-time products.
 - [Product-details caching](guides/product-details-caching.md) — the recommended consumer-side `StateFlow` pattern.
 - [In-app messaging](guides/in-app-messaging.md) — surfacing Play Billing's transactional messaging UI.
+- [Billing Choice (experimental)](guides/billing-choice.md) — the PBL 9.1.0 availability → info → dialog surface, behind an opt-in marker; enrollment- and region-gated.
 - [Subscriptions (v0.1.x)](guides/subscriptions.md) — what works at the protocol level today; the gap closes in v0.2.0.
 
 ## Reference

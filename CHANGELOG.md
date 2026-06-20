@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Billing Choice support (experimental).** Wraps the PBL 9.1.0 Billing Choice
+  surface as `BillingChoiceActions` — `isBillingChoiceAvailable()`,
+  `getBillingChoiceInfo(params)`, and `showBillingProgramInformationDialog(activity, params)` —
+  implemented on `BillingRepository` with the wrapper's usual connection
+  management. A thin mirror of PBL's availability → info → dialog flow, gated
+  behind the `@ExperimentalBillingChoiceApi` opt-in marker (a *warning*, not an
+  error) so the shape can evolve toward a higher-level abstraction without an
+  ABI break once dog-fooding shows what's needed. `BillingChoiceClientFactory`
+  builds a client with the program enabled
+  (`enableBillingProgram(BillingProgram.BILLING_CHOICE)`). Billing Choice is
+  enrollment- and region-gated; the availability query reports `Unavailable`
+  (rather than throwing) when the program isn't usable. New
+  `com.kanetik.billing.choice` package; see the
+  [Billing Choice guide](https://kanetik.github.io/billing-library/guides/billing-choice/)
+  and [#39](https://github.com/kanetik/billing-library/issues/39). Resolves the
+  "does not yet expose" note from the 0.1.4 PBL 9.1.0 bump.
+
 - **Internal connection retry for transient `startConnection` failures.** When
   `BillingClient.startConnection` reports a transient setup failure — notably
   `SERVICE_DISCONNECTED` (classified `SIMPLE_RETRY`) and `SERVICE_UNAVAILABLE`
