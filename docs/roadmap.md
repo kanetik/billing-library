@@ -140,11 +140,12 @@ New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:
 
 - `FakeBillingRepository` — in-memory `BillingRepository` for unit tests + debug-flavor DI overrides
 - Test-control API: `setConnectionResult`, `emitPurchaseUpdate`, `setProducts`, `setPurchases`, `throwOnNext(BillingException)`, `simulateLaunchFlowResult`
-- Robolectric included → unblocks the four classes deferred from v0.1.0's test suite:
+- Robolectric included → unblocks the five classes deferred from v0.1.x's test suite:
   - `PurchaseVerifier` (needs `android.util.Base64`)
   - `ProductDetails.toOneTimeFlowParams` (needs real PBL `BillingFlowParams.Builder` to satisfy validation)
   - `DefaultBillingRepository` orchestration (retry loop, `withTimeout`, `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)
   - `showInAppMessages` (needs the real `InAppMessageResult` shape)
+  - Billing Choice wrappers + result mapping (`isBillingChoiceAvailable` / `getBillingChoiceInfo` / `showBillingProgramInformationDialog` and the `mapChoiceScreenType` / `mapBillingChoiceDetails` / `mapBillingChoiceAvailability` helpers — same PBL-callback-over-a-fake-`BillingClient` need as `showInAppMessages`; added experimental in v0.1.x) — [#42](https://github.com/kanetik/billing-library/issues/42)
 - Unit tests covering every state transition the fake claims to support
 - README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example
 - Adopt in Wakey's debug flavor where `DebugConfig.mockUserType` currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds
