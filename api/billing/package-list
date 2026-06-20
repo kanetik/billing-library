@@ -1,5 +1,29 @@
 $dokka.format:html-v1
 $dokka.linkExtension:html
+$dokka.location:com.kanetik.billing.choice////PointingToDeclaration/billing/com.kanetik.billing.choice/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceActions///PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-actions/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceActions/getBillingChoiceInfo/#com.android.billingclient.api.GetBillingChoiceInfoParams/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-actions/get-billing-choice-info.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceActions/isBillingChoiceAvailable/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-actions/is-billing-choice-available.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceActions/showBillingProgramInformationDialog/#android.app.Activity#com.android.billingclient.api.BillingProgramInformationDialogParams/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-actions/show-billing-program-information-dialog.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability.Available///PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/-available/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability.Available/Available/#com.kanetik.billing.choice.ChoiceScreenType#kotlin.Boolean/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/-available/-available.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability.Available/choiceScreenType/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/-available/choice-screen-type.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability.Available/externalLinkAvailable/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/-available/external-link-available.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability.Unavailable///PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/-unavailable/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceAvailability///PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-availability/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceDetails///PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-details/index.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceDetails/BillingChoiceDetails/#kotlin.String?#kotlin.String?/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-details/-billing-choice-details.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceDetails/imageUrl/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-details/image-url.html
+$dokka.location:com.kanetik.billing.choice/BillingChoiceDetails/loyaltyInfo/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-billing-choice-details/loyalty-info.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType.DEVELOPER_RENDERED///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing.choice/-choice-screen-type/-d-e-v-e-l-o-p-e-r_-r-e-n-d-e-r-e-d/index.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType.GOOGLE_RENDERED///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing.choice/-choice-screen-type/-g-o-o-g-l-e_-r-e-n-d-e-r-e-d/index.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType.UNKNOWN///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing.choice/-choice-screen-type/-u-n-k-n-o-w-n/index.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType.UNSPECIFIED///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing.choice/-choice-screen-type/-u-n-s-p-e-c-i-f-i-e-d/index.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType///PointingToDeclaration/billing/com.kanetik.billing.choice/-choice-screen-type/index.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType/entries/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-choice-screen-type/entries.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType/valueOf/#kotlin.String/PointingToDeclaration/billing/com.kanetik.billing.choice/-choice-screen-type/value-of.html
+$dokka.location:com.kanetik.billing.choice/ChoiceScreenType/values/#/PointingToDeclaration/billing/com.kanetik.billing.choice/-choice-screen-type/values.html
+$dokka.location:com.kanetik.billing.choice/ExperimentalBillingChoiceApi///PointingToDeclaration/billing/com.kanetik.billing.choice/-experimental-billing-choice-api/index.html
 $dokka.location:com.kanetik.billing.entitlement.signed////PointingToDeclaration/billing/com.kanetik.billing.entitlement.signed/index.html
 $dokka.location:com.kanetik.billing.entitlement.signed/HmacKeyProvider///PointingToDeclaration/billing/com.kanetik.billing.entitlement.signed/-hmac-key-provider/index.html
 $dokka.location:com.kanetik.billing.entitlement.signed/HmacKeyProvider/sign/#kotlin.ByteArray/PointingToDeclaration/billing/com.kanetik.billing.entitlement.signed/-hmac-key-provider/sign.html
@@ -145,6 +169,9 @@ $dokka.location:com.kanetik.billing.ext/PurchaseFlowResult.InvalidActivityState/
 $dokka.location:com.kanetik.billing.ext/PurchaseFlowResult.Success///PointingToDeclaration/billing/com.kanetik.billing.ext/-purchase-flow-result/-success/index.html
 $dokka.location:com.kanetik.billing.ext/PurchaseFlowResult///PointingToDeclaration/billing/com.kanetik.billing.ext/-purchase-flow-result/index.html
 $dokka.location:com.kanetik.billing.factory////PointingToDeclaration/billing/com.kanetik.billing.factory/index.html
+$dokka.location:com.kanetik.billing.factory/BillingChoiceClientFactory///PointingToDeclaration/billing/com.kanetik.billing.factory/-billing-choice-client-factory/index.html
+$dokka.location:com.kanetik.billing.factory/BillingChoiceClientFactory/BillingChoiceClientFactory/#/PointingToDeclaration/billing/com.kanetik.billing.factory/-billing-choice-client-factory/-billing-choice-client-factory.html
+$dokka.location:com.kanetik.billing.factory/BillingChoiceClientFactory/createBillingClient/#android.content.Context#com.android.billingclient.api.PurchasesUpdatedListener/PointingToDeclaration/billing/com.kanetik.billing.factory/-billing-choice-client-factory/create-billing-client.html
 $dokka.location:com.kanetik.billing.factory/BillingClientFactory///PointingToDeclaration/billing/com.kanetik.billing.factory/-billing-client-factory/index.html
 $dokka.location:com.kanetik.billing.factory/BillingClientFactory/createBillingClient/#android.content.Context#com.android.billingclient.api.PurchasesUpdatedListener/PointingToDeclaration/billing/com.kanetik.billing.factory/-billing-client-factory/create-billing-client.html
 $dokka.location:com.kanetik.billing.factory/DefaultBillingClientFactory///PointingToDeclaration/billing/com.kanetik.billing.factory/-default-billing-client-factory/index.html
@@ -285,6 +312,7 @@ $dokka.location:com.kanetik.billing/RevocationReason/entries/#/PointingToDeclara
 $dokka.location:com.kanetik.billing/RevocationReason/valueOf/#kotlin.String/PointingToDeclaration/billing/com.kanetik.billing/-revocation-reason/value-of.html
 $dokka.location:com.kanetik.billing/RevocationReason/values/#/PointingToDeclaration/billing/com.kanetik.billing/-revocation-reason/values.html
 com.kanetik.billing
+com.kanetik.billing.choice
 com.kanetik.billing.entitlement
 com.kanetik.billing.entitlement.signed
 com.kanetik.billing.exception

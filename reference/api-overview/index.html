@@ -796,6 +796,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/billing-choice/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Billing Choice (experimental)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/subscriptions/" class="md-nav__link">
         
   
@@ -1169,12 +1190,16 @@
 <td>Public entry point. Returns <code>BillingRepository</code>.</td>
 </tr>
 <tr>
-<td><code>BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner</code></td>
+<td><code>BillingRepository : BillingActions, BillingConnector, BillingPurchaseUpdatesOwner, BillingChoiceActions</code></td>
 <td>Composed interface — depend on the narrowest piece you need. Adds <code>emitExternalRevocation(token, reason)</code> for transport-agnostic server-driven revocation — see <a href="../../guides/server-driven-revocation/">Server-driven revocation</a>.</td>
 </tr>
 <tr>
 <td><code>BillingActions</code></td>
 <td><code>queryPurchases</code>, <code>queryProductDetails</code>, <code>consumePurchase</code>, <code>acknowledgePurchase</code>, <code>handlePurchase</code>, <code>launchFlow</code>, <code>showInAppMessages</code>, <code>isFeatureSupported</code>.</td>
+</tr>
+<tr>
+<td><code>BillingChoiceActions</code> <em>(experimental)</em></td>
+<td><code>isBillingChoiceAvailable</code>, <code>getBillingChoiceInfo</code>, <code>showBillingProgramInformationDialog</code>. PBL 9.1.0 Billing Choice surface; every method requires <code>@OptIn(ExperimentalBillingChoiceApi::class)</code>. Enrollment- and region-gated — see <a href="../../guides/billing-choice/">Billing Choice</a>.</td>
 </tr>
 <tr>
 <td><code>BillingConnector</code></td>
@@ -1230,7 +1255,11 @@
 </tr>
 <tr>
 <td><code>com.kanetik.billing.factory</code></td>
-<td><code>BillingClientFactory</code>, <code>DefaultBillingClientFactory</code></td>
+<td><code>BillingClientFactory</code>, <code>DefaultBillingClientFactory</code>, <code>BillingChoiceClientFactory</code> <em>(experimental)</em></td>
+</tr>
+<tr>
+<td><code>com.kanetik.billing.choice</code> <em>(experimental)</em></td>
+<td><code>BillingChoiceActions</code>, <code>BillingChoiceAvailability</code>, <code>BillingChoiceDetails</code>, <code>ChoiceScreenType</code>, <code>ExperimentalBillingChoiceApi</code></td>
 </tr>
 <tr>
 <td><code>com.kanetik.billing.ext</code></td>

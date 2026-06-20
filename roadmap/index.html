@@ -796,6 +796,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/billing-choice/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Billing Choice (experimental)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/subscriptions/" class="md-nav__link">
         
   
@@ -1699,11 +1720,12 @@ public data class SubscriptionReplacement(
 <ul>
 <li><code>FakeBillingRepository</code> — in-memory <code>BillingRepository</code> for unit tests + debug-flavor DI overrides</li>
 <li>Test-control API: <code>setConnectionResult</code>, <code>emitPurchaseUpdate</code>, <code>setProducts</code>, <code>setPurchases</code>, <code>throwOnNext(BillingException)</code>, <code>simulateLaunchFlowResult</code></li>
-<li>Robolectric included → unblocks the four classes deferred from v0.1.0's test suite:</li>
+<li>Robolectric included → unblocks the five classes deferred from v0.1.x's test suite:</li>
 <li><code>PurchaseVerifier</code> (needs <code>android.util.Base64</code>)</li>
 <li><code>ProductDetails.toOneTimeFlowParams</code> (needs real PBL <code>BillingFlowParams.Builder</code> to satisfy validation)</li>
 <li><code>DefaultBillingRepository</code> orchestration (retry loop, <code>withTimeout</code>, <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)</li>
 <li><code>showInAppMessages</code> (needs the real <code>InAppMessageResult</code> shape)</li>
+<li>Billing Choice wrappers + result mapping (<code>isBillingChoiceAvailable</code> / <code>getBillingChoiceInfo</code> / <code>showBillingProgramInformationDialog</code> and the <code>mapChoiceScreenType</code> / <code>mapBillingChoiceDetails</code> / <code>mapBillingChoiceAvailability</code> helpers — same PBL-callback-over-a-fake-<code>BillingClient</code> need as <code>showInAppMessages</code>; added experimental in v0.1.x) — <a href="https://github.com/kanetik/billing-library/issues/42">#42</a></li>
 <li>Unit tests covering every state transition the fake claims to support</li>
 <li>README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example</li>
 <li>Adopt in Wakey's debug flavor where <code>DebugConfig.mockUserType</code> currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds</li>
@@ -1812,9 +1834,14 @@ lifecycleScope.launch {
 </thead>
 <tbody>
 <tr>
-<td>External offers / alternative billing / user-choice billing</td>
+<td>Billing Choice info + dialog (PBL 9.1.0)</td>
+<td><strong>shipped — experimental</strong></td>
+<td>The 9.1.0 availability → info → dialog surface is wrapped as the experimental <code>BillingChoiceActions</code> (gated by <code>@ExperimentalBillingChoiceApi</code>), with <code>BillingChoiceClientFactory</code> for construction-time enablement. Thin on purpose; promote to a higher-level shape once dog-fooding shows what's needed. See <a href="../guides/billing-choice/">Billing Choice</a> and <a href="https://github.com/kanetik/billing-library/issues/39">issue #39</a>.</td>
+</tr>
+<tr>
+<td>External offers / alternative billing / user-choice <em>payment</em> flow</td>
 <td>demand-driven</td>
-<td>PBL 8 added external-billing programs. Requires extending <code>BillingClientFactory</code> (or adding a parallel factory) to call <code>enableUserChoiceBilling</code> / <code>enableBillingProgram</code>. Region-gated (EEA + others); only worth it if a consumer needs it.</td>
+<td>The remaining piece beyond Billing Choice's info/dialog: actually routing a purchase through an alternative payment processor via <code>enableUserChoiceBilling(UserChoiceBillingListener)</code> / <code>enableBillingProgram(EXTERNAL_PAYMENTS)</code> and handling the developer-billed selection. Region-gated (EEA + others); only worth it if a consumer needs to take external payments, not just inform users.</td>
 </tr>
 <tr>
 <td>Real-Time Developer Notifications (RTDN) helpers</td>
