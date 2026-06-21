@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.4] - 2026-06-21
+
 ### Added
 
 - **Billing Choice support (experimental).** Wraps the PBL 9.1.0 Billing Choice
@@ -53,14 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ConnectionRetryPolicy.None` to opt out and surface the first transient
   failure immediately (the pre-change behavior).
 
-## [0.1.4] - 2026-06-18
-
 ### Changed
 
 - Bumped Play Billing Library `9.0.0` → `9.1.0` ([release notes](https://developer.android.com/google/play/billing/release-notes#9.1.0)).
   PBL 9.1.0 adds Billing Choice APIs (`getBillingChoiceInfoAsync`, `showBillingProgramInformationDialog`,
-  `BillingChoiceInfo`, et al.) — net-new PBL surface the wrapper does not yet expose; see
-  [#39](https://github.com/kanetik/billing-library/issues/39) for design discussion.
+  `BillingChoiceInfo`, et al.) — wrapped in this same release via `BillingChoiceActions` (see the
+  **Billing Choice support** entry above and [#39](https://github.com/kanetik/billing-library/issues/39)).
 
 ## [0.1.3] - 2026-05-25
 
