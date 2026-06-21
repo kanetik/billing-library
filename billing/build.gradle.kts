@@ -13,7 +13,7 @@ plugins {
 // .github/workflows/publish.yml). Local builds get the SNAPSHOT default so
 // nothing accidentally publishes as a release version off main.
 group = "com.kanetik.billing"
-version = (findProperty("VERSION_NAME") as String?) ?: "0.1.3-SNAPSHOT"
+version = (findProperty("VERSION_NAME") as String?) ?: "0.1.4-SNAPSHOT"
 
 kotlin {
     // JVM 11 keeps the AAR consumable by any Android consumer on JDK 11+.
@@ -24,7 +24,7 @@ kotlin {
 
 android {
     namespace = "com.kanetik.billing"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         // PBL 8.1.0 raised the minimum supported SDK to 23 (Android 6.0). We pin
