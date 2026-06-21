@@ -18,7 +18,9 @@ name: Post-release doc bump
 # branch is force-pushed and the existing PR is left in place (its diff
 # updates to whatever the new run produced). The `pull-requests: write`
 # permission is needed to call `gh pr create`; `contents: write` is needed
-# to push the branch.
+# to push the branch; `issues: write` is needed to create the `automation`
+# label on repos that don't already have it (labels are an Issues-API
+# resource).
 #
 # `workflow_dispatch` exposes `version` (required) and `date` (optional,
 # defaults to today UTC) inputs for retro-fixes — e.g., stamping a
@@ -46,6 +48,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # `issues: write` is needed to *create* the `automation` label if the repo
+  # doesn't have it yet (labels live under the Issues API). Applying an
+  # already-existing label to a PR only needs `pull-requests: write`, but
+  # provisioning a missing one needs this. See the "Ensure 'automation'
+  # label exists" step below.
+  issues: write
 
 jobs:
   bump-docs:
@@ -266,7 +274,30 @@ jobs:
           GitHub blocks workflows from running on PRs opened by \`GITHUB_TOKEN\` (anti-recursion). If you want CI to run on this PR, push an empty commit (\`git commit --allow-empty -m "trigger ci"\`) or click **Re-run all jobs** under the Checks tab.
           EOF
 
-          gh pr create \
+          # Ensure the `automation` label exists before we try to apply it.
+          # `gh pr create --label automation` aborts the whole command (and
+          # does NOT open the PR) if the label is missing from the repo —
+          # which is exactly how the v0.1.4 tag-push run failed: the branch
+          # was pushed but no PR was ever opened. Create the label
+          # idempotently first. `gh label create` exits non-zero if the label
+          # already exists, so swallow that — the only outcome we care about
+          # is "the label exists afterward".
+          gh label create automation \
+            --color ededed \
+            --description "Opened by an automated workflow" \
+            >/dev/null 2>&1 || true
+
+          # Open the PR WITHOUT the label, capturing its URL. Decoupling
+          # creation from labeling guarantees the PR is opened even if
+          # labeling later fails for any reason (the PR is the deliverable;
+          # the label is cosmetic). Re-running on an already-pushed branch
+          # that has no open PR (the v0.1.4 situation) now self-heals.
+          PR_URL=$(gh pr create \
             --title "chore: post-release doc bump for ${VER}" \
-            --body-file "$BODY_FILE" \
-            --label automation
+            --body-file "$BODY_FILE")
+          echo "Opened $PR_URL"
+
+          # Best-effort labeling. Never let a label hiccup fail the run after
+          # the PR is already open.
+          gh pr edit "$PR_URL" --add-label automation \
+            || echo "::warning::Could not add 'automation' label to ${PR_URL}; PR was opened regardless."
