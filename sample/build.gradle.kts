@@ -11,7 +11,7 @@ kotlin {
 
 android {
     namespace = "com.kanetik.billing.sample"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.kanetik.billing.sample"
