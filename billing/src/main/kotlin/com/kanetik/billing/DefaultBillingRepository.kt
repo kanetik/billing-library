@@ -54,10 +54,51 @@ internal class DefaultBillingRepository(
     // acknowledge) and the surrounding retry/backoff loop. uiDispatcher is
     // used only by launchFlow because PBL requires launchBillingFlow on Main.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val uiDispatcher: CoroutineDispatcher = Dispatchers.Main
+    private val uiDispatcher: CoroutineDispatcher = Dispatchers.Main,
+    // Backs queryBillingAvailability's deterministic UNAVAILABLE verdict.
+    // Defaults to "usable" so tests that construct the repository directly and
+    // don't exercise availability keep their previous behavior.
+    private val playStoreEnvironment: PlayStoreEnvironment = PlayStoreEnvironment { true }
 ) : BillingRepository {
     override fun connectToBilling(): SharedFlow<BillingConnectionResult> {
         return billingClientStorage.connectionResultFlow
+    }
+
+    @AnyThread
+    override suspend fun queryBillingAvailability(): BillingAvailability {
+        // Step 1: deterministic, offline check. If the Play Store package is
+        // absent or disabled, billing can never work here — a stable, terminal
+        // fact the caller can safely act on.
+        if (!playStoreEnvironment.isPlayStoreUsable()) {
+            logger.d("queryBillingAvailability: Play Store package absent/disabled -> UNAVAILABLE")
+            return BillingAvailability.UNAVAILABLE
+        }
+        // Step 2: Play Store is present. Try to connect. A success is a clean
+        // AVAILABLE; ANY failure here (including a transient BILLING_UNAVAILABLE
+        // / code 3, a slow cold start, or a dropped connection) is reported as
+        // UNKNOWN, never UNAVAILABLE — the Play Store exists, so the failure is
+        // not the terminal "this device can't pay" verdict.
+        return try {
+            val result = withTimeout(AVAILABILITY_CONNECT_TIMEOUT_MS) {
+                connectToBilling().first()
+            }
+            when (result) {
+                is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
+                is BillingConnectionResult.Error -> {
+                    logger.d(
+                        "queryBillingAvailability: Play Store present but connection failed " +
+                            "(${result.exception::class.simpleName}) -> UNKNOWN"
+                    )
+                    BillingAvailability.UNKNOWN
+                }
+            }
+        } catch (te: TimeoutCancellationException) {
+            // withTimeout's own timeout — a billing-layer indeterminacy, not a
+            // scope teardown. Map to UNKNOWN. (Real scope CancellationException
+            // is a different subtype and propagates, since we don't catch it.)
+            logger.d("queryBillingAvailability: connection attempt timed out -> UNKNOWN", te)
+            BillingAvailability.UNKNOWN
+        }
     }
 
     override fun observePurchaseUpdates(): Flow<PurchaseEvent> {
@@ -578,5 +619,11 @@ internal class DefaultBillingRepository(
         // Generous enough for slow Play Billing setups, short enough to surface a
         // hung connection rather than suspending the caller forever.
         private const val CONNECTION_TIMEOUT_MS: Long = 30_000L
+
+        // queryBillingAvailability bounds its connection attempt so a hung/cold
+        // connect resolves to UNKNOWN rather than suspending the caller. Shorter
+        // than CONNECTION_TIMEOUT_MS because availability is a UI-gating probe
+        // (the caller is deciding what to show now), not a purchase-critical op.
+        private const val AVAILABILITY_CONNECT_TIMEOUT_MS: Long = 8_000L
     }
 }
