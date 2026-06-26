@@ -70,7 +70,7 @@ val billing = BillingRepositoryCreator.create(
 )
 ```
 
-Failures the library classifies as terminal (`BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `FEATURE_NOT_SUPPORTED`, etc.) are *not* retried at the connection layer — they surface immediately, since retrying can't change the outcome.
+Failures the library classifies as non-transient for connection-retry purposes (`BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `FEATURE_NOT_SUPPORTED`, etc.) are *not* retried at the connection layer — they surface immediately, since an in-loop retry won't flip them. Note this is a statement about *connection retry*, not about terminality for your own gating: `BILLING_UNAVAILABLE` in particular stays ambiguous (it can be a transient blip), so don't promote "surfaced immediately" into "this device can't pay" — use [`queryBillingAvailability()`](#deterministic-availability-for-irreversible-decisions) for irreversible decisions.
 
 ## Deterministic availability for irreversible decisions
 
