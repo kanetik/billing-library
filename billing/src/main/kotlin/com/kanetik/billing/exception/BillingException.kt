@@ -192,18 +192,24 @@ public sealed class BillingException(
     public class ServiceUnavailableException(result: BillingResult) : BillingException(result, RetryType.EXPONENTIAL_RETRY)
 
     /**
-     * Billing API itself is unavailable on this device — different from
-     * [ServiceUnavailableException] in that this means "this device/install can
-     * never use billing", not "service is busy".
+     * `BILLING_UNAVAILABLE` (code 3): Play Billing isn't usable for this call.
+     * Distinct from [ServiceUnavailableException] in that it isn't a "service is
+     * busy, retry" condition — but it is **not** a clean "this device can never
+     * pay" verdict either. Play returns the same code for a genuinely unsupported
+     * install **and** for transient states (Play Store mid-update, account still
+     * syncing right after install), so it is ambiguous.
      *
      * Common causes:
      *  - The user is on a non-Play distribution (e.g. some Huawei devices).
-     *  - Play Services has been disabled or never installed.
+     *  - The Play Store has been disabled or never installed.
      *  - The user's account isn't eligible for purchases.
+     *  - A transient hiccup that will clear on its own.
      *
-     * Retry strategy: [RetryType.NONE]. Show "in-app purchases not available on
-     * this device" UX; consider hiding billing-related buttons entirely until
-     * billing becomes available.
+     * Retry strategy: [RetryType.NONE] — not retried at the connection layer
+     * because an in-loop retry won't flip it. **Do not** treat it as terminal for
+     * an irreversible decision (granting a free fallback, permanently hiding the
+     * purchase UI): use [com.kanetik.billing.BillingConnector.queryBillingAvailability]
+     * for that, which separates the terminal `UNAVAILABLE` from a transient `UNKNOWN`.
      */
     public class BillingUnavailableException(result: BillingResult) : BillingException(result)
 

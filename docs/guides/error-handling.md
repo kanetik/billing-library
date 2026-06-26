@@ -1,6 +1,6 @@
 # Error handling
 
-PBL hands you back errors as integer response codes on a `BillingResult`. The codes have very different stakes. A `NETWORK_ERROR` is a "try again in a moment". `BILLING_UNAVAILABLE` means hide the IAP UI entirely (Play Store missing, account ineligible, region restriction). `ITEM_ALREADY_OWNED` is closer to a success-with-restore than an error. `DEVELOPER_ERROR` means you wrote the API call wrong and retrying won't help. Naive code treats them all the same and either hammers Play with retries or shows a generic "something went wrong" dialog for everything.
+PBL hands you back errors as integer response codes on a `BillingResult`. The codes have very different stakes. A `NETWORK_ERROR` is a "try again in a moment". `BILLING_UNAVAILABLE` *looks* like "hide the IAP UI entirely", but it's ambiguous — Play returns it both for a genuinely unsupported device (Play Store missing) **and** for a momentary hiccup (Play Store mid-update, account still syncing right after install), so it's unsafe to gate an irreversible decision on it directly (use [`queryBillingAvailability()`](#deterministic-availability-for-irreversible-decisions) for that). `ITEM_ALREADY_OWNED` is closer to a success-with-restore than an error. `DEVELOPER_ERROR` means you wrote the API call wrong and retrying won't help. Naive code treats them all the same and either hammers Play with retries or shows a generic "something went wrong" dialog for everything.
 
 The library does two things about that:
 
@@ -36,7 +36,7 @@ try {
 | `FatalErrorException` | Generic Play Billing `ERROR` response code | `EXPONENTIAL_RETRY` |
 | `ItemAlreadyOwnedException` | One-time product already owned | `REQUERY_PURCHASE_RETRY` |
 | `ItemNotOwnedException` | Trying to consume something not in inventory | `REQUERY_PURCHASE_RETRY` |
-| `BillingUnavailableException` | Play Store missing / disabled / wrong region | `NONE` |
+| `BillingUnavailableException` | `BILLING_UNAVAILABLE` — Play Store missing/disabled **or** transiently unavailable (the code is ambiguous; see [deterministic availability](#deterministic-availability-for-irreversible-decisions)) | `NONE` |
 | `ItemUnavailableException` | Product not configured for this user/country | `NONE` |
 | `DeveloperErrorException` | API misuse — fix the code | `NONE` |
 | `FeatureNotSupportedException` | Feature missing on this Play version | `NONE` |
@@ -70,7 +70,41 @@ val billing = BillingRepositoryCreator.create(
 )
 ```
 
-Failures the library classifies as terminal (`BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `FEATURE_NOT_SUPPORTED`, etc.) are *not* retried at the connection layer — they surface immediately, since retrying can't change the outcome.
+Failures the library classifies as non-transient for connection-retry purposes (`BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `FEATURE_NOT_SUPPORTED`, etc.) are *not* retried at the connection layer — they surface immediately, since an in-loop retry won't flip them. Note this is a statement about *connection retry*, not about terminality for your own gating: `BILLING_UNAVAILABLE` in particular stays ambiguous (it can be a transient blip), so don't promote "surfaced immediately" into "this device can't pay" — use [`queryBillingAvailability()`](#deterministic-availability-for-irreversible-decisions) for irreversible decisions.
+
+## Deterministic availability for irreversible decisions
+
+`connectToBilling()` is the right signal for "is billing *working right now*" — but it can't cleanly answer "can this device *ever* do Play Billing", because PBL collapses two very different situations into one `BILLING_UNAVAILABLE` (code 3) response: a genuinely unsupported device (no Play Store) and a merely transient blip (Play Store mid-update, account still syncing right after install). Gating an **irreversible** decision on that code — granting a free fallback tier to "can't pay" users, permanently hiding a purchase CTA — mis-fires on a single first-launch hiccup and never recovers.
+
+`BillingConnector.queryBillingAvailability(): BillingAvailability` disambiguates them deterministically. It's a `suspend` function — call it from a coroutine (it bounds its own connection attempt, so it won't suspend indefinitely):
+
+```kotlin
+// e.g. in a ViewModel: viewModelScope.launch { gateOnAvailability() }
+suspend fun gateOnAvailability() {
+    when (billing.queryBillingAvailability()) {
+        BillingAvailability.UNAVAILABLE -> grantNoPlayFallback()   // terminal — safe to act on
+        BillingAvailability.AVAILABLE   -> showPurchaseUi()
+        BillingAvailability.UNKNOWN     -> showNeutralLoadingState() // retry later; do NOT decide
+    }
+}
+```
+
+It resolves in two steps:
+
+1. **Offline Play Store check first.** If the Play Store package (`com.android.vending`) is absent or disabled — a stable, offline fact — the verdict is the terminal `UNAVAILABLE`. This is the *only* path to `UNAVAILABLE`; a transient code 3 never produces it.
+2. **Bounded connection attempt** (8s) only when the Play Store is present. Success → `AVAILABLE`; any failure (including a transient code 3) or a timeout → `UNKNOWN`.
+
+Treat the three verdicts by their *terminality*, not their optimism:
+
+- **`UNAVAILABLE`** is the only verdict safe to gate an irreversible decision on.
+- **`UNKNOWN`** must never be treated as terminal — keep the user in a neutral/loading state and re-query later.
+- **`AVAILABLE`** is advisory: it confirms billing is usable now, not a permanent guarantee.
+
+!!! warning "Package visibility (Android 11+ / targetSdk 30+)"
+    Step 1 relies on querying `com.android.vending`. The library's manifest declares the required `<queries>` entry, which merges into your app at build time — **no action needed if you consume the AAR normally.** If you strip merged manifest entries (aggressive manifest tooling, an unusual merge setup), re-add it; otherwise a present-but-hidden Play Store is misread as absent and yields a false `UNAVAILABLE`.
+
+!!! note "Implementing a custom `BillingConnector`"
+    `queryBillingAvailability()` is a **defaulted** interface method returning `UNKNOWN`, so existing hand-rolled `BillingConnector` / `BillingRepository` fakes keep compiling. The real repository from `BillingRepositoryCreator.create(...)` overrides it with the full two-step resolution above.
 
 ## Showing errors to users
 
