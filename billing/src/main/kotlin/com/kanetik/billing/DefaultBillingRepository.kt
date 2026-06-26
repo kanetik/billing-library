@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 internal class DefaultBillingRepository(
@@ -78,26 +79,27 @@ internal class DefaultBillingRepository(
         // / code 3, a slow cold start, or a dropped connection) is reported as
         // UNKNOWN, never UNAVAILABLE — the Play Store exists, so the failure is
         // not the terminal "this device can't pay" verdict.
-        return try {
-            val result = withTimeout(AVAILABILITY_CONNECT_TIMEOUT_MS) {
-                connectToBilling().first()
+        // withTimeoutOrNull (not withTimeout + catch): its own deadline maps to
+        // null -> UNKNOWN, while an OUTER timeout/cancellation imposed by the
+        // caller is a different TimeoutCancellationException instance that is NOT
+        // swallowed here — it propagates, so a caller wrapping this in its own
+        // withTimeout keeps control of its deadline/cancellation contract.
+        val result = withTimeoutOrNull(AVAILABILITY_CONNECT_TIMEOUT_MS) {
+            connectToBilling().first()
+        }
+        return when (result) {
+            is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
+            is BillingConnectionResult.Error -> {
+                logger.d(
+                    "queryBillingAvailability: Play Store present but connection failed " +
+                        "(${result.exception::class.simpleName}) -> UNKNOWN"
+                )
+                BillingAvailability.UNKNOWN
             }
-            when (result) {
-                is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
-                is BillingConnectionResult.Error -> {
-                    logger.d(
-                        "queryBillingAvailability: Play Store present but connection failed " +
-                            "(${result.exception::class.simpleName}) -> UNKNOWN"
-                    )
-                    BillingAvailability.UNKNOWN
-                }
+            null -> {
+                logger.d("queryBillingAvailability: connection attempt timed out -> UNKNOWN")
+                BillingAvailability.UNKNOWN
             }
-        } catch (te: TimeoutCancellationException) {
-            // withTimeout's own timeout — a billing-layer indeterminacy, not a
-            // scope teardown. Map to UNKNOWN. (Real scope CancellationException
-            // is a different subtype and propagates, since we don't catch it.)
-            logger.d("queryBillingAvailability: connection attempt timed out -> UNKNOWN", te)
-            BillingAvailability.UNKNOWN
         }
     }
 
