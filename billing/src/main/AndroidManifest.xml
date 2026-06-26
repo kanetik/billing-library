@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Package visibility (Android 11+ / API 30+). Without this <queries> entry the
+        PackageManager filters com.android.vending out of getApplicationInfo for
+        targetSdk 30+ consumers, throwing NameNotFoundException even when the Play
+        Store IS installed (e.g. sideloaded/internal builds where it isn't auto-visible).
+        That would make queryBillingAvailability() report a false-terminal UNAVAILABLE —
+        exactly the irreversible misclassification the API exists to prevent. Declaring
+        the package keeps the presence/enabled check honest.
+    -->
+    <queries>
+        <package android:name="com.android.vending" />
+    </queries>
 
 </manifest>

@@ -108,6 +108,9 @@ public object BillingRepositoryCreator {
         ),
         logger = logger,
         ioDispatcher = ioDispatcher,
-        uiDispatcher = uiDispatcher
+        uiDispatcher = uiDispatcher,
+        // Deterministic Play Store presence check backing queryBillingAvailability.
+        // Built from the same context as the BillingClient.
+        playStoreEnvironment = DefaultPlayStoreEnvironment(context)
     )
 }

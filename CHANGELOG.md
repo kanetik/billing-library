@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Deterministic billing-availability check.** New
+  `BillingConnector.queryBillingAvailability(): BillingAvailability`
+  (`AVAILABLE` / `UNAVAILABLE` / `UNKNOWN`) disambiguates a *terminal* "this
+  device can't do Play Billing" state from a merely *transient* failure. The
+  raw `BILLING_UNAVAILABLE` (code 3) response is returned both when the Play
+  Store is genuinely absent **and** when billing is momentarily unavailable
+  (Play Store mid-update, account still syncing right after install), so it is
+  unsafe to gate irreversible decisions (free fallback grant, hiding a purchase
+  CTA) on it. The new check resolves the Play Store package presence/enabled
+  state offline first — only that produces the terminal `UNAVAILABLE`; a
+  present-Play-Store connection failure (including a transient code 3) or a
+  timeout maps to `UNKNOWN`, which callers must not treat as terminal.
+  Added as a **defaulted** interface method (returns `UNKNOWN`) so existing
+  hand-rolled `BillingConnector` / `BillingRepository` fakes keep compiling.
 
 ## [0.1.4] - 2026-06-21
 
