@@ -101,7 +101,7 @@ Treat the three verdicts by their *terminality*, not their optimism:
 - **`AVAILABLE`** is advisory: it confirms billing is usable now, not a permanent guarantee.
 
 !!! warning "Package visibility (Android 11+ / targetSdk 30+)"
-    Step 1 relies on querying `com.android.vending`. The library's manifest declares the required `<queries>` entry, which merges into your app at build time — **no action needed if you consume the AAR normally.** If you strip merged manifest entries (aggressive manifest tooling, an unusual merge setup), re-add it, or a present-but-hidden Play Store will be misread as absent and yield a false `UNAVAILABLE`.
+    Step 1 relies on querying `com.android.vending`. The library's manifest declares the required `<queries>` entry, which merges into your app at build time — **no action needed if you consume the AAR normally.** If you strip merged manifest entries (aggressive manifest tooling, an unusual merge setup), re-add it; otherwise a present-but-hidden Play Store is misread as absent and yields a false `UNAVAILABLE`.
 
 !!! note "Implementing a custom `BillingConnector`"
     `queryBillingAvailability()` is a **defaulted** interface method returning `UNKNOWN`, so existing hand-rolled `BillingConnector` / `BillingRepository` fakes keep compiling. The real repository from `BillingRepositoryCreator.create(...)` overrides it with the full two-step resolution above.
