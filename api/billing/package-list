@@ -211,6 +211,13 @@ $dokka.location:com.kanetik.billing/BillingActions/queryProductDetails/#com.andr
 $dokka.location:com.kanetik.billing/BillingActions/queryProductDetailsWithUnfetched/#com.android.billingclient.api.QueryProductDetailsParams/PointingToDeclaration/billing/com.kanetik.billing/-billing-actions/query-product-details-with-unfetched.html
 $dokka.location:com.kanetik.billing/BillingActions/queryPurchases/#com.android.billingclient.api.QueryPurchasesParams/PointingToDeclaration/billing/com.kanetik.billing/-billing-actions/query-purchases.html
 $dokka.location:com.kanetik.billing/BillingActions/showInAppMessages/#android.app.Activity#com.android.billingclient.api.InAppMessageParams/PointingToDeclaration/billing/com.kanetik.billing/-billing-actions/show-in-app-messages.html
+$dokka.location:com.kanetik.billing/BillingAvailability.AVAILABLE///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing/-billing-availability/-a-v-a-i-l-a-b-l-e/index.html
+$dokka.location:com.kanetik.billing/BillingAvailability.UNAVAILABLE///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing/-billing-availability/-u-n-a-v-a-i-l-a-b-l-e/index.html
+$dokka.location:com.kanetik.billing/BillingAvailability.UNKNOWN///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}billing/com.kanetik.billing/-billing-availability/-u-n-k-n-o-w-n/index.html
+$dokka.location:com.kanetik.billing/BillingAvailability///PointingToDeclaration/billing/com.kanetik.billing/-billing-availability/index.html
+$dokka.location:com.kanetik.billing/BillingAvailability/entries/#/PointingToDeclaration/billing/com.kanetik.billing/-billing-availability/entries.html
+$dokka.location:com.kanetik.billing/BillingAvailability/valueOf/#kotlin.String/PointingToDeclaration/billing/com.kanetik.billing/-billing-availability/value-of.html
+$dokka.location:com.kanetik.billing/BillingAvailability/values/#/PointingToDeclaration/billing/com.kanetik.billing/-billing-availability/values.html
 $dokka.location:com.kanetik.billing/BillingConnectionResult.Error///PointingToDeclaration/billing/com.kanetik.billing/-billing-connection-result/-error/index.html
 $dokka.location:com.kanetik.billing/BillingConnectionResult.Error/Error/#com.kanetik.billing.exception.BillingException/PointingToDeclaration/billing/com.kanetik.billing/-billing-connection-result/-error/-error.html
 $dokka.location:com.kanetik.billing/BillingConnectionResult.Error/exception/#/PointingToDeclaration/billing/com.kanetik.billing/-billing-connection-result/-error/exception.html
@@ -218,6 +225,7 @@ $dokka.location:com.kanetik.billing/BillingConnectionResult.Success///PointingTo
 $dokka.location:com.kanetik.billing/BillingConnectionResult///PointingToDeclaration/billing/com.kanetik.billing/-billing-connection-result/index.html
 $dokka.location:com.kanetik.billing/BillingConnector///PointingToDeclaration/billing/com.kanetik.billing/-billing-connector/index.html
 $dokka.location:com.kanetik.billing/BillingConnector/connectToBilling/#/PointingToDeclaration/billing/com.kanetik.billing/-billing-connector/connect-to-billing.html
+$dokka.location:com.kanetik.billing/BillingConnector/queryBillingAvailability/#/PointingToDeclaration/billing/com.kanetik.billing/-billing-connector/query-billing-availability.html
 $dokka.location:com.kanetik.billing/BillingInAppMessageResult.NoActionNeeded///PointingToDeclaration/billing/com.kanetik.billing/-billing-in-app-message-result/-no-action-needed/index.html
 $dokka.location:com.kanetik.billing/BillingInAppMessageResult.SubscriptionStatusUpdated///PointingToDeclaration/billing/com.kanetik.billing/-billing-in-app-message-result/-subscription-status-updated/index.html
 $dokka.location:com.kanetik.billing/BillingInAppMessageResult.SubscriptionStatusUpdated/SubscriptionStatusUpdated/#kotlin.String/PointingToDeclaration/billing/com.kanetik.billing/-billing-in-app-message-result/-subscription-status-updated/-subscription-status-updated.html
