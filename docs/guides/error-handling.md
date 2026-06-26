@@ -76,13 +76,16 @@ Failures the library classifies as non-transient for connection-retry purposes (
 
 `connectToBilling()` is the right signal for "is billing *working right now*" — but it can't cleanly answer "can this device *ever* do Play Billing", because PBL collapses two very different situations into one `BILLING_UNAVAILABLE` (code 3) response: a genuinely unsupported device (no Play Store) and a merely transient blip (Play Store mid-update, account still syncing right after install). Gating an **irreversible** decision on that code — granting a free fallback tier to "can't pay" users, permanently hiding a purchase CTA — mis-fires on a single first-launch hiccup and never recovers.
 
-`BillingConnector.queryBillingAvailability(): BillingAvailability` disambiguates them deterministically:
+`BillingConnector.queryBillingAvailability(): BillingAvailability` disambiguates them deterministically. It's a `suspend` function — call it from a coroutine (it bounds its own connection attempt, so it won't suspend indefinitely):
 
 ```kotlin
-when (billing.queryBillingAvailability()) {
-    BillingAvailability.UNAVAILABLE -> grantNoPlayFallback()   // terminal — safe to act on
-    BillingAvailability.AVAILABLE   -> showPurchaseUi()
-    BillingAvailability.UNKNOWN     -> showNeutralLoadingState() // retry later; do NOT decide
+// e.g. in a ViewModel: viewModelScope.launch { gateOnAvailability() }
+suspend fun gateOnAvailability() {
+    when (billing.queryBillingAvailability()) {
+        BillingAvailability.UNAVAILABLE -> grantNoPlayFallback()   // terminal — safe to act on
+        BillingAvailability.AVAILABLE   -> showPurchaseUi()
+        BillingAvailability.UNKNOWN     -> showNeutralLoadingState() // retry later; do NOT decide
+    }
 }
 ```
 
