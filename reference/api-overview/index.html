@@ -1203,7 +1203,7 @@
 </tr>
 <tr>
 <td><code>BillingConnector</code></td>
-<td><code>connectToBilling(): SharedFlow&lt;BillingConnectionResult&gt;</code>. Transient <code>startConnection</code> failures are retried internally per <code>ConnectionRetryPolicy</code> before an <code>Error</code> is emitted — see <a href="../../guides/error-handling/#connection-setup-retry">Error handling</a>.</td>
+<td><code>connectToBilling(): SharedFlow&lt;BillingConnectionResult&gt;</code>. Transient <code>startConnection</code> failures are retried internally per <code>ConnectionRetryPolicy</code> before an <code>Error</code> is emitted — see <a href="../../guides/error-handling/#connection-setup-retry">Error handling</a>. Also <code>suspend fun queryBillingAvailability(): BillingAvailability</code> — a deterministic <code>AVAILABLE</code> / <code>UNAVAILABLE</code> / <code>UNKNOWN</code> verdict that separates a <em>terminal</em> "this device can't pay" state from a <em>transient</em> failure, for safely gating irreversible decisions; defaulted to <code>UNKNOWN</code> on the interface. See <a href="../../guides/error-handling/#deterministic-availability-for-irreversible-decisions">Deterministic availability</a>.</td>
 </tr>
 <tr>
 <td><code>ConnectionRetryPolicy</code></td>
@@ -1239,7 +1239,7 @@
 <tbody>
 <tr>
 <td><code>com.kanetik.billing</code></td>
-<td><code>BillingRepository</code>, <code>BillingRepositoryCreator</code>, <code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>, <code>BillingConnectionResult</code>, <code>ConnectionRetryPolicy</code>, <code>PurchaseEvent</code>, <code>OwnedPurchases</code>, <code>FlowOutcome</code>, <code>PurchaseRevoked</code>, <code>RevocationReason</code>, <code>HandlePurchaseResult</code>, <code>BillingInAppMessageResult</code>, <code>ProductDetailsQuery</code>, <code>RetryType</code>, <code>ResultStatus</code></td>
+<td><code>BillingRepository</code>, <code>BillingRepositoryCreator</code>, <code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>, <code>BillingConnectionResult</code>, <code>BillingAvailability</code>, <code>ConnectionRetryPolicy</code>, <code>PurchaseEvent</code>, <code>OwnedPurchases</code>, <code>FlowOutcome</code>, <code>PurchaseRevoked</code>, <code>RevocationReason</code>, <code>HandlePurchaseResult</code>, <code>BillingInAppMessageResult</code>, <code>ProductDetailsQuery</code>, <code>RetryType</code>, <code>ResultStatus</code></td>
 </tr>
 <tr>
 <td><code>com.kanetik.billing.exception</code></td>

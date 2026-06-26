@@ -604,6 +604,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deterministic-availability-for-irreversible-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deterministic availability for irreversible decisions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#showing-errors-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       Showing errors to users
@@ -1157,6 +1166,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deterministic-availability-for-irreversible-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deterministic availability for irreversible decisions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#showing-errors-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       Showing errors to users
@@ -1193,7 +1211,7 @@
 
 
 <h1 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h1>
-<p>PBL hands you back errors as integer response codes on a <code>BillingResult</code>. The codes have very different stakes. A <code>NETWORK_ERROR</code> is a "try again in a moment". <code>BILLING_UNAVAILABLE</code> means hide the IAP UI entirely (Play Store missing, account ineligible, region restriction). <code>ITEM_ALREADY_OWNED</code> is closer to a success-with-restore than an error. <code>DEVELOPER_ERROR</code> means you wrote the API call wrong and retrying won't help. Naive code treats them all the same and either hammers Play with retries or shows a generic "something went wrong" dialog for everything.</p>
+<p>PBL hands you back errors as integer response codes on a <code>BillingResult</code>. The codes have very different stakes. A <code>NETWORK_ERROR</code> is a "try again in a moment". <code>BILLING_UNAVAILABLE</code> <em>looks</em> like "hide the IAP UI entirely", but it's ambiguous — Play returns it both for a genuinely unsupported device (Play Store missing) <strong>and</strong> for a momentary hiccup (Play Store mid-update, account still syncing right after install), so it's unsafe to gate an irreversible decision on it directly (use <a href="#deterministic-availability-for-irreversible-decisions"><code>queryBillingAvailability()</code></a> for that). <code>ITEM_ALREADY_OWNED</code> is closer to a success-with-restore than an error. <code>DEVELOPER_ERROR</code> means you wrote the API call wrong and retrying won't help. Naive code treats them all the same and either hammers Play with retries or shows a generic "something went wrong" dialog for everything.</p>
 <p>The library does two things about that:</p>
 <ol>
 <li>Maps each response code to a typed <code>BillingException</code> subtype with a <code>RetryType</code> hint, and runs the retries that should happen automatically. Network errors back off exponentially, transient disconnects retry quickly, and ownership-mismatches re-query owned state and try once more. What reaches your <code>catch</code> is what didn't recover.</li>
@@ -1256,7 +1274,7 @@ try {
 </tr>
 <tr>
 <td><code>BillingUnavailableException</code></td>
-<td>Play Store missing / disabled / wrong region</td>
+<td><code>BILLING_UNAVAILABLE</code> — Play Store missing/disabled <strong>or</strong> transiently unavailable (the code is ambiguous; see <a href="#deterministic-availability-for-irreversible-decisions">deterministic availability</a>)</td>
 <td><code>NONE</code></td>
 </tr>
 <tr>
@@ -1310,7 +1328,38 @@ val billing = BillingRepositoryCreator.create(
     connectionRetryPolicy = ConnectionRetryPolicy.None,
 )
 ```</p>
-<p>Failures the library classifies as terminal (<code>BILLING_UNAVAILABLE</code>, <code>DEVELOPER_ERROR</code>, <code>FEATURE_NOT_SUPPORTED</code>, etc.) are <em>not</em> retried at the connection layer — they surface immediately, since retrying can't change the outcome.</p>
+<p>Failures the library classifies as non-transient for connection-retry purposes (<code>BILLING_UNAVAILABLE</code>, <code>DEVELOPER_ERROR</code>, <code>FEATURE_NOT_SUPPORTED</code>, etc.) are <em>not</em> retried at the connection layer — they surface immediately, since an in-loop retry won't flip them. Note this is a statement about <em>connection retry</em>, not about terminality for your own gating: <code>BILLING_UNAVAILABLE</code> in particular stays ambiguous (it can be a transient blip), so don't promote "surfaced immediately" into "this device can't pay" — use <a href="#deterministic-availability-for-irreversible-decisions"><code>queryBillingAvailability()</code></a> for irreversible decisions.</p>
+<h2 id="deterministic-availability-for-irreversible-decisions">Deterministic availability for irreversible decisions<a class="headerlink" href="#deterministic-availability-for-irreversible-decisions" title="Permanent link">&para;</a></h2>
+<p><code>connectToBilling()</code> is the right signal for "is billing <em>working right now</em>" — but it can't cleanly answer "can this device <em>ever</em> do Play Billing", because PBL collapses two very different situations into one <code>BILLING_UNAVAILABLE</code> (code 3) response: a genuinely unsupported device (no Play Store) and a merely transient blip (Play Store mid-update, account still syncing right after install). Gating an <strong>irreversible</strong> decision on that code — granting a free fallback tier to "can't pay" users, permanently hiding a purchase CTA — mis-fires on a single first-launch hiccup and never recovers.</p>
+<p><code>BillingConnector.queryBillingAvailability(): BillingAvailability</code> disambiguates them deterministically. It's a <code>suspend</code> function — call it from a coroutine (it bounds its own connection attempt, so it won't suspend indefinitely):</p>
+<p><code>kotlin
+// e.g. in a ViewModel: viewModelScope.launch { gateOnAvailability() }
+suspend fun gateOnAvailability() {
+    when (billing.queryBillingAvailability()) {
+        BillingAvailability.UNAVAILABLE -&gt; grantNoPlayFallback()   // terminal — safe to act on
+        BillingAvailability.AVAILABLE   -&gt; showPurchaseUi()
+        BillingAvailability.UNKNOWN     -&gt; showNeutralLoadingState() // retry later; do NOT decide
+    }
+}</code></p>
+<p>It resolves in two steps:</p>
+<ol>
+<li><strong>Offline Play Store check first.</strong> If the Play Store package (<code>com.android.vending</code>) is absent or disabled — a stable, offline fact — the verdict is the terminal <code>UNAVAILABLE</code>. This is the <em>only</em> path to <code>UNAVAILABLE</code>; a transient code 3 never produces it.</li>
+<li><strong>Bounded connection attempt</strong> (8s) only when the Play Store is present. Success → <code>AVAILABLE</code>; any failure (including a transient code 3) or a timeout → <code>UNKNOWN</code>.</li>
+</ol>
+<p>Treat the three verdicts by their <em>terminality</em>, not their optimism:</p>
+<ul>
+<li><strong><code>UNAVAILABLE</code></strong> is the only verdict safe to gate an irreversible decision on.</li>
+<li><strong><code>UNKNOWN</code></strong> must never be treated as terminal — keep the user in a neutral/loading state and re-query later.</li>
+<li><strong><code>AVAILABLE</code></strong> is advisory: it confirms billing is usable now, not a permanent guarantee.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Package visibility (Android 11+ / targetSdk 30+)</p>
+<p>Step 1 relies on querying <code>com.android.vending</code>. The library's manifest declares the required <code>&lt;queries&gt;</code> entry, which merges into your app at build time — <strong>no action needed if you consume the AAR normally.</strong> If you strip merged manifest entries (aggressive manifest tooling, an unusual merge setup), re-add it; otherwise a present-but-hidden Play Store is misread as absent and yields a false <code>UNAVAILABLE</code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Implementing a custom <code>BillingConnector</code></p>
+<p><code>queryBillingAvailability()</code> is a <strong>defaulted</strong> interface method returning <code>UNKNOWN</code>, so existing hand-rolled <code>BillingConnector</code> / <code>BillingRepository</code> fakes keep compiling. The real repository from <code>BillingRepositoryCreator.create(...)</code> overrides it with the full two-step resolution above.</p>
+</div>
 <h2 id="showing-errors-to-users">Showing errors to users<a class="headerlink" href="#showing-errors-to-users" title="Permanent link">&para;</a></h2>
 <p><strong>Never display <code>BillingException.message</code> in your UI.</strong> It's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like <code>ServiceDisconnectedException</code> and <code>BILLING_RESPONSE_CODE_3</code> into your dialogs.</p>
 <p>For UI, branch on <code>BillingException.userFacingCategory</code> (returns a <code>BillingErrorCategory</code> — seven buckets: <code>UserCanceled</code>, <code>Network</code>, <code>BillingUnavailable</code>, <code>ProductUnavailable</code>, <code>AlreadyOwned</code>, <code>DeveloperError</code>, <code>Other</code>) and localize per bucket from your own string resources:</p>
