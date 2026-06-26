@@ -12,7 +12,7 @@ A coroutine-first wrapper around [Google Play Billing Library 9.x](https://devel
 
 ```kotlin
 dependencies {
-    implementation("com.kanetik.billing:billing:0.1.4")
+    implementation("com.kanetik.billing:billing:0.1.5")
 }
 ```
 
