@@ -201,15 +201,15 @@ public sealed class BillingException(
      *
      * Common causes:
      *  - The user is on a non-Play distribution (e.g. some Huawei devices).
-     *  - Play Services has been disabled or never installed.
+     *  - The Play Store has been disabled or never installed.
      *  - The user's account isn't eligible for purchases.
      *  - A transient hiccup that will clear on its own.
      *
      * Retry strategy: [RetryType.NONE] — not retried at the connection layer
      * because an in-loop retry won't flip it. **Do not** treat it as terminal for
      * an irreversible decision (granting a free fallback, permanently hiding the
-     * purchase UI): use [BillingConnector.queryBillingAvailability] for that, which
-     * separates the terminal `UNAVAILABLE` from a transient `UNKNOWN`.
+     * purchase UI): use [com.kanetik.billing.BillingConnector.queryBillingAvailability]
+     * for that, which separates the terminal `UNAVAILABLE` from a transient `UNKNOWN`.
      */
     public class BillingUnavailableException(result: BillingResult) : BillingException(result)
 
