@@ -39,7 +39,9 @@ val params = QueryProductDetailsParams.newBuilder()
     ))
     .build()
 val products = billing.queryProductDetails(params)
-billing.launchFlow(activity, products.first().toOneTimeFlowParams())
+val flowParams = products.first().toOneTimeFlowParams()
+    ?: error("android.test.purchased always carries an offer token")
+billing.launchFlow(activity, flowParams)
 ```
 
 ### What Level 1 verifies

@@ -135,6 +135,54 @@ class PurchaseFlowCoordinatorTest {
     }
 
     @Test
+    fun `launch returns NoPurchasableOffer and clears the in-flight flag when there is no offer token`() = runTest {
+        val billing = mockk<BillingRepository>(relaxed = true)
+        val product = productDetails()
+        every { product.toOneTimeFlowParams(any(), any(), any()) } returns null
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        val result = coordinator.launch(activityResumed(), product)
+        assertThat(result).isEqualTo(PurchaseFlowResult.NoPurchasableOffer)
+        coVerify(exactly = 0) { billing.launchFlow(any(), any()) }
+
+        // Flag must be cleared, same as the other non-launching outcomes.
+        every { product.toOneTimeFlowParams(any(), any(), any()) } returns mockk(relaxed = true)
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val second = coordinator.launch(activityResumed(), product)
+        assertThat(second).isEqualTo(PurchaseFlowResult.Success)
+    }
+
+    @Test
+    fun `launch forwards a custom offerSelector to toOneTimeFlowParams`() = runTest {
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val product = productDetails()
+        val customSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? =
+            { offers -> offers.lastOrNull() }
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        coordinator.launch(activityResumed(), product, offerSelector = customSelector)
+
+        io.mockk.verify(exactly = 1) {
+            product.toOneTimeFlowParams(
+                obfuscatedAccountId = null,
+                obfuscatedProfileId = null,
+                offerSelector = customSelector
+            )
+        }
+    }
+
+    @Test
     fun `launch on finishing activity returns InvalidActivityState`() = runTest {
         val billing = mockk<BillingRepository>(relaxed = true)
         val coordinator = PurchaseFlowCoordinator(

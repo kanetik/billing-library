@@ -12,9 +12,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 
 - **`isFeatureSupported` now throws for any non-OK response other than `FEATURE_NOT_SUPPORTED`, instead of returning `false`.** The four transient codes (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, `ERROR`, `NETWORK_ERROR`) get `INTERACTIVE` retries first; every other non-OK code — `BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `USER_CANCELED`, the `ITEM_*` codes, and any unrecognized code — now throws its typed `BillingException` on the first attempt rather than returning `false`. `false` is reserved for a real `FEATURE_NOT_SUPPORTED`. Callers that treated the old `false` as a catch-all "not supported for any reason" need to add exception handling. (#62)
+- **`ProductDetails.toOneTimeFlowParams` now returns `BillingFlowParams?`.**
+  Previously it always returned a non-null `BillingFlowParams`, even when no
+  offer token could be resolved (an absent or empty
+  `oneTimePurchaseOfferDetailsList`, or `offerSelector` returning `null`) —
+  that case built params with no `offerToken` and deferred the failure to an
+  opaque `DEVELOPER_ERROR` from `launchBillingFlow`.
+
+  - **Kotlin callers**: source-incompatible wherever the result is passed
+    straight into a non-null parameter, e.g.
+    `BillingActions.launchFlow(activity, params)`; the compiler now requires
+    a null check.
+  - **Java callers**: source-compatible — the nullable Kotlin return type
+    surfaces to Java as a plain `BillingFlowParams` with a `@Nullable` hint,
+    which javac does not enforce. Code that doesn't null-check compiles and
+    now risks an NPE at the point of use instead of at the call site.
+  - **Existing compiled callers, without a rebuild**: binary-compatible (the
+    method descriptor is unchanged), but one that previously never received
+    `null` now can — surfacing as a runtime `NullPointerException`, typically
+    at `launchFlow`'s own non-null parameter check, rather than at the call
+    site that produced it.
+
+  ```kotlin
+  // Before:
+  val params = product.toOneTimeFlowParams()
+  billing.launchFlow(activity, params)
+
+  // After:
+  val params = product.toOneTimeFlowParams()
+      ?: return showError("No purchasable offer")
+  billing.launchFlow(activity, params)
+  ```
+
+  `PurchaseFlowCoordinator.launch` handles the null case for you — see
+  `NoPurchasableOffer` below.
+
+### Added
+
+- `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
+- `PurchaseFlowCoordinator.launch` accepts an `offerSelector` parameter (forwarded to `toOneTimeFlowParams`), defaulting to today's `firstOrNull()` behavior, so callers can pick among multiple offers.
 
 ### Changed
 
+- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result. Source-breaking for any exhaustive `when` over `BillingErrorCategory`; add a `NotOwned` arm. Callers with an `else` arm will now route `ITEM_NOT_OWNED` there instead of to `AlreadyOwned`.
 - **`RetryType.REQUERY_PURCHASE_RETRY` removed.** `ItemAlreadyOwnedException` and `ItemNotOwnedException` are now `RetryType.NONE` — the requery prerequisite behind them discarded its results and could recurse without a depth limit when `queryPurchasesAsync` itself returned one of these codes. Neither code can change on retry, so the retry loop now surfaces both immediately. Source-breaking for any exhaustive `when` over `RetryType`. Purchase-recovery for an already-owned item is tracked separately (#56).
 - Billing calls now retry according to context. `queryProductDetails` / `queryProductDetailsWithUnfetched` retry a transient failure up to 3 attempts, 500 ms apart (about 1 s at most, down from about 14 s). `queryPurchases`, `acknowledgePurchase` and `consumePurchase` back off exponentially over 5 attempts (2 s, 4 s, 8 s, 16 s), and `SERVICE_DISCONNECTED` now gets that same backoff instead of three 500 ms retries.
 
@@ -22,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
 - `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
+- A terminal connection failure (e.g. `BILLING_UNAVAILABLE` while the Play Store is updating) no longer sticks for as long as something collects `connectToBilling()`. The next operation or new `connectToBilling()` subscriber starts a fresh connection. (#53)
+- Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
+- `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
 - `isFeatureSupported` now retries transient `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `ERROR` / `NETWORK_ERROR` responses via the `INTERACTIVE` retry profile, instead of returning `false` on the first failure. See **Breaking** above for the return-value change. (#62)
 

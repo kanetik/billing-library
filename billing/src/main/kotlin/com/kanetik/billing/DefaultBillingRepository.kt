@@ -39,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -83,11 +84,11 @@ internal class DefaultBillingRepository(
         // swallowed here — it propagates, so a caller wrapping this in its own
         // withTimeout keeps control of its deadline/cancellation contract.
         val result = withTimeoutOrNull(AVAILABILITY_CONNECT_TIMEOUT_MS) {
-            connectToBilling().first()
+            awaitConnection()
         }
         return when (result) {
-            is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
-            is BillingConnectionResult.Error -> {
+            is InternalConnectionState.Connected -> BillingAvailability.AVAILABLE
+            is InternalConnectionState.Failed -> {
                 logger.d(
                     "queryBillingAvailability: Play Store present but connection failed " +
                         "(${result.exception::class.simpleName}) -> UNKNOWN"
@@ -432,9 +433,9 @@ internal class DefaultBillingRepository(
         profile: RetryProfile,
         operation: suspend (client: BillingClient) -> T,
         dispatcher: CoroutineDispatcher = ioDispatcher
-    ): T = connectToClientAndCall { client ->
-        withContext(dispatcher) {
-            retryBillingCall(profile, logger, { getBillingResult(it) }) { operation(client) }
+    ): T = withContext(dispatcher) {
+        retryBillingCall(profile, logger, { getBillingResult(it) }) {
+            connectToClientAndCall { client -> operation(client) }
         }
     }
 
@@ -446,7 +447,7 @@ internal class DefaultBillingRepository(
         // this, first() would suspend forever with no error and no recovery path.
         val state = try {
             withTimeout(CONNECTION_TIMEOUT_MS) {
-                billingClientStorage.connectionFlow.first()
+                awaitConnection()
             }
         } catch (e: TimeoutCancellationException) {
             val timeoutResult = BillingResult.newBuilder()
@@ -459,6 +460,20 @@ internal class DefaultBillingRepository(
             is InternalConnectionState.Failed -> throw state.exception
             is InternalConnectionState.Connected -> onSuccessfulConnection(state.client)
         }
+    }
+
+    private suspend fun awaitConnection(): InternalConnectionState {
+        val cached = billingClientStorage.connectionFlow.replayCache.lastOrNull()
+        val connection = billingClientStorage.connectionFlow.filterNotNull()
+        val state = connection.first()
+        when (state) {
+            is InternalConnectionState.Connected -> if (billingClientStorage.isLive(state.client)) return state
+            is InternalConnectionState.Failed -> {
+                if (state !== cached) return state
+                billingClientStorage.requestReconnect(state)
+            }
+        }
+        return connection.first { it !== state }
     }
 
     private fun <T> getBillingResult(result: T): BillingResult {

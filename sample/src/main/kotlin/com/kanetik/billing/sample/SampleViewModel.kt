@@ -205,8 +205,13 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 
     fun buy(activity: Activity, productDetails: ProductDetails) {
         viewModelScope.launch {
+            val flowParams = productDetails.toOneTimeFlowParams()
+            if (flowParams == null) {
+                appendLog("launchFlow SKIPPED: no purchasable offer")
+                return@launch
+            }
             try {
-                billing.launchFlow(activity, productDetails.toOneTimeFlowParams())
+                billing.launchFlow(activity, flowParams)
             } catch (e: BillingException) {
                 appendLog("launchFlow FAILED: ${e::class.simpleName} (${e.retryType})")
             }

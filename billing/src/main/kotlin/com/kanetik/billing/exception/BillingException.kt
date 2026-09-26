@@ -45,7 +45,7 @@ import com.kanetik.billing.RetryType
  * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
  *
  * For UI: branch on the subtype directly, or call [userFacingCategory] to
- * collapse the 13 subtypes into [BillingErrorCategory]'s 7 buckets and
+ * collapse the 13 subtypes into [BillingErrorCategory]'s 8 buckets and
  * localize per bucket from your own string resources. Example:
  *
  * ```
@@ -53,6 +53,7 @@ import com.kanetik.billing.RetryType
  *     when (e.userFacingCategory) {
  *         BillingErrorCategory.UserCanceled -> return  // not really an error
  *         BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+ *         BillingErrorCategory.NotOwned -> {}  // no-op; nothing to grant or restore
  *         BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
  *         BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
  *         BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
@@ -85,7 +86,7 @@ public sealed class BillingException(
 
     /**
      * UI bucket for this exception. Collapses the 13 sealed subtypes into
-     * [BillingErrorCategory]'s 7 user-facing categories so callers can
+     * [BillingErrorCategory]'s 8 user-facing categories so callers can
      * localize from a small string-resource map instead of branching on
      * every PBL response code. See the class-level KDoc for the recommended
      * pattern.
@@ -99,8 +100,8 @@ public sealed class BillingException(
             is BillingUnavailableException,
             is FeatureNotSupportedException -> BillingErrorCategory.BillingUnavailable
             is ItemUnavailableException -> BillingErrorCategory.ProductUnavailable
-            is ItemAlreadyOwnedException,
-            is ItemNotOwnedException -> BillingErrorCategory.AlreadyOwned
+            is ItemAlreadyOwnedException -> BillingErrorCategory.AlreadyOwned
+            is ItemNotOwnedException -> BillingErrorCategory.NotOwned
             is DeveloperErrorException -> BillingErrorCategory.DeveloperError
             is FatalErrorException,
             is UnknownException,
