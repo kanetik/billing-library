@@ -6,7 +6,7 @@ import org.junit.Test
 class ConnectionRetryPolicyTest {
 
     @Test
-    fun `defaults mirror the operation-level retry loop`() {
+    fun `default policy values`() {
         val policy = ConnectionRetryPolicy()
         assertThat(policy.maxAttempts).isEqualTo(4)
         assertThat(policy.simpleRetryBackoffMillis).isEqualTo(500L)
