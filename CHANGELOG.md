@@ -59,6 +59,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
   ```
 
+- **`GracePolicy`, `GraceReason`, and `EntitlementState.InGrace` removed.** `FlowOutcome.Failure` no longer applies grace to existing grants, so `EntitlementCache` never transitioned any key into `InGrace` — the types and the constructor parameters that only served them are gone rather than deprecated.
+
+  - `EntitlementCache`'s `gracePolicy` and `graceTickIntervalMs` constructor parameters are removed; drop both arguments from any `EntitlementCache(...)` call.
+  - Drop any `is EntitlementState.InGrace` arm from an exhaustive `when` over `EntitlementState`.
+
+  ```kotlin
+  // Before:
+  val cache = EntitlementCache(
+      purchasesUpdates = billing.observePurchaseUpdates(),
+      storage = storage,
+      gracePolicy = GracePolicy.None,
+      productKeySelector = { ... },
+      graceTickIntervalMs = 60_000L,
+  )
+
+  // After:
+  val cache = EntitlementCache(
+      purchasesUpdates = billing.observePurchaseUpdates(),
+      storage = storage,
+      productKeySelector = { ... },
+  )
+  ```
+
 ### Added
 
 - `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
@@ -78,14 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
 - `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
-- Flow-time `BILLING_UNAVAILABLE` (code 3) from `onPurchasesUpdated` — Play's own guidance treats this as a user-facing billing problem it has already surfaced feedback for during the purchase attempt (declined payment, outdated Play Store, unsupported country, admin-disabled purchases, or an OEM-blocked Play Store), not a "billing unavailable on this device" condition — no longer surfaces as `FlowOutcome.Failure(BillingUnavailableException)`. It now emits `FlowOutcome.UserBillingError(purchases, result)`, keeping it out of `BillingErrorCategory.BillingUnavailable`'s "hide billing" UX and out of `EntitlementCache`'s billing-unavailable grace window. `result.onPurchasesUpdatedSubResponseCode` still carries the specific decline reason (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) where PBL provides one. Connect-time and launch-time `BILLING_UNAVAILABLE` are unaffected.
+- Flow-time `BILLING_UNAVAILABLE` (code 3) from `onPurchasesUpdated` — Play's own guidance treats this as a user-facing billing problem it has already surfaced feedback for during the purchase attempt (declined payment, outdated Play Store, unsupported country, admin-disabled purchases, or an OEM-blocked Play Store), not a "billing unavailable on this device" condition — no longer surfaces as `FlowOutcome.Failure(BillingUnavailableException)`. It now emits `FlowOutcome.UserBillingError(purchases, result)`, keeping it out of `BillingErrorCategory.BillingUnavailable`'s "hide billing" UX. `result.onPurchasesUpdatedSubResponseCode` still carries the specific decline reason (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) where PBL provides one. Connect-time and launch-time `BILLING_UNAVAILABLE` are unaffected.
 - `BillingLoggingUtils.logBillingFlowFailure`'s insufficient-funds hint is now reachable from the async purchase-flow path (previously only reachable from `launchFlow`'s synchronous failure branch, which never carries a sub-response code).
 - Removed two KDoc claims that a flow-outcome's `BillingException` had already been retried with backoff before reaching the consumer — nothing retries a purchase-flow attempt today (`BillingErrorCategory.Network` and `BillingException.NetworkErrorException`).
-- `GracePolicy.billingUnavailableMs` and `GraceReason.BillingUnavailable`'s KDoc named "Play Services missing, account ineligibility, region restrictions" as the trigger, which doesn't match Play's own documented causes for `BILLING_UNAVAILABLE`; corrected to declined payment / outdated Play Store / unsupported country / admin-disabled purchases / OEM-blocked Play Store. Those response codes are diverted to `UserBillingError` and never reach grace, so `FeatureNotSupportedException` is the only one that does.
 - `FlowOutcome.Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `Failure` and `UnknownResponse` no longer factor the new `result: BillingResult` property into `equals`/`hashCode` — `BillingResult` has identity-based equality, so two field-identical events built from separately-constructed `BillingResult`s previously compared unequal. `Failure` still won't compare equal across separately-constructed `BillingException`s carrying the same subtype, unchanged from before this fix: `BillingException` itself keeps identity-based `equals` (see `BillingException`'s own KDoc), a pre-existing, deliberate design choice this PR doesn't revisit.
+- `EntitlementCache` no longer revokes long-held entitlements when a purchase-flow attempt fails. `FlowOutcome.Failure` used to be treated as evidence against every `Granted`/`InGrace` key, with grace anchored to the original (never-refreshed) `confirmedAtMs` — so a declined card or a transient network error on one purchase attempt could instantly revoke, and persist as revoked, a subscriber's unrelated month-old entitlement. `FlowOutcome.Failure` carries no product id, so the in-flight purchase's key can't be identified reliably; it is now a no-op for existing grants.
 - `isFeatureSupported` now retries transient `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `ERROR` / `NETWORK_ERROR` responses via the `INTERACTIVE` retry profile, instead of returning `false` on the first failure. See **Breaking** above for the return-value change. (#62)
 - `FlowOutcome.PaymentDeclined` claimed flow-time `BILLING_UNAVAILABLE` always meant a declined card; Play's own error guide lists it as any user-facing billing problem surfaced during the purchase attempt (only one of the five documented causes is a literal decline), and the library's own `showDeclined()` example promised more specific guidance than the code confirms. Renamed to `FlowOutcome.UserBillingError`, with its KDoc and every doc/example naming the full cause set instead of "declined payment".
-- `BillingUnavailableException`'s own KDoc and `BillingErrorCategory.BillingUnavailable`'s KDoc both still listed an unsourced cause list ("non-Play distribution such as some Huawei devices", "account not eligible") for `BILLING_UNAVAILABLE`, contradicting the documented cause list this PR corrected everywhere else. Both now name the same five causes as `GraceReason`/`GracePolicy`.
+- `BillingUnavailableException`'s own KDoc and `BillingErrorCategory.BillingUnavailable`'s KDoc both still listed an unsourced cause list ("non-Play distribution such as some Huawei devices", "account not eligible") for `BILLING_UNAVAILABLE`, contradicting the documented cause list this PR corrected everywhere else. Both now name the same five causes: declined payment, outdated Play Store, unsupported country, admin-disabled purchases, OEM-blocked Play Store.
 
 ## [0.1.5] - 2026-06-26
 

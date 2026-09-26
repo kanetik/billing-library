@@ -13,7 +13,7 @@ If you haven't shipped a Play Billing integration before, these are the guides t
 
 1. [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent` is (two tiers), the three-day acknowledge cliff that catches almost everyone the first time, and the library's auto-sweep that recovers stranded purchases on every connection. The most important read.
 2. [Error handling](guides/error-handling.md) — typed exceptions, the eight UI categories, and the retry loop the library runs for you.
-3. [EntitlementCache](guides/entitlement-cache.md) — opt-in entitlement state machine with grace policy. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.
+3. [EntitlementCache](guides/entitlement-cache.md) — opt-in entitlement state machine. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.
 4. [Signature verification](guides/signature-verification.md) — proving a `Purchase` actually came from Google.
 5. [Server-driven revocation](guides/server-driven-revocation.md) — how refunds and chargebacks reach the app via `emitExternalRevocation`. Covers RTDN, FCM, and non-FCM triggers like authoritative-empty `queryPurchases`.
 
