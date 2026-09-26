@@ -165,7 +165,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * ## Sealed-when handling
  *
- * The cache reacts to four event paths:
+ * The cache reacts to two event paths that change state; everything else is
+ * a no-op:
  *  - [OwnedPurchases.Live] / [OwnedPurchases.Recovered]: **grant-only**.
  *    For each PURCHASED-state purchase, [productKeySelector] is applied; a
  *    non-null result transitions that key to [EntitlementState.Granted] and

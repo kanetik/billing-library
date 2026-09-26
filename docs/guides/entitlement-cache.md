@@ -3,7 +3,7 @@
 Once your code can answer "did the user buy this" in the moment, three follow-up questions usually land within a few weeks of shipping:
 
 - How do I render gated UI on cold start, *before* the first PBL round-trip lands? (Otherwise paying users see the free-tier UI flicker every launch.)
-- What do I do when Play is unreachable for an hour or two: flip every paid user back to the free tier, or wait it out?
+- How long should a paid user keep access when Play is unreachable for an hour or two?
 - How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?
 
 PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source) per entitlement` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant which entitlement, and persist the verdict so gated UI can render before the first network round-trip. `EntitlementCache<K>` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
@@ -96,13 +96,15 @@ The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the 
 
 `stateFor(key: K)` returns a `Flow<EntitlementState>` that surfaces absent keys as `Revoked` and is `distinctUntilChanged()` against unchanged values — usually what you want for UI binding.
 
+A `Granted` key stays `Granted` through a Play outage of any length; there's no time-based fallback. It changes only on an explicit `PurchaseRevoked` event. If you need a ceiling on how long a persisted snapshot is trusted, apply it yourself in your `EntitlementStorage.readAll()` (see [Storage is your responsibility](#storage-is-your-responsibility)).
+
 ## When to use it
 
 Use `EntitlementCache` when you want a simple `is the user entitled to X right now?` flow off the side of your existing `observePurchaseUpdates()` integration. The cache is purely observational; it does **not** call `handlePurchase` for you. Acknowledge / consume + entitlement grant remain your collector's job. The cache just tracks the resulting confirmed observation.
 
 Skip it if you have your own state machine you're already happy with, or if you need behavior the cache doesn't cover (subscription tier comparison, server-side reconciliation as the source of truth, dynamically-added entitlements). Write a thin custom layer for those.
 
-The cache reacts to four event paths:
+The cache reacts to two event paths that change state; everything else is a no-op:
 
 - `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. For each `PURCHASED`-state purchase, `productKeySelector` is applied; a non-null result transitions that key to `Granted` and persists. A *non-match* (selector returns null) does **not** revoke. `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to any tracked entitlement, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
 - `PurchaseRevoked` matched against *any* key's `lastConfirmedSnapshot.purchaseToken` transitions that key (and only that key) to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline; see [Server-driven revocation](server-driven-revocation.md).
