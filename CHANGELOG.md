@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
+### Changed
+
+- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result.
+
 ## [0.1.5] - 2026-06-26
 
 ### Added
