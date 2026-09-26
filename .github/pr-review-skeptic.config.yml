@@ -1,0 +1,50 @@
+# Project config for the pr-review-skeptic skill.
+#
+# These five keys are the reviewer's entire picture of the library. They describe
+# the PROJECT and never the change under review.
+#
+# Everything not set here falls back to the skill's bundled defaults
+# (priorities, files_per_unit, max_reviewers, blocking_severities).
+
+project: >-
+  kanetik.billing, a Kotlin coroutine-first wrapper around Google Play Billing
+  Library 9 for Android apps. It owns the BillingClient connection, turns every
+  response code into a typed exception with a retry hint, retries transient
+  failures, delivers purchase events as a Flow, sweeps for unacknowledged
+  purchases on connect, and ships opt-in helpers: an entitlement cache with
+  grace windows, a purchase-flow coordinator, and signed entitlement storage.
+
+users: >-
+  Android app developers, through Maven Central. The known consumers are two
+  production apps from the same developer: Wakey (roughly 60,000 installed
+  devices worldwide, one one-time Premium product) and App Revenue Tracker (a
+  paid app). Every end user who buys in those apps goes through this code, so a
+  library defect reaches paying customers with no chance for the consumer to
+  catch it first.
+
+irreplaceable_data: >-
+  Consumers' users' purchases and entitlements. A purchase that is not
+  acknowledged within three days is refunded by Google Play automatically and the
+  entitlement revoked; an entitlement the cache wrongly revokes and persists takes
+  away something a user paid for. The library holds the purchase tokens, the
+  acknowledgement path and the persisted entitlement state for every consumer.
+
+production_status: >-
+  Published to Maven Central, pre-1.0 (0.1.x) and used in production by both
+  consumer apps. Merging to main runs CI only; a release is cut by pushing a v*
+  tag, which publishes that version, and consumers pick it up by bumping their
+  pinned version.
+
+architecture: >-
+  Single Android library module (billing/, Kotlin, minSdk 23) over billing-ktx.
+  DefaultBillingRepository runs each call through a retry loop on top of
+  BillingClientStorage, which shares one BillingClient connection via a
+  coroutine SharedFlow and owns the purchases-updated listener and the recovery
+  sweep; everything above that (entitlement cache, flow coordinator, lifecycle
+  manager, Billing Choice APIs) is opt-in and built on the public
+  BillingRepository interface.
+
+# Standing permission for an agent-invoked run (for example the pr-review-loop
+# skill) to post its review to the PR under the repository owner's account.
+# Honoured ONLY from this committed file, read at the PR's base ref.
+allow_agent_posting: true
