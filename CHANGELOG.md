@@ -61,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
 - `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
+- A terminal connection failure (e.g. `BILLING_UNAVAILABLE` while the Play Store is updating) no longer sticks for as long as something collects `connectToBilling()`. The next operation or new `connectToBilling()` subscriber starts a fresh connection. (#53)
+- Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
+- `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
 
 ## [0.1.5] - 2026-06-26
