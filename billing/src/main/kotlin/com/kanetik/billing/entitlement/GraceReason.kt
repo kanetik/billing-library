@@ -6,12 +6,16 @@ package com.kanetik.billing.entitlement
  * Mapped from the underlying [com.kanetik.billing.exception.BillingException]
  * carried by a [com.kanetik.billing.FlowOutcome.Failure] event:
  *
- *  - [BillingUnavailable] — the billing service itself is unavailable on this
- *    device (Play Services missing, account ineligible, region restriction,
- *    feature not supported). These outages are typically longer-lived than
- *    transient network blips, so [GracePolicy] exposes them as a separate
- *    knob — apps may want a longer grace window before yanking a paid
- *    entitlement for "Play Store isn't working" vs. "user just lost wifi".
+ *  - [BillingUnavailable] — the [com.kanetik.billing.exception.BillingErrorCategory.BillingUnavailable]
+ *    bucket, which in practice here means `FeatureNotSupportedException`:
+ *    mid-flow, PBL's `BILLING_UNAVAILABLE` response code (Play Services
+ *    missing, account ineligible, region restriction) is classified as a
+ *    declined payment ([com.kanetik.billing.FlowOutcome.PaymentDeclined])
+ *    rather than `Failure`, so it never reaches [GraceReason]. These outages
+ *    are typically longer-lived than transient network blips, so
+ *    [GracePolicy] exposes them as a separate knob — apps may want a longer
+ *    grace window before yanking a paid entitlement for "this Play Store
+ *    install can't do in-app purchases" vs. "user just lost wifi".
  *  - [TransientFailure] — anything else: classification uses the
  *    [com.kanetik.billing.exception.BillingErrorCategory] from
  *    [com.kanetik.billing.exception.BillingException.userFacingCategory],

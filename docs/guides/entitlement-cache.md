@@ -102,7 +102,7 @@ class ShopViewModel(
 The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the map are implicitly `EntitlementState.Revoked` (the cache hasn't observed a granting purchase for them). Each per-key value is one of three terminal states:
 
 - `Granted` — confirmed entitlement; show the gated UI / unlock the feature.
-- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (Play Services missing, account ineligible, region restriction) or `TransientFailure` (network error, service disconnect, generic billing error).
+- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (feature not supported on this device — mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions surface as `PaymentDeclined` instead, not `Failure`) or `TransientFailure` (network error, service disconnect, generic billing error).
 - `Revoked` — no entitlement; hide the gated UI.
 
 `stateFor(key: K)` returns a `Flow<EntitlementState>` that surfaces absent keys as `Revoked` and is `distinctUntilChanged()` against unchanged values — usually what you want for UI binding.

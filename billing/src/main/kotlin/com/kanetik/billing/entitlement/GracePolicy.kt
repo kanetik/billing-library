@@ -12,11 +12,14 @@ package com.kanetik.billing.entitlement
  *    a single momentary hiccup rather than a confirmed outage. A reasonable
  *    default is 1–24 hours depending on how confident you are in the user's
  *    connectivity environment.
- *  - [billingUnavailableMs] — Play Services missing, account ineligibility,
- *    region restrictions. Typically longer-lived; if a user's device can't
- *    talk to billing at all, that often persists across sessions. Common
- *    defaults are 24–72 hours so a user on a flight or in a region with a
- *    bad Play Store install doesn't lose access mid-trip.
+ *  - [billingUnavailableMs] — the billing feature itself isn't supported on
+ *    this device (`FEATURE_NOT_SUPPORTED`), the only case that reaches this
+ *    window: mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions
+ *    (Play Services missing, account ineligibility, region restrictions)
+ *    surface as [com.kanetik.billing.FlowOutcome.PaymentDeclined] instead,
+ *    which never reaches grace. Typically longer-lived than a network blip,
+ *    since an unsupported Play Store install often persists across sessions.
+ *    Common defaults are 24–72 hours.
  *
  * Both values are in milliseconds. Pass `0` to disable grace for that reason
  * (the cache will transition straight to [EntitlementState.Revoked] on the
