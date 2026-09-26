@@ -10,6 +10,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -28,12 +32,12 @@ import org.junit.Test
 class DefaultBillingRepositoryAvailabilityTest {
 
     private fun repo(
-        connection: MutableSharedFlow<BillingConnectionResult>,
+        connection: MutableSharedFlow<InternalConnectionState>,
         playStoreUsable: Boolean,
         scheduler: kotlinx.coroutines.test.TestCoroutineScheduler
     ): DefaultBillingRepository {
         val storage = mockk<BillingClientStorage>(relaxed = true) {
-            every { connectionResultFlow } returns connection.asSharedFlow()
+            every { connectionFlow } returns connection.asSharedFlow()
         }
         return DefaultBillingRepository(
             billingClientStorage = storage,
@@ -48,7 +52,7 @@ class DefaultBillingRepositoryAvailabilityTest {
     fun `Play Store absent or disabled returns UNAVAILABLE without connecting`() = runTest {
         // A connection flow that would never emit — if the code tried to connect,
         // it'd hang until timeout. It must short-circuit before that.
-        val connection = MutableSharedFlow<BillingConnectionResult>()
+        val connection = MutableSharedFlow<InternalConnectionState>()
         val r = repo(connection, playStoreUsable = false, scheduler = testScheduler)
 
         assertThat(r.queryBillingAvailability()).isEqualTo(BillingAvailability.UNAVAILABLE)
@@ -56,8 +60,9 @@ class DefaultBillingRepositoryAvailabilityTest {
 
     @Test
     fun `Play Store present and connection success returns AVAILABLE`() = runTest {
-        val connection = MutableSharedFlow<BillingConnectionResult>(replay = 1).apply {
-            tryEmit(BillingConnectionResult.Success)
+        val client = mockk<BillingClient> { every { isReady } returns true }
+        val connection = MutableSharedFlow<InternalConnectionState>(replay = 1).apply {
+            tryEmit(InternalConnectionState.Connected(client))
         }
         val r = repo(connection, playStoreUsable = true, scheduler = testScheduler)
 
@@ -70,8 +75,8 @@ class DefaultBillingRepositoryAvailabilityTest {
             .setResponseCode(BillingClient.BillingResponseCode.BILLING_UNAVAILABLE)
             .setDebugMessage("Billing service unavailable on device.")
             .build()
-        val connection = MutableSharedFlow<BillingConnectionResult>(replay = 1).apply {
-            tryEmit(BillingConnectionResult.Error(BillingException.fromResult(code3)))
+        val connection = MutableSharedFlow<InternalConnectionState>(replay = 1).apply {
+            tryEmit(InternalConnectionState.Failed(BillingException.fromResult(code3)))
         }
         val r = repo(connection, playStoreUsable = true, scheduler = testScheduler)
 
@@ -81,9 +86,46 @@ class DefaultBillingRepositoryAvailabilityTest {
     @Test
     fun `Play Store present but connection hangs returns UNKNOWN via timeout`() = runTest {
         // Never emits; withTimeout fires in virtual time -> UNKNOWN.
-        val connection = MutableSharedFlow<BillingConnectionResult>()
+        val connection = MutableSharedFlow<InternalConnectionState>()
         val r = repo(connection, playStoreUsable = true, scheduler = testScheduler)
 
         assertThat(r.queryBillingAvailability()).isEqualTo(BillingAvailability.UNKNOWN)
+    }
+
+    @Test
+    fun `a live connection returns AVAILABLE without reconnecting`() = runTest {
+        val play = FakePlay()
+        val r = repositoryOver(play)
+        backgroundScope.launch { r.connectToBilling().collect { } }
+        runCurrent()
+
+        assertThat(r.queryBillingAvailability()).isEqualTo(BillingAvailability.AVAILABLE)
+        assertThat(play.startConnectionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a Success from before the idle stop does not yield AVAILABLE`() = runTest {
+        val play = FakePlay()
+        val r = repositoryOver(play)
+        r.connectToBilling().first()
+        advanceTimeBy(120_001)
+        runCurrent()
+        play.connectCodes.addLast(BillingClient.BillingResponseCode.BILLING_UNAVAILABLE)
+
+        assertThat(r.queryBillingAvailability()).isEqualTo(BillingAvailability.UNKNOWN)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a held client that is no longer ready does not yield AVAILABLE`() = runTest {
+        val play = FakePlay()
+        val r = repositoryOver(play)
+        backgroundScope.launch { r.connectToBilling().collect { } }
+        runCurrent()
+        play.clients.single().endConnection()
+        play.connectCodes.addLast(BillingClient.BillingResponseCode.BILLING_UNAVAILABLE)
+
+        assertThat(r.queryBillingAvailability()).isEqualTo(BillingAvailability.UNKNOWN)
+        assertThat(play.startConnectionCount).isEqualTo(2)
     }
 }

@@ -41,6 +41,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -85,11 +86,11 @@ internal class DefaultBillingRepository(
         // swallowed here — it propagates, so a caller wrapping this in its own
         // withTimeout keeps control of its deadline/cancellation contract.
         val result = withTimeoutOrNull(AVAILABILITY_CONNECT_TIMEOUT_MS) {
-            connectToBilling().first()
+            awaitConnection()
         }
         return when (result) {
-            is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
-            is BillingConnectionResult.Error -> {
+            is InternalConnectionState.Connected -> BillingAvailability.AVAILABLE
+            is InternalConnectionState.Failed -> {
                 logger.d(
                     "queryBillingAvailability: Play Store present but connection failed " +
                         "(${result.exception::class.simpleName}) -> UNKNOWN"
@@ -502,7 +503,7 @@ internal class DefaultBillingRepository(
         // this, first() would suspend forever with no error and no recovery path.
         val state = try {
             withTimeout(CONNECTION_TIMEOUT_MS) {
-                billingClientStorage.connectionFlow.first()
+                awaitConnection()
             }
         } catch (e: TimeoutCancellationException) {
             val timeoutResult = BillingResult.newBuilder()
@@ -515,6 +516,14 @@ internal class DefaultBillingRepository(
             is InternalConnectionState.Failed -> throw state.exception
             is InternalConnectionState.Connected -> onSuccessfulConnection(state.client)
         }
+    }
+
+    private suspend fun awaitConnection(): InternalConnectionState {
+        val connection = billingClientStorage.connectionFlow.filterNotNull()
+        val state = connection.first()
+        if (state is InternalConnectionState.Connected && state.client.isReady) return state
+        if (billingClientStorage.requestReconnect(state) && state is InternalConnectionState.Failed) return state
+        return connection.first { it !== state }
     }
 
     private suspend fun handleRetryPrerequisite(

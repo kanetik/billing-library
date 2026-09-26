@@ -20,13 +20,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicReference
 
 internal class BillingClientStorage(
     billingFactory: BillingConnectionFactory,
@@ -221,7 +227,10 @@ internal class BillingClientStorage(
      * immediately get the latest emission (e.g., connection state / cached info) without forcing
      * a new start.
      */
-    private val sharingStrategy = SharingStarted.WhileSubscribed(stopTimeoutMillis = 60_000)
+    private val sharingStrategy = SharingStarted.WhileSubscribed(stopTimeoutMillis = 60_000, replayExpirationMillis = 0)
+
+    private val connectRequests = MutableStateFlow(0)
+    private val reconnectedFrom = AtomicReference<InternalConnectionState?>(null)
 
     /**
      * Internal: live-client-bearing flow used by [DefaultBillingRepository] to obtain the
@@ -239,8 +248,13 @@ internal class BillingClientStorage(
      * `ProcessLifecycleOwner.lifecycleScope`, which is Main-bound).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val connectionFlow: SharedFlow<InternalConnectionState> = billingFactory
-        .createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger))
+    val connectionFlow: SharedFlow<InternalConnectionState?> = connectRequests
+        .flatMapLatest {
+            flow {
+                emit(null)
+                emitAll(billingFactory.createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger)))
+            }
+        }
         .transformLatest { state ->
             emit(state)
             if (recoverPurchasesOnConnect && state is InternalConnectionState.Connected) {
@@ -258,13 +272,22 @@ internal class BillingClientStorage(
      * semantics (replay/buffering) independent of [connectionFlow]'s upstream.
      */
     val connectionResultFlow: SharedFlow<BillingConnectionResult> = connectionFlow
-        .map { state ->
+        .mapNotNull { state ->
             when (state) {
                 is InternalConnectionState.Connected -> BillingConnectionResult.Success
                 is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
+                null -> null
             }
         }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
+        .onSubscription {
+            (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
+        }
+
+    fun requestReconnect(stale: InternalConnectionState): Boolean =
+        (reconnectedFrom.getAndSet(stale) !== stale).also { requested ->
+            if (requested) connectRequests.update { it + 1 }
+        }
 
     /**
      * Pushes a [PurchaseRevoked] event through the dedicated revocation

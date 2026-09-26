@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Ignore
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,7 +75,6 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(play.endedClients).containsExactly(play.clients.single())
     }
 
-    @Ignore("#53: replay hands out the ended client after the idle stop")
     @Test
     fun `an operation after the idle stop runs on a fresh client`() = runTest {
         val play = FakePlay()
@@ -91,7 +89,6 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.first())).isEqualTo(1)
     }
 
-    @Ignore("#53: a terminal connect failure is replayed while connectToBilling is collected")
     @Test
     fun `a terminal connect failure does not stick while connectToBilling is collected`() = runTest {
         val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
@@ -107,7 +104,6 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(later.exceptionOrNull()).isNull()
     }
 
-    @Ignore("#53: a terminal connect failure survives the idle stop in replay")
     @Test
     fun `a terminal connect failure does not survive the idle stop`() = runTest {
         val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
@@ -119,6 +115,81 @@ class DefaultBillingRepositoryReconnectTest {
         val later = runCatching { repo.perform(Op.QUERY_PURCHASES) }
 
         assertThat(later.exceptionOrNull()).isNull()
+    }
+
+    @Test
+    fun `a new connectToBilling subscriber after a terminal failure triggers a fresh connect`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+
+        val result = repo.connectToBilling().first { it is BillingConnectionResult.Success }
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `operations waiting on a reconnect get its result instead of the replayed failure`() = runTest {
+        val play = FakePlay().apply {
+            connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE)
+            connectCodes.addLast(null)
+        }
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        val waiting = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        runCurrent()
+        val stillWaiting = waiting.isActive
+        play.stateListeners.last().onBillingSetupFinished(billingResult(BillingResponseCode.OK))
+
+        assertThat(stillWaiting).isTrue()
+        assertThat(waiting.await().exceptionOrNull()).isNull()
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `an operation skips a held client that is no longer ready and runs on a fresh one`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+        play.clients.single().endConnection()
+
+        val result = runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        assertThat(result.exceptionOrNull()).isNull()
+        assertThat(play.clients).hasSize(2)
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.first())).isEqualTo(0)
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
+    }
+
+    @Test
+    fun `a ready held client is reused without a new startConnection`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+
+        repo.perform(Op.QUERY_PURCHASES)
+        repo.connectToBilling().first()
+
+        assertThat(play.startConnectionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `connectToBilling replays nothing after the idle stop`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+
+        advanceTimeBy(120_001)
+        runCurrent()
+
+        assertThat(repo.connectToBilling().replayCache).isEmpty()
     }
 
     @Test
