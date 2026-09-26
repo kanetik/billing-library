@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *         PurchaseFlowResult.AlreadyInProgress -> { /* user double-tapped */ }
  *         PurchaseFlowResult.InvalidActivityState -> { /* activity gone */ }
  *         PurchaseFlowResult.BillingUnavailable -> { /* show fallback UI */ }
+ *         PurchaseFlowResult.NoPurchasableOffer -> { /* product has no offer token */ }
  *         is PurchaseFlowResult.Error -> { /* report result.cause */ }
  *     }
  * }
@@ -117,7 +118,8 @@ public class PurchaseFlowCoordinator(
         activity: Activity,
         productDetails: ProductDetails,
         obfuscatedAccountId: String? = null,
-        obfuscatedProfileId: String? = null
+        obfuscatedProfileId: String? = null,
+        offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
     ): PurchaseFlowResult {
         val correlationId = UUID.randomUUID().toString()
         logger.d("PurchaseFlow[$correlationId]: attempt")
@@ -136,8 +138,14 @@ public class PurchaseFlowCoordinator(
         return try {
             val flowParams = productDetails.toOneTimeFlowParams(
                 obfuscatedAccountId = obfuscatedAccountId,
-                obfuscatedProfileId = obfuscatedProfileId
+                obfuscatedProfileId = obfuscatedProfileId,
+                offerSelector = offerSelector
             )
+            if (flowParams == null) {
+                isPurchaseFlowInProgress.set(false)
+                logger.w("PurchaseFlow[$correlationId]: no purchasable offer")
+                return PurchaseFlowResult.NoPurchasableOffer
+            }
             // Defensive Main hop. The default DefaultBillingRepository.launchFlow
             // already does its own withContext(uiDispatcher) internally, so this
             // is redundant for that impl. But PurchaseFlowCoordinator is public
@@ -208,5 +216,6 @@ public sealed class PurchaseFlowResult {
     public data object AlreadyInProgress : PurchaseFlowResult()
     public data object InvalidActivityState : PurchaseFlowResult()
     public data object BillingUnavailable : PurchaseFlowResult()
+    public data object NoPurchasableOffer : PurchaseFlowResult()
     public data class Error(val cause: Throwable) : PurchaseFlowResult()
 }
