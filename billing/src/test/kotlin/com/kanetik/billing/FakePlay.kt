@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.kanetik.billing
 
 import android.app.Activity
@@ -21,6 +23,7 @@ import com.kanetik.billing.factory.CoroutinesBillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
