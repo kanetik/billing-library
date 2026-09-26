@@ -3,6 +3,8 @@ package com.kanetik.billing
 import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.BillingResponseCode
+import com.android.billingclient.api.PurchasesResponseListener
+import com.android.billingclient.api.QueryPurchasesParams
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.DefaultBillingClientFactory
@@ -62,6 +64,30 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(play.clients).hasSize(1)
         assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.single())).isEqualTo(2)
         assertThat(play.startConnectionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a retry after the idle stop ended the client runs on a fresh client`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.perform(Op.ACKNOWLEDGE)
+        val retired = play.clients.single()
+        var held: PurchasesResponseListener? = null
+        every { retired.queryPurchasesAsync(any<QueryPurchasesParams>(), any()) } answers {
+            val listener = secondArg<PurchasesResponseListener>()
+            if (held == null) held = listener
+            else listener.onQueryPurchasesResponse(billingResult(BillingResponseCode.SERVICE_DISCONNECTED), emptyList())
+        }
+        val op = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        runCurrent()
+
+        advanceTimeBy(60_001)
+        runCurrent()
+        held!!.onQueryPurchasesResponse(billingResult(BillingResponseCode.SERVICE_DISCONNECTED), emptyList())
+
+        assertThat(op.await().exceptionOrNull()).isNull()
+        assertThat(play.endedClients).contains(retired)
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
     }
 
     @Test

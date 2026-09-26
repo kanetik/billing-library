@@ -430,9 +430,9 @@ internal class DefaultBillingRepository(
         profile: RetryProfile,
         operation: suspend (client: BillingClient) -> T,
         dispatcher: CoroutineDispatcher = ioDispatcher
-    ): T = connectToClientAndCall { client ->
-        withContext(dispatcher) {
-            retryBillingCall(profile, logger, { getBillingResult(it) }) { operation(client) }
+    ): T = withContext(dispatcher) {
+        retryBillingCall(profile, logger, { getBillingResult(it) }) {
+            connectToClientAndCall { client -> operation(client) }
         }
     }
 
