@@ -3,13 +3,18 @@ package com.kanetik.billing.ext
 import android.app.Activity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.BillingRepository
+import com.kanetik.billing.DefaultBillingRepository
+import com.kanetik.billing.FakePlay
+import com.kanetik.billing.Op
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
+import com.kanetik.billing.storageOver
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -294,6 +300,78 @@ class PurchaseFlowCoordinatorTest {
         assertThat((result as PurchaseFlowResult.Error).cause).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
         assertThat(captor.warnings).isEmpty()
         assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, BILLING_UNAVAILABLE is logged exactly once`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.BILLING_UNAVAILABLE)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isEqualTo(PurchaseFlowResult.BillingUnavailable)
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, ITEM_ALREADY_OWNED is logged exactly once`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.ITEM_ALREADY_OWNED)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, DEVELOPER_ERROR is logged exactly once at error`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.DEVELOPER_ERROR)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat(captor.errors).hasSize(1)
+        assertThat(captor.warnings).isEmpty()
     }
 
     @Test
