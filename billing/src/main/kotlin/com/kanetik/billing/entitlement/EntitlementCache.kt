@@ -207,7 +207,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * The remaining [FlowOutcome] variants ([FlowOutcome.Pending],
  * [FlowOutcome.Canceled], [FlowOutcome.ItemAlreadyOwned],
- * [FlowOutcome.ItemUnavailable], [FlowOutcome.UnknownResponse]) are
+ * [FlowOutcome.ItemUnavailable], [FlowOutcome.PaymentDeclined],
+ * [FlowOutcome.UnknownResponse]) are
  * intentionally no-ops here — they don't change owned-purchase state, and a
  * Pending purchase explicitly must not grant entitlement (per Play's rules).
  *
@@ -476,11 +477,12 @@ public class EntitlementCache<K : Any>(
                 is FlowOutcome.Canceled,
                 is FlowOutcome.ItemAlreadyOwned,
                 is FlowOutcome.ItemUnavailable,
+                is FlowOutcome.PaymentDeclined,
                 is FlowOutcome.UnknownResponse -> {
                     // No-op. Pending must not grant entitlement (Play's rules).
-                    // Canceled / ItemAlreadyOwned / ItemUnavailable carry no
-                    // owned-purchase signal that should mutate cache state.
-                    // UnknownResponse is reserved for codes PBL doesn't
+                    // Canceled / ItemAlreadyOwned / ItemUnavailable / PaymentDeclined
+                    // carry no owned-purchase signal that should mutate cache
+                    // state. UnknownResponse is reserved for codes PBL doesn't
                     // document — log/observe at the consumer layer if needed.
                     emptyList()
                 }

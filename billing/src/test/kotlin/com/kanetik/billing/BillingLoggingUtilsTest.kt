@@ -1,6 +1,7 @@
 package com.kanetik.billing
 
 import com.android.billingclient.api.BillingClient.BillingResponseCode
+import com.android.billingclient.api.BillingClient.OnPurchasesUpdatedSubResponseCode
 import com.android.billingclient.api.BillingResult
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.logging.BillingLogger
@@ -98,23 +99,52 @@ class BillingLoggingUtilsTest {
     }
 
     @Test
-    fun `logBillingFlowFailure also emits insufficient-funds hint when sub-response code matches`() {
+    fun `logBillingFlowFailure emits exactly one warning when no sub-response code is set`() {
         val captor = CapturingLogger()
-        // We can't easily set sub-response codes via the public BillingResult builder,
-        // so verify the no-special-sub-response path doesn't double-emit at minimum.
         BillingLoggingUtils.logBillingFlowFailure(
             logger = captor,
             billingResult = result(BillingResponseCode.SERVICE_UNAVAILABLE)
         )
-        // Without the special sub-response, we expect exactly one warning (the base failure).
         assertThat(captor.warnings).hasSize(1)
         assertThat(captor.warnings.single().first).contains("Operation: Launch Billing Flow")
     }
 
-    private fun result(responseCode: Int, debugMessage: String = ""): BillingResult =
+    @Test
+    fun `logBillingFlowFailure emits the insufficient-funds hint for that sub-response code`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFlowFailure(
+            logger = captor,
+            billingResult = result(
+                BillingResponseCode.BILLING_UNAVAILABLE,
+                subResponseCode = OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS
+            )
+        )
+        assertThat(captor.warnings).hasSize(2)
+        assertThat(captor.warnings[1].first).contains("insufficient funds")
+    }
+
+    @Test
+    fun `logBillingFlowFailure does not emit the hint for USER_INELIGIBLE`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFlowFailure(
+            logger = captor,
+            billingResult = result(
+                BillingResponseCode.BILLING_UNAVAILABLE,
+                subResponseCode = OnPurchasesUpdatedSubResponseCode.USER_INELIGIBLE
+            )
+        )
+        assertThat(captor.warnings).hasSize(1)
+    }
+
+    private fun result(
+        responseCode: Int,
+        debugMessage: String = "",
+        subResponseCode: Int = OnPurchasesUpdatedSubResponseCode.NO_APPLICABLE_SUB_RESPONSE_CODE
+    ): BillingResult =
         BillingResult.newBuilder()
             .setResponseCode(responseCode)
             .setDebugMessage(debugMessage)
+            .setOnPurchasesUpdatedSubResponseCode(subResponseCode)
             .build()
 
     private class CapturingLogger : BillingLogger {

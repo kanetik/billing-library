@@ -67,17 +67,23 @@ internal class FlowPurchasesUpdatedListener(
                         add(OwnedPurchases.Live(settled))
                     }
                     if (pending.isNotEmpty()) {
-                        add(FlowOutcome.Pending(pending))
+                        add(FlowOutcome.Pending(pending, result))
                     }
                 }
             }
-            BillingResponseCode.USER_CANCELED -> listOf(FlowOutcome.Canceled(purchases))
-            BillingResponseCode.ITEM_ALREADY_OWNED -> listOf(FlowOutcome.ItemAlreadyOwned(purchases))
-            BillingResponseCode.ITEM_UNAVAILABLE -> listOf(FlowOutcome.ItemUnavailable(purchases))
+            BillingResponseCode.USER_CANCELED -> listOf(FlowOutcome.Canceled(purchases, result))
+            BillingResponseCode.ITEM_ALREADY_OWNED -> listOf(FlowOutcome.ItemAlreadyOwned(purchases, result))
+            BillingResponseCode.ITEM_UNAVAILABLE -> listOf(FlowOutcome.ItemUnavailable(purchases, result))
+            BillingResponseCode.BILLING_UNAVAILABLE -> {
+                // Here (mid-flow) this code means a declined payment, not missing
+                // billing — kept out of Failure so it never carries
+                // BillingErrorCategory.BillingUnavailable.
+                BillingLoggingUtils.logBillingFlowFailure(logger, result)
+                listOf(FlowOutcome.PaymentDeclined(purchases, result))
+            }
             BillingResponseCode.NETWORK_ERROR,
             BillingResponseCode.SERVICE_DISCONNECTED,
             BillingResponseCode.SERVICE_UNAVAILABLE,
-            BillingResponseCode.BILLING_UNAVAILABLE,
             BillingResponseCode.FEATURE_NOT_SUPPORTED,
             BillingResponseCode.DEVELOPER_ERROR,
             BillingResponseCode.ERROR,
@@ -88,8 +94,8 @@ internal class FlowPurchasesUpdatedListener(
                 // branch on retry-hint / userFacingCategory without re-deriving
                 // from raw response codes. UnknownResponse is reserved for codes
                 // PBL doesn't document.
-                listOf(FlowOutcome.Failure(BillingException.fromResult(result), purchases))
-            else -> listOf(FlowOutcome.UnknownResponse(responseCode, purchases))
+                listOf(FlowOutcome.Failure(BillingException.fromResult(result), purchases, result))
+            else -> listOf(FlowOutcome.UnknownResponse(responseCode, purchases, result))
         }
     }
 }

@@ -145,8 +145,8 @@ public sealed class BillingException(
     }
 
     /**
-     * Network connectivity issue talking to Play Store. Transient. After the
-     * retry budget is spent, surface to the user as "no connection".
+     * Network connectivity issue talking to Play Store. Transient. Surface to
+     * the user as "no connection".
      *
      * Retry strategy: [RetryType.EXPONENTIAL_RETRY].
      */
