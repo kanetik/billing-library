@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
  *    updates, not authoritative owned-state snapshots** (see [PurchaseEvent]
  *    KDoc and each variant's KDoc for the specific shape).
  *  - [FlowOutcome] (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`,
- *    `PaymentDeclined`, `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
+ *    `UserBillingError`, `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
  *    their `purchases` list as owned-state.
  *  - [PurchaseRevoked] — external revocation signal pushed in via
  *    [BillingRepository.emitExternalRevocation]; revoke entitlement for the

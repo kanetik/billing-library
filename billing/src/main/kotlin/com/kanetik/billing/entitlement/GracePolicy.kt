@@ -15,9 +15,10 @@ package com.kanetik.billing.entitlement
  *  - [billingUnavailableMs] — the billing feature itself isn't supported on
  *    this device (`FEATURE_NOT_SUPPORTED`), the only case that reaches this
  *    window: mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions
- *    (Play Services missing, account ineligibility, region restrictions)
- *    surface as [com.kanetik.billing.FlowOutcome.PaymentDeclined] instead,
- *    which never reaches grace. Typically longer-lived than a network blip,
+ *    (declined payment, outdated Play Store, unsupported country,
+ *    admin-disabled purchases, OEM-blocked Play Store) surface as
+ *    [com.kanetik.billing.FlowOutcome.UserBillingError] instead, which never
+ *    reaches grace. Typically longer-lived than a network blip,
  *    since an unsupported Play Store install often persists across sessions.
  *    Common defaults are 24–72 hours.
  *

@@ -102,7 +102,7 @@ class ShopViewModel(
 The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the map are implicitly `EntitlementState.Revoked` (the cache hasn't observed a granting purchase for them). Each per-key value is one of three terminal states:
 
 - `Granted` — confirmed entitlement; show the gated UI / unlock the feature.
-- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (feature not supported on this device — mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions surface as `PaymentDeclined` instead, not `Failure`) or `TransientFailure` (network error, service disconnect, generic billing error).
+- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (feature not supported on this device — mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions surface as `UserBillingError` instead, not `Failure`) or `TransientFailure` (network error, service disconnect, generic billing error).
 - `Revoked` — no entitlement; hide the gated UI.
 
 `stateFor(key: K)` returns a `Flow<EntitlementState>` that surfaces absent keys as `Revoked` and is `distinctUntilChanged()` against unchanged values — usually what you want for UI binding.
@@ -121,7 +121,7 @@ The cache reacts to four event paths:
 - `FlowOutcome.Failure` triggers `InGrace` for every currently-Granted or InGrace key (or transitions them straight to `Revoked` if the policy window is zero or has already elapsed since that key's last confirmation).
 - `PurchaseRevoked` matched against *any* key's `lastConfirmedSnapshot.purchaseToken` transitions that key (and only that key) to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline; see [Server-driven revocation](server-driven-revocation.md).
 
-The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
+The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
 
 ## Storage is your responsibility
 
