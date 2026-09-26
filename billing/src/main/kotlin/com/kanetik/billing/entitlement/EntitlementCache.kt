@@ -66,11 +66,11 @@ import kotlinx.coroutines.sync.withLock
  *    carry empty/UNSPECIFIED_STATE callbacks; Recovered emits only the unacked
  *    subset). Revocation flows through [PurchaseRevoked] — see "Sealed-when
  *    handling" below.
- *  - [FlowOutcome.Failure] is a no-op: existing Granted/InGrace keys are left
+ *  - [FlowOutcome.Failure] is a no-op: existing Granted keys are left
  *    untouched. `Failure` carries no product id, so the cache can't tell
  *    which key's purchase attempt failed.
  *  - Persists every confirmed observation through [EntitlementStorage.write]
- *    so the next process can hydrate. Grace is not persisted.
+ *    so the next process can hydrate.
  *
  * ## Hydration staleness
  *
@@ -123,7 +123,6 @@ import kotlinx.coroutines.sync.withLock
  *     private val cache = EntitlementCache(
  *         purchasesUpdates = billing.observePurchaseUpdates(),
  *         storage = storage,
- *         gracePolicy = GracePolicy.None,
  *         productKeySelector = { p -> if (p.products.contains("ad_removal")) Unit else null },
  *     )
  *     init { viewModelScope.launch { cache.start(viewModelScope) } }
@@ -144,7 +143,6 @@ import kotlinx.coroutines.sync.withLock
  *     private val cache = EntitlementCache(
  *         purchasesUpdates = billing.observePurchaseUpdates(),
  *         storage = storage,
- *         gracePolicy = GracePolicy.None,
  *         productKeySelector = { p ->
  *             when {
  *                 "pro_toolkit" in p.products -> GameEntitlement.PRO_TOOLKIT
@@ -196,8 +194,6 @@ import kotlinx.coroutines.sync.withLock
  *   [com.kanetik.billing.BillingPurchaseUpdatesOwner.observePurchaseUpdates].
  *   The cache subscribes inside [start].
  * @param storage Persistence layer. See [EntitlementStorage] for the contract.
- * @param gracePolicy Unused — [FlowOutcome.Failure] no longer applies grace
- *   to existing grants. Retained for source compatibility.
  * @param productKeySelector Maps each [Purchase] to the entitlement key it
  *   grants, or `null` if the purchase doesn't grant any tracked entitlement.
  *   Typical shapes:
@@ -209,24 +205,14 @@ import kotlinx.coroutines.sync.withLock
  * @param clock Time source. Defaults to `System.currentTimeMillis`. Inject a
  *   deterministic source in tests so `confirmedAtMs` assertions don't depend
  *   on real time.
- * @param graceTickIntervalMs No longer paired with any periodic tick.
- *   Retained for source compatibility; still validated as `> 0`.
  */
 public class EntitlementCache<K : Any>(
     private val purchasesUpdates: Flow<PurchaseEvent>,
     private val storage: EntitlementStorage<K>,
-    @Suppress("UNUSED_PARAMETER", "DEPRECATION") gracePolicy: GracePolicy,
     private val productKeySelector: (Purchase) -> K?,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val graceTickIntervalMs: Long = DEFAULT_GRACE_TICK_INTERVAL_MS,
     private val logger: BillingLogger = BillingLogger.Noop,
 ) {
-    init {
-        require(graceTickIntervalMs > 0) {
-            "graceTickIntervalMs must be > 0 (got $graceTickIntervalMs)."
-        }
-    }
-
     private val _state = MutableStateFlow<Map<K, EntitlementState>>(emptyMap())
 
     /**
@@ -532,13 +518,5 @@ public class EntitlementCache<K : Any>(
         // write channel.
         _state.value = _state.value + (key to EntitlementState.Revoked)
         return snapshot
-    }
-
-    public companion object {
-        /**
-         * Default for the now-unused [graceTickIntervalMs] constructor
-         * parameter. Retained for source compatibility.
-         */
-        public const val DEFAULT_GRACE_TICK_INTERVAL_MS: Long = 60_000L
     }
 }

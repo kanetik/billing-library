@@ -354,8 +354,9 @@ public sealed class FlowOutcome : PurchaseEvent {
      * empty, but preserved here for symmetry with the other variants.
      *
      * Library-internal entitlement helpers (e.g. `EntitlementCache` in
-     * [com.kanetik.billing.entitlement]) consume this variant to drive
-     * grace-window logic on transient outages. Most consumer code can treat
+     * [com.kanetik.billing.entitlement]) treat this variant as a no-op — it
+     * carries no product id, so an existing grant can't be reliably
+     * attributed to the failing attempt. Most consumer code can treat
      * Failure the same way it would treat [UnknownResponse] — surface a
      * "couldn't reach Play, try again" message from [BillingException.userFacingCategory].
      */

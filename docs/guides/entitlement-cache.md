@@ -27,7 +27,6 @@ import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementState
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementStorage
-import com.kanetik.billing.entitlement.GracePolicy
 
 class AdRemovalViewModel(
     billing: BillingRepository,
@@ -37,7 +36,6 @@ class AdRemovalViewModel(
     private val cache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = storage,
-        gracePolicy = GracePolicy.None,
         productKeySelector = { purchase ->
             if (purchase.products.contains("ad_removal")) Unit else null
         },
@@ -70,7 +68,6 @@ class ShopViewModel(
     private val cache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = storage,
-        gracePolicy = GracePolicy.None,
         productKeySelector = { purchase ->
             when {
                 "pro_toolkit"    in purchase.products -> GameEntitlement.PRO_TOOLKIT
@@ -95,7 +92,6 @@ class ShopViewModel(
 The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the map are implicitly `EntitlementState.Revoked` (the cache hasn't observed a granting purchase for them). Each per-key value is one of:
 
 - `Granted` — confirmed entitlement; show the gated UI / unlock the feature.
-- `InGrace(expiresAtMs, reason)` — deprecated; the cache never produces this state. `GracePolicy` has no effect.
 - `Revoked` — no entitlement; hide the gated UI.
 
 `stateFor(key: K)` returns a `Flow<EntitlementState>` that surfaces absent keys as `Revoked` and is `distinctUntilChanged()` against unchanged values — usually what you want for UI binding.
@@ -151,7 +147,7 @@ val storage: EntitlementStorage<GameEntitlement> = SignedEntitlementStorage(
         }
     },
 )
-val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productKeySelector)
+val cache = EntitlementCache(purchasesUpdates, storage, productKeySelector)
 ```
 
 `SignedEntitlementStorage` keeps the library neutral on the persistence backend — the underlying `EntitlementStorage` still owns the snapshot bytes, the signature blobs (one per entitlement key) live separately in `SignatureStore`. Pick `KeystoreBackedKeyProvider` (the recommended default; uses Android Keystore HMAC keys, hardware-backed where available) or `ServerSeededKeyProvider` (per-install seed from your backend, cached locally — see its KDoc for the plaintext-cache caveat). The library can't enforce key non-extractability and isn't a replacement for server-side validation; both caveats are documented on the relevant types.

@@ -97,11 +97,9 @@ private fun ConnectionRow(result: BillingConnectionResult?) {
 }
 
 @Composable
-@Suppress("DEPRECATION")
 private fun EntitlementRow(state: EntitlementState) {
     val label = when (state) {
         is EntitlementState.Granted -> "Entitlement: GRANTED"
-        is EntitlementState.InGrace -> "Entitlement: IN GRACE (reason=${state.reason}, expiresAtMs=${state.expiresAtMs})"
         is EntitlementState.Revoked -> "Entitlement: REVOKED"
     }
     Card(modifier = Modifier.fillMaxWidth()) {

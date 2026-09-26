@@ -7,7 +7,6 @@ package com.kanetik.billing.entitlement
  *
  *  - [Granted] — the cache has confirmed the user owns a matching purchase.
  *    Show the gated UI / unlock the feature / etc.
- *  - [InGrace] — deprecated; the cache never produces this state.
  *  - [Revoked] — the cache has never seen entitlement for this key, or an
  *    explicit [com.kanetik.billing.PurchaseRevoked] event revoked it. Hide
  *    the gated UI.
@@ -29,17 +28,6 @@ public sealed interface EntitlementState {
      *  - A persisted [EntitlementSnapshot] read at start with `isEntitled = true`.
      */
     public data object Granted : EntitlementState
-
-    /**
-     * Unused: [EntitlementCache] no longer transitions any key into this
-     * state. Retained for source compatibility.
-     */
-    @Suppress("DEPRECATION")
-    @Deprecated("EntitlementCache no longer produces this state; FlowOutcome.Failure leaves existing grants untouched.")
-    public data class InGrace(
-        public val expiresAtMs: Long,
-        public val reason: GraceReason,
-    ) : EntitlementState
 
     /**
      * No entitlement for this key. Hide the gated UI.

@@ -21,7 +21,6 @@ import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementState
 import com.kanetik.billing.entitlement.EntitlementStorage
-import com.kanetik.billing.entitlement.GracePolicy
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -52,7 +51,6 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
     private val entitlementCache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = entitlementStorage,
-        gracePolicy = GracePolicy.None,
         productKeySelector = { purchase ->
             // For multi-entitlement apps, branch on `purchase.products` and
             // return the corresponding K. Return null for purchases that

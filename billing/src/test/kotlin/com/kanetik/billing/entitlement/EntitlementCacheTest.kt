@@ -27,8 +27,8 @@ import java.util.concurrent.TimeUnit
 class EntitlementCacheTest {
 
     // Multi-entitlement-friendly: a simple sealed pair of keys so tests cover
-    // the per-key semantics (independent grace, per-key revocation matching,
-    // hydration of multiple snapshots, etc.). Single-key tests just use ONE.
+    // the per-key semantics (per-key revocation matching, hydration of
+    // multiple snapshots, etc.). Single-key tests just use ONE.
     private enum class TestKey { ONE, TWO }
 
     private val productIdOne = "shop_unlock_one"
@@ -237,10 +237,8 @@ class EntitlementCacheTest {
         val firstCache = EntitlementCache(
             purchasesUpdates = firstUpdates,
             storage = storage,
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
-            graceTickIntervalMs = 60_000L,
         )
         val firstJob = firstCache.start(this)
         runCurrent()
@@ -255,10 +253,8 @@ class EntitlementCacheTest {
         val secondCache = EntitlementCache(
             purchasesUpdates = secondUpdates,
             storage = storage,
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK + 1_000L },
-            graceTickIntervalMs = 60_000L,
         )
         val secondJob = secondCache.start(this)
         runCurrent()
@@ -309,10 +305,8 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = FakeEntitlementStorage<TestKey>(),
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
-            graceTickIntervalMs = 60_000L,
         )
         val first = cache.start(this)
         val second = cache.start(this)
@@ -328,10 +322,8 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
-            graceTickIntervalMs = 60_000L,
         )
         val first = cache.start(this)
         runCurrent()
@@ -371,10 +363,8 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = FakeEntitlementStorage<TestKey>(),
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
-            graceTickIntervalMs = 60_000L,
         )
         val first = cache.start(this)
         first.cancelAndJoin()
@@ -452,16 +442,13 @@ class EntitlementCacheTest {
     private suspend fun TestScope.newCache(
         storage: FakeEntitlementStorage<TestKey> = FakeEntitlementStorage(),
         clock: () -> Long = { INITIAL_CLOCK },
-        graceTickIntervalMs: Long = 60_000L,
     ): CacheUnderTest {
         val updates = MutableSharedFlow<PurchaseEvent>(extraBufferCapacity = 16)
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
-            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = clock,
-            graceTickIntervalMs = graceTickIntervalMs,
         )
         val job = cache.start(this)
         runCurrent()
