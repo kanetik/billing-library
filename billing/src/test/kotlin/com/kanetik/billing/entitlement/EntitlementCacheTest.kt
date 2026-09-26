@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EntitlementCacheTest {
@@ -157,28 +158,7 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Failure with BillingUnavailable transitions every Granted key to InGrace BillingUnavailable`() = runTest {
-        val (cache, updates, _, clock, job) = newCache()
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo))))
-        runCurrent()
-
-        updates.emit(FlowOutcome.Failure(billingUnavailableException(), emptyList(), billingResult(BillingResponseCode.BILLING_UNAVAILABLE)))
-        runCurrent()
-
-        for (key in listOf(TestKey.ONE, TestKey.TWO)) {
-            val state = cache.state.value[key]
-            assertThat(state).isInstanceOf(EntitlementState.InGrace::class.java)
-            val grace = state as EntitlementState.InGrace
-            assertThat(grace.reason).isEqualTo(GraceReason.BillingUnavailable)
-            assertThat(grace.expiresAtMs).isEqualTo(clock() + DEFAULT_BILLING_UNAVAILABLE_MS)
-        }
-
-        job.cancelAndJoin()
-    }
-
-    @Test
-    fun `PaymentDeclined leaves a Granted key untouched (unlike Failure with BillingUnavailable)`() = runTest {
+    fun `PaymentDeclined leaves a Granted key untouched`() = runTest {
         val (cache, updates, _, _, job) = newCache()
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
@@ -191,61 +171,61 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Failure with NetworkError transitions every Granted key to InGrace TransientFailure`() = runTest {
-        val (cache, updates, _, clock, job) = newCache()
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
-        runCurrent()
-
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
-        runCurrent()
-
-        val state = cache.state.value[TestKey.ONE]
-        assertThat(state).isInstanceOf(EntitlementState.InGrace::class.java)
-        val grace = state as EntitlementState.InGrace
-        assertThat(grace.reason).isEqualTo(GraceReason.TransientFailure)
-        assertThat(grace.expiresAtMs).isEqualTo(clock() + DEFAULT_TRANSIENT_FAILURE_MS)
-
-        job.cancelAndJoin()
-    }
-
-    @Test
-    fun `InGrace transitions to Revoked when grace window expires on next emission`() = runTest {
-        val mutableClock = MutableClock(INITIAL_CLOCK)
-        val (cache, updates, _, _, job) = newCache(clock = mutableClock::value)
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
-        runCurrent()
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
-        runCurrent()
-        val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
-
-        mutableClock.advance(grace.expiresAtMs - mutableClock.value + 1L)
-        updates.emit(FlowOutcome.Pending(emptyList(), billingResult(BillingResponseCode.OK)))
-        runCurrent()
-
-        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
-        job.cancelAndJoin()
-    }
-
-    @Test
-    fun `InGrace transitions to Revoked via grace tick without any further upstream emission`() = runTest {
-        val mutableClock = MutableClock(INITIAL_CLOCK)
-        val tickInterval = 50L
-        val (cache, updates, _, _, job) = newCache(
-            clock = mutableClock::value,
-            graceTickIntervalMs = tickInterval,
+    fun `long-held Granted key survives Failure NetworkError and nothing is persisted as revoked`() = runTest {
+        val longHeld = EntitlementSnapshot(
+            isEntitled = true,
+            confirmedAtMs = INITIAL_CLOCK - TimeUnit.DAYS.toMillis(365),
+            purchaseToken = "tok-long-held",
         )
-        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
-        runCurrent()
+        val storage = FakeEntitlementStorage(initial = mapOf(TestKey.ONE to longHeld))
+        val (cache, updates, _, _, job) = newCache(storage = storage)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
         runCurrent()
-        val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
 
-        val advanceBy = grace.expiresAtMs - mutableClock.value + tickInterval
-        mutableClock.advance(advanceBy)
-        testScheduler.advanceTimeBy(advanceBy + 1L)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)).isEqualTo(longHeld)
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `long-held Granted key survives Failure ERROR and nothing is persisted as revoked`() = runTest {
+        val longHeld = EntitlementSnapshot(
+            isEntitled = true,
+            confirmedAtMs = INITIAL_CLOCK - TimeUnit.DAYS.toMillis(365),
+            purchaseToken = "tok-long-held",
+        )
+        val storage = FakeEntitlementStorage(initial = mapOf(TestKey.ONE to longHeld))
+        val (cache, updates, _, _, job) = newCache(storage = storage)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
+        updates.emit(FlowOutcome.Failure(fatalErrorException(), emptyList(), billingResult(BillingResponseCode.ERROR)))
         runCurrent()
 
-        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)).isEqualTo(longHeld)
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `long-held Granted keys survive a Failure for a different in-flight product`() = runTest {
+        val longHeldOne = EntitlementSnapshot(
+            isEntitled = true,
+            confirmedAtMs = INITIAL_CLOCK - TimeUnit.DAYS.toMillis(365),
+            purchaseToken = "tok-one-long-held",
+        )
+        val storage = FakeEntitlementStorage(initial = mapOf(TestKey.ONE to longHeldOne))
+        val (cache, updates, _, _, job) = newCache(storage = storage)
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.TWO]).isNull()
+
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
+        runCurrent()
+
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(cache.state.value[TestKey.TWO]).isNull()
+        assertThat(storage.lastWritten(TestKey.ONE)).isEqualTo(longHeldOne)
         job.cancelAndJoin()
     }
 
@@ -257,7 +237,7 @@ class EntitlementCacheTest {
         val firstCache = EntitlementCache(
             purchasesUpdates = firstUpdates,
             storage = storage,
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
@@ -275,7 +255,7 @@ class EntitlementCacheTest {
         val secondCache = EntitlementCache(
             purchasesUpdates = secondUpdates,
             storage = storage,
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK + 1_000L },
             graceTickIntervalMs = 60_000L,
@@ -329,7 +309,7 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = FakeEntitlementStorage<TestKey>(),
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
@@ -348,7 +328,7 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
@@ -391,7 +371,7 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = FakeEntitlementStorage<TestKey>(),
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = { INITIAL_CLOCK },
             graceTickIntervalMs = 60_000L,
@@ -413,7 +393,7 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `Failure while no key is Granted is a no-op - no spurious InGrace`() = runTest {
+    fun `Failure while no key is Granted is a no-op`() = runTest {
         val (cache, updates, _, _, job) = newCache()
 
         updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
@@ -478,7 +458,7 @@ class EntitlementCacheTest {
         val cache = EntitlementCache(
             purchasesUpdates = updates,
             storage = storage,
-            gracePolicy = defaultPolicy(),
+            gracePolicy = GracePolicy.None,
             productKeySelector = keySelector,
             clock = clock,
             graceTickIntervalMs = graceTickIntervalMs,
@@ -488,25 +468,18 @@ class EntitlementCacheTest {
         return CacheUnderTest(cache, updates, storage, clock, job)
     }
 
-    private fun defaultPolicy() = GracePolicy(
-        billingUnavailableMs = DEFAULT_BILLING_UNAVAILABLE_MS,
-        transientFailureMs = DEFAULT_TRANSIENT_FAILURE_MS,
-    )
-
     private fun networkErrorException(): BillingException =
         BillingException.NetworkErrorException(
             BillingResult.newBuilder().setResponseCode(BillingResponseCode.NETWORK_ERROR).build(),
         )
 
-    private fun billingUnavailableException(): BillingException =
-        BillingException.BillingUnavailableException(
-            BillingResult.newBuilder().setResponseCode(BillingResponseCode.BILLING_UNAVAILABLE).build(),
+    private fun fatalErrorException(): BillingException =
+        BillingException.FatalErrorException(
+            BillingResult.newBuilder().setResponseCode(BillingResponseCode.ERROR).build(),
         )
 
     companion object {
         private const val INITIAL_CLOCK = 1_000_000L
-        private const val DEFAULT_BILLING_UNAVAILABLE_MS = 60_000L
-        private const val DEFAULT_TRANSIENT_FAILURE_MS = 10_000L
     }
 }
 
@@ -525,14 +498,5 @@ private class FakeEntitlementStorage<K : Any>(
 
     override suspend fun write(key: K, snapshot: EntitlementSnapshot) {
         store[key] = snapshot
-    }
-}
-
-private class MutableClock(initial: Long) {
-    var value: Long = initial
-        private set
-
-    fun advance(delta: Long) {
-        value += delta
     }
 }

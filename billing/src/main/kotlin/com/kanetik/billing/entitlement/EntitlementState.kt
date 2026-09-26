@@ -5,27 +5,15 @@ package com.kanetik.billing.entitlement
  * [EntitlementCache] via its `state: StateFlow<Map<K, EntitlementState>>`
  * (and the per-key [EntitlementCache.stateFor] convenience).
  *
- * Three terminal states cover the full lifecycle of an "is the user entitled
- * to this thing right now?" question:
- *
  *  - [Granted] — the cache has confirmed the user owns a matching purchase.
  *    Show the gated UI / unlock the feature / etc.
- *  - [InGrace] — the cache recently saw entitlement, then hit a transient
- *    failure (network outage, billing service unavailable, etc.) before it
- *    could re-confirm. The key is still treated as entitled until
- *    [InGrace.expiresAtMs] passes; after that the cache transitions to
- *    [Revoked]. Lets gated features keep working through a brief outage
- *    instead of yanking them out from under a paid user.
- *  - [Revoked] — the cache has either never seen entitlement for this key,
- *    or grace has expired without a successful re-check. Hide the gated UI.
+ *  - [InGrace] — deprecated; the cache never produces this state.
+ *  - [Revoked] — the cache has never seen entitlement for this key, or an
+ *    explicit [com.kanetik.billing.PurchaseRevoked] event revoked it. Hide
+ *    the gated UI.
  *
  * Branch on the sealed type to render UI rather than comparing instances by
- * equality. The [InGrace.expiresAtMs] timestamp is set once when the
- * transition into grace happens (anchored to the last confirmed observation
- * + the policy window) and stays stable until grace expires; the cache
- * doesn't emit a new `InGrace(expiresAtMs = ...)` on every tick. So
- * `state.distinctUntilChanged()` works as expected; a fresh `Failure` with
- * the same reason produces the same expiresAt and gets de-duped.
+ * equality.
  */
 public sealed interface EntitlementState {
 
@@ -43,17 +31,11 @@ public sealed interface EntitlementState {
     public data object Granted : EntitlementState
 
     /**
-     * Entitlement was recently confirmed but a subsequent
-     * [com.kanetik.billing.FlowOutcome.Failure] prevented re-confirmation.
-     * Treat the key as entitled until [expiresAtMs]; after that the cache
-     * transitions to [Revoked].
-     *
-     * @property expiresAtMs Wall-clock time (in `System.currentTimeMillis()`
-     *   units, or whatever the cache's injected `clock` returns) at which
-     *   grace ends. Compare against the same clock when persisting / restoring.
-     * @property reason Why the cache is in grace — drives the policy window
-     *   and helps consumers log / analyze outage causes.
+     * Unused: [EntitlementCache] no longer transitions any key into this
+     * state. Retained for source compatibility.
      */
+    @Suppress("DEPRECATION")
+    @Deprecated("EntitlementCache no longer produces this state; FlowOutcome.Failure leaves existing grants untouched.")
     public data class InGrace(
         public val expiresAtMs: Long,
         public val reason: GraceReason,
@@ -67,8 +49,6 @@ public sealed interface EntitlementState {
      *    matches the cached snapshot's last confirmed purchase for this key.
      *    The consumer pushes these via `emitExternalRevocation` from their
      *    RTDN→FCM (or polling, or deeplink) pipeline.
-     *  - An [InGrace] state whose [InGrace.expiresAtMs] has elapsed without
-     *    a fresh `Granted` confirmation.
      *  - The implicit default for any key absent from the state map (no
      *    prior snapshot, nothing has arrived yet).
      *

@@ -135,7 +135,7 @@ public sealed interface PurchaseEvent
  * doesn't see the full owned set (a [Live] event with `purchases.isEmpty()`
  * is never delivered — see [Live]). For managed entitlement state, use
  * [com.kanetik.billing.entitlement.EntitlementCache], which handles the
- * merge logic and grace policy internally.
+ * merge logic internally.
  *
  * Two variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"

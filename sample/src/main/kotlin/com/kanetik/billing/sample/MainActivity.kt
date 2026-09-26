@@ -97,6 +97,7 @@ private fun ConnectionRow(result: BillingConnectionResult?) {
 }
 
 @Composable
+@Suppress("DEPRECATION")
 private fun EntitlementRow(state: EntitlementState) {
     val label = when (state) {
         is EntitlementState.Granted -> "Entitlement: GRANTED"

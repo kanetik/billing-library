@@ -6,7 +6,7 @@ Once your code can answer "did the user buy this" in the moment, three follow-up
 - What do I do when Play is unreachable for an hour or two: flip every paid user back to the free tier, or wait it out?
 - How do I keep my entitlement verdict consistent across process death, configuration changes, and app updates?
 
-PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source) per entitlement` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant which entitlement, persist the verdict so gated UI can render before the first network round-trip, and add a grace window so a transient outage doesn't immediately yank features from a paid user. `EntitlementCache<K>` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
+PBL doesn't answer any of these. They're consumer concerns built on top of the protocol, which is why most apps end up reinventing the same `(isEntitled, lastConfirmedTimestamp, source) per entitlement` state machine: take the raw `PurchaseEvent` stream, decide which purchases grant which entitlement, and persist the verdict so gated UI can render before the first network round-trip. `EntitlementCache<K>` (in `com.kanetik.billing.entitlement`) is that state machine, opt-in.
 
 It listens to `observePurchaseUpdates()`, so it benefits from the auto-recovery sweep. See [Purchase recovery](purchase-recovery.md) for what `OwnedPurchases.Live` vs `OwnedPurchases.Recovered` actually mean and why you can't just write the callback's `purchases` list to your storage and call it done.
 
@@ -28,7 +28,6 @@ import com.kanetik.billing.entitlement.EntitlementState
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementStorage
 import com.kanetik.billing.entitlement.GracePolicy
-import java.util.concurrent.TimeUnit
 
 class AdRemovalViewModel(
     billing: BillingRepository,
@@ -38,10 +37,7 @@ class AdRemovalViewModel(
     private val cache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = storage,
-        gracePolicy = GracePolicy(
-            billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
-            transientFailureMs   = TimeUnit.HOURS.toMillis(6),
-        ),
+        gracePolicy = GracePolicy.None,
         productKeySelector = { purchase ->
             if (purchase.products.contains("ad_removal")) Unit else null
         },
@@ -56,7 +52,7 @@ class AdRemovalViewModel(
     }
 
     val adsRemoved: StateFlow<Boolean> = cache.stateFor(Unit)
-        .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+        .map { it is EntitlementState.Granted }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 }
 ```
@@ -74,10 +70,7 @@ class ShopViewModel(
     private val cache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = storage,
-        gracePolicy = GracePolicy(
-            billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
-            transientFailureMs   = TimeUnit.HOURS.toMillis(6),
-        ),
+        gracePolicy = GracePolicy.None,
         productKeySelector = { purchase ->
             when {
                 "pro_toolkit"    in purchase.products -> GameEntitlement.PRO_TOOLKIT
@@ -90,24 +83,22 @@ class ShopViewModel(
     init { viewModelScope.launch { cache.start(viewModelScope) } }
 
     val hasProToolkit: Flow<Boolean> = cache.stateFor(GameEntitlement.PRO_TOOLKIT)
-        .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+        .map { it is EntitlementState.Granted }
 
     val hasExpansion: Flow<Boolean> = cache.stateFor(GameEntitlement.EXPANSION_PACK)
-        .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+        .map { it is EntitlementState.Granted }
 }
 ```
 
 ## State
 
-The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the map are implicitly `EntitlementState.Revoked` (the cache hasn't observed a granting purchase for them). Each per-key value is one of three terminal states:
+The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the map are implicitly `EntitlementState.Revoked` (the cache hasn't observed a granting purchase for them). Each per-key value is one of:
 
 - `Granted` — confirmed entitlement; show the gated UI / unlock the feature.
-- `InGrace(expiresAtMs, reason)` — recently confirmed, then a `FlowOutcome.Failure` arrived. Treat as entitled until `expiresAtMs`; after that the cache transitions to `Revoked`. Reason is one of `BillingUnavailable` (feature not supported on this device — mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions surface as `PaymentDeclined` instead, not `Failure`) or `TransientFailure` (network error, service disconnect, generic billing error).
+- `InGrace(expiresAtMs, reason)` — deprecated; the cache never produces this state. `GracePolicy` has no effect.
 - `Revoked` — no entitlement; hide the gated UI.
 
 `stateFor(key: K)` returns a `Flow<EntitlementState>` that surfaces absent keys as `Revoked` and is `distinctUntilChanged()` against unchanged values — usually what you want for UI binding.
-
-Grace expiry is re-evaluated on every emission and on a periodic tick, per key, so an extended outage correctly transitions `InGrace → Revoked` even when no further updates arrive in between.
 
 ## When to use it
 
@@ -118,10 +109,9 @@ Skip it if you have your own state machine you're already happy with, or if you 
 The cache reacts to four event paths:
 
 - `OwnedPurchases.Live` and `OwnedPurchases.Recovered` are **grant-only**. For each `PURCHASED`-state purchase, `productKeySelector` is applied; a non-null result transitions that key to `Granted` and persists. A *non-match* (selector returns null) does **not** revoke. `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to any tracked entitlement, and `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it). Treating either as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
-- `FlowOutcome.Failure` triggers `InGrace` for every currently-Granted or InGrace key (or transitions them straight to `Revoked` if the policy window is zero or has already elapsed since that key's last confirmation).
 - `PurchaseRevoked` matched against *any* key's `lastConfirmedSnapshot.purchaseToken` transitions that key (and only that key) to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline; see [Server-driven revocation](server-driven-revocation.md).
 
-The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules).
+The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `Failure`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules). `Failure` carries no product id, so the cache can't tell which key's purchase attempt failed — existing Granted keys are left untouched rather than guessed at.
 
 ## Storage is your responsibility
 
@@ -136,7 +126,7 @@ interface EntitlementStorage<K : Any> {
 
 Your implementation is responsible for serializing `K` to a stable on-disk identifier. For `String` keys that's the identity; for `enum class` keys use `K.name` (not `toString()` — it's overridable); for sealed classes pick a stable discriminator field. Stability across app upgrades matters — renaming an enum constant breaks the on-disk mapping.
 
-`EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `readAll()` once on `start()` to hydrate, then `write(key, snapshot)` on every entitlement-affecting transition. `InGrace` is **not** persisted — grace re-derives from the most recent confirmed `confirmedAtMs` on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.
+`EntitlementSnapshot` is plain data: `(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)`. The cache calls `readAll()` once on `start()` to hydrate, then `write(key, snapshot)` on every entitlement-affecting transition.
 
 For most apps the on-device storage is fine: a tampered snapshot gets overwritten the next time `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirms (or fails to confirm via `PurchaseRevoked`) the entitlement. The cache trusts what storage returns.
 

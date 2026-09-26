@@ -1,44 +1,11 @@
 package com.kanetik.billing.entitlement
 
 /**
- * How long [EntitlementCache] keeps treating a user as entitled after a
- * [com.kanetik.billing.FlowOutcome.Failure] event.
- *
- * Two windows because the underlying outages have different shapes:
- *
- *  - [transientFailureMs] — network blips, service disconnects. This grace
- *    window covers the flow's first observation of the failure: nothing
- *    retries a purchase-flow attempt, so a `FlowOutcome.Failure` here can be
- *    a single momentary hiccup rather than a confirmed outage. A reasonable
- *    default is 1–24 hours depending on how confident you are in the user's
- *    connectivity environment.
- *  - [billingUnavailableMs] — the billing feature itself isn't supported on
- *    this device (`FEATURE_NOT_SUPPORTED`), the only case that reaches this
- *    window: mid-flow, PBL's other `BILLING_UNAVAILABLE`-shaped conditions
- *    (Play Services missing, account ineligibility, region restrictions)
- *    surface as [com.kanetik.billing.FlowOutcome.PaymentDeclined] instead,
- *    which never reaches grace. Typically longer-lived than a network blip,
- *    since an unsupported Play Store install often persists across sessions.
- *    Common defaults are 24–72 hours.
- *
- * Both values are in milliseconds. Pass `0` to disable grace for that reason
- * (the cache will transition straight to [EntitlementState.Revoked] on the
- * matching failure type).
- *
- * ## Example
- *
- * ```
- * val policy = GracePolicy(
- *     billingUnavailableMs = TimeUnit.HOURS.toMillis(72), // 3 days
- *     transientFailureMs   = TimeUnit.HOURS.toMillis(6),  // 6 hours
- * )
- * ```
- *
- * @property billingUnavailableMs Grace window in ms when the failure maps to
- *   [GraceReason.BillingUnavailable]. Must be `>= 0`.
- * @property transientFailureMs Grace window in ms when the failure maps to
- *   [GraceReason.TransientFailure]. Must be `>= 0`.
+ * Unused by [EntitlementCache]: [com.kanetik.billing.FlowOutcome.Failure] no
+ * longer applies a grace window to existing grants. Retained for source
+ * compatibility.
  */
+@Deprecated("EntitlementCache no longer applies grace on FlowOutcome.Failure; this type has no effect.")
 public data class GracePolicy(
     public val billingUnavailableMs: Long,
     public val transientFailureMs: Long,
@@ -62,12 +29,10 @@ public data class GracePolicy(
 
     public companion object {
         /**
-         * Disables grace entirely — every [com.kanetik.billing.FlowOutcome.Failure]
-         * transitions a previously-Granted cache straight to
-         * [EntitlementState.Revoked]. Use when you'd rather surface the outage
-         * to the user immediately than risk a few extra minutes of an
-         * unconfirmed entitlement during an outage.
+         * Both windows zeroed. Has no effect on [EntitlementCache] — see the
+         * class-level deprecation notice.
          */
+        @Suppress("DEPRECATION")
         public val None: GracePolicy = GracePolicy(
             billingUnavailableMs = 0L,
             transientFailureMs = 0L,
