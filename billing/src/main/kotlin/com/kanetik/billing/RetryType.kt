@@ -3,7 +3,7 @@ package com.kanetik.billing
 /**
  * Retry strategy attached to a [com.kanetik.billing.exception.BillingException].
  *
- * The library applies these automatically inside its retry loop, but the field is
+ * The library retries every type except [NONE] automatically, but the field is
  * exposed on every [com.kanetik.billing.exception.BillingException] so callers can
  * decide whether to surface an error immediately or wait for the next attempt.
  *
