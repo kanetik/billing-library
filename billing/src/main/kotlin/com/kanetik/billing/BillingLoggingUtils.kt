@@ -80,10 +80,6 @@ internal object BillingLoggingUtils {
         }
     }
 
-    /**
-     * Logs billing-flow launch failures with extra emphasis on sub-response codes
-     * that explain why the flow failed (e.g. insufficient funds).
-     */
     fun logBillingFlowFailure(
         logger: BillingLogger,
         billingResult: BillingResult,
@@ -95,11 +91,6 @@ internal object BillingLoggingUtils {
             operationContext = "Launch Billing Flow",
             additionalContext = additionalContext
         )
-
-        val subResponseCode = billingResult.onPurchasesUpdatedSubResponseCode
-        if (subResponseCode == OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS) {
-            logger.w("Billing flow failed due to insufficient funds - user may need to add payment method or check balance")
-        }
     }
 
     private fun getResponseCodeDescription(responseCode: Int): String {
