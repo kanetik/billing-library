@@ -61,16 +61,16 @@ class PurchaseEventTest {
     }
 
     @Test
-    fun `PaymentDeclined instances with equal purchases but distinct BillingResult instances are equal`() {
+    fun `UserBillingError instances with equal purchases but distinct BillingResult instances are equal`() {
         val purchase = fakePurchase()
         val other = fakePurchase()
-        val a = FlowOutcome.PaymentDeclined(listOf(purchase), result(BillingResponseCode.BILLING_UNAVAILABLE))
-        val b = FlowOutcome.PaymentDeclined(listOf(purchase), result(BillingResponseCode.BILLING_UNAVAILABLE))
+        val a = FlowOutcome.UserBillingError(listOf(purchase), result(BillingResponseCode.BILLING_UNAVAILABLE))
+        val b = FlowOutcome.UserBillingError(listOf(purchase), result(BillingResponseCode.BILLING_UNAVAILABLE))
 
         assertThat(a).isEqualTo(b)
         assertThat(a.hashCode()).isEqualTo(b.hashCode())
         assertThat(a).isNotEqualTo(
-            FlowOutcome.PaymentDeclined(listOf(other), result(BillingResponseCode.BILLING_UNAVAILABLE))
+            FlowOutcome.UserBillingError(listOf(other), result(BillingResponseCode.BILLING_UNAVAILABLE))
         )
     }
 
@@ -113,7 +113,7 @@ class PurchaseEventTest {
             .isNotEqualTo(FlowOutcome.Canceled(listOf(purchase), r))
         assertThat(FlowOutcome.ItemAlreadyOwned(listOf(purchase), r) as Any)
             .isNotEqualTo(FlowOutcome.ItemUnavailable(listOf(purchase), r))
-        assertThat(FlowOutcome.PaymentDeclined(listOf(purchase), r) as Any)
+        assertThat(FlowOutcome.UserBillingError(listOf(purchase), r) as Any)
             .isNotEqualTo(FlowOutcome.UnknownResponse(0, listOf(purchase), r))
     }
 

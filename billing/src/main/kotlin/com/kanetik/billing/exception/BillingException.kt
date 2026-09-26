@@ -31,11 +31,15 @@ import com.kanetik.billing.RetryType
  * UX: show a "no connection, try again" toast for [NetworkErrorException], a
  * "this purchase is already yours" message for [ItemAlreadyOwnedException], etc.
  *
- * The library applies [retryType] internally inside its retry loop for the
- * calls that loop covers; you'll only see an exception thrown there when the
- * retry budget is exhausted or the error is terminal. `launchFlow`'s exception,
- * and the exception carried by a purchase flow's `FlowOutcome.Failure`, are
- * thrown on the first attempt — nothing retries a purchase-flow attempt today —
+ * Most methods apply [retryType] internally inside a retry loop before
+ * throwing; [com.kanetik.billing.BillingActions.launchFlow],
+ * [com.kanetik.billing.BillingActions.showInAppMessages],
+ * `getBillingChoiceInfo`, and `showBillingProgramInformationDialog` throw on
+ * the first non-OK response instead — see
+ * [com.kanetik.billing.BillingActions]'s class-level KDoc. `isBillingChoiceAvailable`
+ * never throws; it reports a non-OK response as `BillingChoiceAvailability.Unavailable`.
+ * The exception carried by a purchase flow's `FlowOutcome.Failure` is thrown
+ * on the first attempt too — nothing retries a purchase-flow attempt today —
  * so [retryType] there is informational only.
  *
  * ## ⚠️ Never display [message] to end users
@@ -200,11 +204,11 @@ public sealed class BillingException(
      * install **and** for transient states (Play Store mid-update, account still
      * syncing right after install), so it is ambiguous.
      *
-     * Common causes:
-     *  - The user is on a non-Play distribution (e.g. some Huawei devices).
-     *  - The Play Store has been disabled or never installed.
-     *  - The user's account isn't eligible for purchases.
-     *  - A transient hiccup that will clear on its own.
+     * Common causes (per Play's own error guide): declined payment, outdated
+     * Play Store, unsupported country, admin-disabled purchases, or an
+     * OEM-blocked Play Store — plus a transient hiccup that clears on its
+     * own (Play Store mid-update, account still syncing right after
+     * install).
      *
      * Retry strategy: [RetryType.NONE] — not retried at the connection layer
      * because an in-loop retry won't flip it. **Do not** treat it as terminal for

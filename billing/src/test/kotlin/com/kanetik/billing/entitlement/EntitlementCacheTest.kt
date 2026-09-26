@@ -158,12 +158,12 @@ class EntitlementCacheTest {
     }
 
     @Test
-    fun `PaymentDeclined leaves a Granted key untouched`() = runTest {
+    fun `UserBillingError leaves a Granted key untouched`() = runTest {
         val (cache, updates, _, _, job) = newCache()
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
 
-        updates.emit(FlowOutcome.PaymentDeclined(emptyList(), billingResult(BillingResponseCode.BILLING_UNAVAILABLE)))
+        updates.emit(FlowOutcome.UserBillingError(emptyList(), billingResult(BillingResponseCode.BILLING_UNAVAILABLE)))
         runCurrent()
 
         assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)

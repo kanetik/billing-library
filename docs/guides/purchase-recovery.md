@@ -18,7 +18,7 @@ The library splits the callback into two sealed roots so the type system can cat
 - `OwnedPurchases` — the user owns these. Acknowledge / consume / grant entitlement. Two variants:
     - `Live` — completed through the active purchase flow (or carried in an `OK` callback).
     - `Recovered` — found by the auto-sweep on connect (the rest of this guide is about these).
-- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
+- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
 
 There's also `PurchaseRevoked`, a third root sibling to the two above, for server-driven revocation events. See [Server-driven revocation](server-driven-revocation.md) for that story.
 

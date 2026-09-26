@@ -43,6 +43,12 @@ architecture: >-
   sweep; everything above that (entitlement cache, flow coordinator, lifecycle
   manager, Billing Choice APIs) is opt-in and built on the public
   BillingRepository interface.
+  Play Billing Library is closed-source: no sources jar exists anywhere, so
+  don't search the filesystem for one. To check PBL behaviour, javap the
+  classes.jar inside the compiled AAR in the Gradle cache
+  (~/.gradle/caches/modules-2/files-2.1/com.android.billingclient/billing/<version>/*/billing-<version>.aar,
+  version in gradle/libs.versions.toml), or read Google's reference docs and
+  errors guide at developer.android.com/google/play/billing.
 
 # Standing permission for an agent-invoked run (for example the pr-review-loop
 # skill) to post its review to the PR under the repository owner's account.
