@@ -20,7 +20,7 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 
     private val openIssue: String? = when {
         requeryCode && op != Op.LAUNCH_FLOW && op != Op.IS_FEATURE_SUPPORTED -> "#52: requery cannot change the outcome"
-        transient && op == Op.IS_FEATURE_SUPPORTED -> "unfiled: isFeatureSupported never retries a transient code"
+        transient && op == Op.IS_FEATURE_SUPPORTED -> "#62: isFeatureSupported never retries a transient code"
         else -> null
     }
 

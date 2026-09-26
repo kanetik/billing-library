@@ -132,7 +132,7 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(0)
     }
 
-    @Ignore("unfiled: a startConnection that never calls back is never abandoned or retried")
+    @Ignore("#63: a startConnection that never calls back is never abandoned or retried")
     @Test
     fun `after a hung connect times out the next operation starts a fresh connection`() = runTest {
         val play = FakePlay().apply { connectCodes.addLast(null) }
