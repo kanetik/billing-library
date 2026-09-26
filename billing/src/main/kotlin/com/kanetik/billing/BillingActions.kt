@@ -176,14 +176,16 @@ public interface BillingActions {
      * }
      * ```
      *
-     * The auto-recovery sweep ([com.kanetik.billing.OwnedPurchases.Recovered])
-     * re-emits the unacknowledged purchase on the next successful connection,
-     * so a transient [HandlePurchaseResult.Failure] is recoverable; a
-     * granted-then-refunded purchase is not. **This recovery is conditional
-     * on [com.kanetik.billing.BillingRepositoryCreator.create]'s
-     * `recoverPurchasesOnConnect` parameter being left at its default (`true`)** —
-     * consumers that opt out are responsible for their own retry / reconciliation
-     * path (see [HandlePurchaseResult.Failure]).
+     * A failed acknowledge / consume schedules an in-session retry with
+     * backoff regardless of `recoverPurchasesOnConnect`; the auto-recovery
+     * sweep ([com.kanetik.billing.OwnedPurchases.Recovered]) also re-emits
+     * the unacknowledged purchase on the next successful connection **when**
+     * [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect` parameter is left at its default (`true`).
+     * Either path makes a transient [HandlePurchaseResult.Failure]
+     * recoverable; a granted-then-refunded purchase is not. Consumers that
+     * opt out of `recoverPurchasesOnConnect` are responsible for their own
+     * connect-time reconciliation (see [HandlePurchaseResult.Failure]).
      *
      * Lower-level [consumePurchase] / [acknowledgePurchase] still throw
      * [com.kanetik.billing.exception.BillingException] directly — callers at

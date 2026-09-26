@@ -99,8 +99,7 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(lastEvent = event) }
                 appendLog("purchase event: ${event::class.simpleName}")
                 when (event) {
-                    is OwnedPurchases.Live -> event.purchases.forEach { handlePurchaseAndLog(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { handlePurchaseAndLog(it) }
+                    is OwnedPurchases -> event.purchases.forEach { handlePurchaseAndLog(it) }
                     is FlowOutcome -> {
                         // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
                         // UnknownResponse — sample just logs the variant name above.

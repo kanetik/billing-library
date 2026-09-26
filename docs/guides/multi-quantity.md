@@ -22,7 +22,7 @@ private suspend fun handle(purchase: Purchase) {
         HandlePurchaseResult.NotPurchased -> {} // pending; wait
         HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke
         is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
-        // never grant on Failure — recovery sweep retries on the next connection
+        // never grant on Failure — the library retries automatically (in-session, then on next connect)
     }
 }
 ```

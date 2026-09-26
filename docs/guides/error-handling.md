@@ -145,7 +145,7 @@ when (val r = billing.handlePurchase(purchase, consume = false)) {
         // logic and consider re-querying owned purchases.
     }
     is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
-    // do NOT grant on Failure — the recovery sweep retries on next connect
+    // do NOT grant on Failure — the library retries automatically (in-session, then on next connect)
 }
 ```
 
@@ -153,6 +153,6 @@ The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase
 
 The `NotOwned` variant fires when Play replies `ITEM_NOT_OWNED` from the underlying acknowledge / consume call — a terminal response the library does not retry. Semantically distinct from `Failure`: ownership disagrees with the input (typically a stale `queryPurchases` snapshot), and retrying the ack against a non-owned purchase keeps returning `ITEM_NOT_OWNED`, so recovery sweeps can't help. Don't grant; defer to your grace / revoke logic and consider re-querying owned purchases. Previously this surfaced as `Failure(BillingException.ItemNotOwnedException)`, forcing consumers to reach into the exception subclass hierarchy to distinguish ownership-mismatch from transient ack-call failures.
 
-The auto-recovery sweep (see [Purchase recovery](purchase-recovery.md)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
+The library retries a failed acknowledge / consume automatically — in-session with backoff, and via the auto-recovery sweep (see [Purchase recovery](purchase-recovery.md)) on the next successful connection — so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 
 Lower-level `consumePurchase` and `acknowledgePurchase` still throw `BillingException` directly. Callers at that layer are already in the weeds, and a thrown exception is appropriate there. `handlePurchase` is the high-level helper that gets the typed-result treatment because forgetting the failure case is the most common bug.

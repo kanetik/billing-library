@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.kanetik.billing
 
 import com.android.billingclient.api.BillingClient.BillingResponseCode
@@ -6,7 +8,11 @@ import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.logging.BillingLogger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class FlowPurchasesUpdatedListenerTest {
@@ -159,9 +165,12 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `BILLING_UNAVAILABLE with insufficient-funds sub-response is logged once at debug, not warn`() {
+    fun `BILLING_UNAVAILABLE with insufficient-funds sub-response is logged once at debug, not warn`() = runTest {
         val captor = CapturingLogger()
-        val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        val listener = FlowPurchasesUpdatedListener(sink, captor)
+        backgroundScope.launch { sink.collect {} }
+        runCurrent()
         val r = result(
             BillingResponseCode.BILLING_UNAVAILABLE,
             subResponseCode = OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS
@@ -175,9 +184,12 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `onPurchasesUpdated logs the result exactly once at debug with code, sub-response and debug message`() {
+    fun `onPurchasesUpdated logs the result exactly once at debug with code, sub-response and debug message`() = runTest {
         val captor = CapturingLogger()
-        val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        val listener = FlowPurchasesUpdatedListener(sink, captor)
+        backgroundScope.launch { sink.collect {} }
+        runCurrent()
         val r = result(
             BillingResponseCode.NETWORK_ERROR,
             subResponseCode = OnPurchasesUpdatedSubResponseCode.NO_APPLICABLE_SUB_RESPONSE_CODE
@@ -190,6 +202,17 @@ class FlowPurchasesUpdatedListenerTest {
         assertThat(logged).contains("Network Error")
         assertThat(captor.warnings).isEmpty()
         assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `onPurchasesUpdated warns when emitted with no active observePurchaseUpdates collector`() {
+        val captor = CapturingLogger()
+        val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
+        val purchase = fakePurchase(purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        listener.onPurchasesUpdated(okResult(), listOf(purchase))
+
+        assertThat(captor.warnings.any { it.contains("no active") }).isTrue()
     }
 
     @Test

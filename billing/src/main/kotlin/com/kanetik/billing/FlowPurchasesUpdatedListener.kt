@@ -21,19 +21,23 @@ internal class FlowPurchasesUpdatedListener(
         )
         val updates = computeUpdates(result, safePurchases)
         for (update in updates) {
+            val hadSubscriber = updateSubject.subscriptionCount.value > 0
             val emitted = updateSubject.tryEmit(update)
-            if (!emitted) {
-                // Should never happen given the 32-slot buffer in BillingClientStorage. If it
-                // does, a slow collector dropped a real purchase update. Log only non-sensitive
-                // identifiers — the full PurchaseEvent contains purchaseToken and signature,
-                // which must not leak to logcat or Crashlytics.
+            if (!emitted || !hadSubscriber) {
+                // Only non-sensitive identifiers here — the full PurchaseEvent
+                // contains purchaseToken and signature, which must not leak
+                // to logcat or Crashlytics.
                 val productIds = safePurchases.flatMap { it.products }.distinct()
-                logger.e(
-                    "Purchase update dropped — buffer exhausted. " +
-                        "responseCode=${result.responseCode} " +
-                        "purchaseCount=${safePurchases.size} " +
-                        "productIds=$productIds"
-                )
+                val context = "responseCode=${result.responseCode} " +
+                    "purchaseCount=${safePurchases.size} " +
+                    "productIds=$productIds"
+                if (!emitted) {
+                    // Should never happen given the 32-slot buffer in BillingClientStorage —
+                    // a slow collector dropped a real purchase update.
+                    logger.e("Purchase update dropped — buffer exhausted. $context")
+                } else {
+                    logger.w("Purchase update emitted with no active observePurchaseUpdates() collector — $context")
+                }
             }
         }
     }

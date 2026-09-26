@@ -60,8 +60,7 @@ class ShopViewModel(
         viewModelScope.launch {
             billing.observePurchaseUpdates().collect { event ->
                 when (event) {
-                    is OwnedPurchases.Live -> event.purchases.forEach { grantOrSkip(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { grantOrSkip(it) }
+                    is OwnedPurchases -> event.purchases.forEach { grantOrSkip(it) }
                     else -> { /* not our concern here */ }
                 }
             }
@@ -92,8 +91,8 @@ class ShopViewModel(
                 // to your reconciliation logic; do not credit the wallet.
             }
             is HandlePurchaseResult.Failure -> {
-                // Don't grant. The recovery sweep re-emits the unacknowledged
-                // purchase on the next connect for retry.
+                // Don't grant. The library retries the acknowledge / consume
+                // automatically, in-session with backoff, and on the next connect.
             }
         }
     }
@@ -103,7 +102,7 @@ class ShopViewModel(
 Three things to call out about this shape:
 
 - **`purchase.quantity` matters.** Read it on every grant. Defaults to `1` so single-unit code stays correct, but ignoring it on a multi-quantity purchase silently under-credits. See [Multi-quantity purchases](multi-quantity.md).
-- **Only grant on `Success`.** Crediting on `Failure` and "fixing it later" leaves you with phantom currency the user didn't really pay for; the [Purchase recovery](purchase-recovery.md) sweep retries acked-less purchases on the next connect, so transient failures resolve themselves.
+- **Only grant on `Success`.** Crediting on `Failure` and "fixing it later" leaves you with phantom currency the user didn't really pay for; the library retries acked-less purchases automatically (in-session with backoff, then via the [Purchase recovery](purchase-recovery.md) sweep on the next connect), so transient failures resolve themselves.
 - **Idempotency.** Each successful `consumeAsync` produces one `Success`. Multiple `Recovered` snapshots can carry the same purchase token before Play marks it acknowledged, but the library's internal acked-token filter (see [Purchase recovery](purchase-recovery.md)) prevents re-delivery once the consume lands. If you want belt-and-suspenders, store the last-credited token in your wallet and skip duplicates explicitly.
 
 ## Mixing wallets with `EntitlementCache`
