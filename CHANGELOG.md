@@ -9,9 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
-### Fixed
+### Breaking
 
-- `ProductDetails.toOneTimeFlowParams` no longer builds a `BillingFlowParams` with no offer token when `oneTimePurchaseOfferDetailsList` is null/empty or `offerSelector` returns null — it returns `null` instead of deferring the failure to a `DEVELOPER_ERROR` from `launchBillingFlow`.
+- **`ProductDetails.toOneTimeFlowParams` now returns `BillingFlowParams?`.**
+  Previously it always returned a non-null `BillingFlowParams`, even when no
+  offer token could be resolved (an absent or empty
+  `oneTimePurchaseOfferDetailsList`, or `offerSelector` returning `null`) —
+  that case built params with no `offerToken` and deferred the failure to an
+  opaque `DEVELOPER_ERROR` from `launchBillingFlow`.
+
+  - **Kotlin callers**: source-incompatible wherever the result is passed
+    straight into a non-null parameter, e.g.
+    `BillingActions.launchFlow(activity, params)`; the compiler now requires
+    a null check.
+  - **Java callers**: source-compatible — the nullable Kotlin return type
+    surfaces to Java as a plain `BillingFlowParams` with a `@Nullable` hint,
+    which javac does not enforce. Code that doesn't null-check compiles and
+    now risks an NPE at the point of use instead of at the call site.
+  - **Existing compiled callers, without a rebuild**: binary-compatible (the
+    method descriptor is unchanged), but one that previously never received
+    `null` now can — surfacing as a runtime `NullPointerException`, typically
+    at `launchFlow`'s own non-null parameter check, rather than at the call
+    site that produced it.
+
+  ```kotlin
+  // Before:
+  val params = product.toOneTimeFlowParams()
+  billing.launchFlow(activity, params)
+
+  // After:
+  val params = product.toOneTimeFlowParams()
+      ?: return showError("No purchasable offer")
+  billing.launchFlow(activity, params)
+  ```
+
+  `PurchaseFlowCoordinator.launch` handles the null case for you — see
+  `NoPurchasableOffer` below.
 
 ### Added
 
