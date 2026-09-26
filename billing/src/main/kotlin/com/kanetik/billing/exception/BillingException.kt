@@ -31,9 +31,12 @@ import com.kanetik.billing.RetryType
  * UX: show a "no connection, try again" toast for [NetworkErrorException], a
  * "this purchase is already yours" message for [ItemAlreadyOwnedException], etc.
  *
- * The library applies [retryType] internally inside its retry loop; you'll only
- * see an exception thrown when the retry budget is exhausted or the error is
- * terminal.
+ * The library applies [retryType] internally inside its retry loop for the
+ * calls that loop covers; you'll only see an exception thrown there when the
+ * retry budget is exhausted or the error is terminal. `launchFlow`'s exception,
+ * and the exception carried by a purchase flow's `FlowOutcome.Failure`, are
+ * thrown on the first attempt — nothing retries a purchase-flow attempt today —
+ * so [retryType] there is informational only.
  *
  * ## ⚠️ Never display [message] to end users
  *
