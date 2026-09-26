@@ -464,6 +464,8 @@ internal class DefaultBillingRepository(
                         if (retryType == RetryType.EXPONENTIAL_RETRY) {
                             exponentialDelay *= EXPONENTIAL_RETRY_FACTOR
                         }
+                    } else {
+                        retryType = RetryType.NONE
                     }
                 } while (retryType != RetryType.NONE && attemptCount < maxAttempts && prerequisiteSuccessful)
 
