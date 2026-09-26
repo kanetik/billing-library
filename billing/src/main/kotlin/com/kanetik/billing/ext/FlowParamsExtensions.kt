@@ -14,9 +14,10 @@ import com.android.billingclient.api.ProductDetails
  * from PBL 7.x → 8.x.
  *
  * Picks an offer via [offerSelector] and sets its `offerToken` on the flow params.
- * If no offer list is present (very old PBL pre-8 artifacts) or the selector
- * returns `null`, falls back to no offer token — keeping things working for any
- * hypothetical product that wasn't migrated.
+ * Returns `null` instead of building params when no offer token is available —
+ * an absent or empty `oneTimePurchaseOfferDetailsList`, or [offerSelector]
+ * returning `null` — rather than launching a flow that PBL will reject with
+ * `DEVELOPER_ERROR`.
  *
  * For subscriptions, use the dedicated subscription flow params — this helper is
  * one-time-product only. (Subscription helpers are planned for v0.2.0; until then,
@@ -73,21 +74,19 @@ import com.android.billingclient.api.ProductDetails
  *   [obfuscatedAccountId].
  * @param offerSelector Strategy for picking which one-time-purchase offer's token
  *   to set on the flow params. Receives the full list of offers Play returned for
- *   the product; returns the chosen offer (or `null` to omit `setOfferToken`).
+ *   the product; returns the chosen offer, or `null` if none is purchasable.
  *   Defaults to picking the first available offer.
  */
 public fun ProductDetails.toOneTimeFlowParams(
     obfuscatedAccountId: String? = null,
     obfuscatedProfileId: String? = null,
     offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
-): BillingFlowParams {
-    val offerToken = oneTimePurchaseOfferDetailsList?.let(offerSelector)?.offerToken
+): BillingFlowParams? {
+    val offerToken = oneTimePurchaseOfferDetailsList?.let(offerSelector)?.offerToken ?: return null
     val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams
         .newBuilder()
         .setProductDetails(this)
-    if (offerToken != null) {
-        productDetailsParamsBuilder.setOfferToken(offerToken)
-    }
+        .setOfferToken(offerToken)
 
     val builder = BillingFlowParams.newBuilder()
         .setProductDetailsParamsList(listOf(productDetailsParamsBuilder.build()))

@@ -65,7 +65,8 @@ class CheckoutActivity : ComponentActivity() {
                 .build()
         )
         val product = products.firstOrNull() ?: return@launch
-        billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
+        val params = product.toOneTimeFlowParams() ?: return@launch
+        billing.launchFlow(this@CheckoutActivity, params)
     }
 
     private suspend fun handle(purchase: Purchase) {
