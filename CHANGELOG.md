@@ -46,6 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PurchaseFlowCoordinator.launch` handles the null case for you — see
   `NoPurchasableOffer` below.
 
+- **`FlowOutcome` variants now carry the originating `BillingResult`.** `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure` and `UnknownResponse` gained a required `result: BillingResult` constructor parameter. Source-breaking for any code constructing these directly (tests, fakes, custom listeners) — pass the `BillingResult` you already have at each call site.
+- **New `FlowOutcome.PaymentDeclined` sealed variant.** Source-breaking for any exhaustive `when` over `FlowOutcome`; add a `PaymentDeclined` arm. Callers with an `else` arm keep compiling but now route flow-time `BILLING_UNAVAILABLE` there instead of to `Failure` — see Fixed below.
+
+  ```kotlin
+  // Before:
+  is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
+
+  // After:
+  is FlowOutcome.PaymentDeclined -> showDeclined() // was Failure(BillingUnavailableException) for flow-time code 3
+  is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
+  ```
+
 ### Added
 
 - `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
@@ -62,6 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
 - `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
+- Flow-time `BILLING_UNAVAILABLE` (code 3) from `onPurchasesUpdated` — which usually means the payment was declined, not that billing is unavailable — no longer surfaces as `FlowOutcome.Failure(BillingUnavailableException)`. It now emits `FlowOutcome.PaymentDeclined(purchases, result)`, keeping it out of `BillingErrorCategory.BillingUnavailable`'s "hide billing" UX and out of `EntitlementCache`'s billing-unavailable grace window. `result.onPurchasesUpdatedSubResponseCode` still carries the specific decline reason (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) where PBL provides one. Connect-time and launch-time `BILLING_UNAVAILABLE` are unaffected.
+- `BillingLoggingUtils.logBillingFlowFailure`'s insufficient-funds hint is now reachable from the async purchase-flow path (previously only reachable from `launchFlow`'s synchronous failure branch, which never carries a sub-response code).
+- Removed two KDoc claims that a flow-outcome's `BillingException` had already been retried with backoff before reaching the consumer — nothing retries a purchase-flow attempt today (`BillingErrorCategory.Network` and `BillingException.NetworkErrorException`).
 
 ## [0.1.5] - 2026-06-26
 
