@@ -69,10 +69,8 @@ public enum class BillingErrorCategory {
      * the entitlement silently (or with a "you already own this,
      * restoring..." toast), not to show an error.
      *
-     * Warrants a re-query of owned purchases (the library's retry loop
-     * already does this via [com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY])
-     * to refresh local state. If that retry's resolution still surfaces
-     * the exception, the caller has out-of-band state to reconcile.
+     * Terminal — the caller has out-of-band state to reconcile,
+     * typically by re-querying owned purchases.
      *
      * Bucketed separately from [ProductUnavailable] because the UX is
      * fundamentally different: "you already own this" → restore, "this

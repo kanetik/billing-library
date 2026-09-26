@@ -125,10 +125,8 @@ public sealed class HandlePurchaseResult {
     /**
      * Play reported the purchase isn't owned anymore — the underlying
      * acknowledge / consume call returned
-     * [com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED]
-     * after the library's internal
-     * [RetryType.REQUERY_PURCHASE_RETRY][com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY]
-     * budget was exhausted. **Do not grant entitlement.**
+     * [com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED],
+     * which the library treats as terminal (no retry). **Do not grant entitlement.**
      *
      * Typical cause: the consumer passed in a stale [Purchase] from a
      * cached [com.android.billingclient.api.BillingClient.queryPurchasesAsync]

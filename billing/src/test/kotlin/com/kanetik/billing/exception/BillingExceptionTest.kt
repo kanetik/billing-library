@@ -74,17 +74,17 @@ class BillingExceptionTest {
     }
 
     @Test
-    fun `fromResult maps ITEM_ALREADY_OWNED to ItemAlreadyOwnedException with REQUERY_PURCHASE_RETRY`() {
+    fun `fromResult maps ITEM_ALREADY_OWNED to ItemAlreadyOwnedException with NONE`() {
         val ex = BillingException.fromResult(result(BillingResponseCode.ITEM_ALREADY_OWNED))
         assertThat(ex).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
-        assertThat(ex.retryType).isEqualTo(RetryType.REQUERY_PURCHASE_RETRY)
+        assertThat(ex.retryType).isEqualTo(RetryType.NONE)
     }
 
     @Test
-    fun `fromResult maps ITEM_NOT_OWNED to ItemNotOwnedException with REQUERY_PURCHASE_RETRY`() {
+    fun `fromResult maps ITEM_NOT_OWNED to ItemNotOwnedException with NONE`() {
         val ex = BillingException.fromResult(result(BillingResponseCode.ITEM_NOT_OWNED))
         assertThat(ex).isInstanceOf(BillingException.ItemNotOwnedException::class.java)
-        assertThat(ex.retryType).isEqualTo(RetryType.REQUERY_PURCHASE_RETRY)
+        assertThat(ex.retryType).isEqualTo(RetryType.NONE)
     }
 
     @Test
