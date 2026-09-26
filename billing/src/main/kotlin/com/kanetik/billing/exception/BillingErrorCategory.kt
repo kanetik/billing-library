@@ -73,10 +73,8 @@ public enum class BillingErrorCategory {
      *    purchase Play has no record of (already consumed in another
      *    session, etc.). Typically a no-op for UX; log and move on.
      *
-     * Both warrant a re-query of owned purchases (the library's retry loop
-     * already does this via [com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY])
-     * to refresh local state. If that retry's resolution still surfaces
-     * the exception, the caller has out-of-band state to reconcile.
+     * Both are terminal — the caller has out-of-band state to reconcile,
+     * typically by re-querying owned purchases.
      *
      * Bucketed separately from [ProductUnavailable] because the UX is
      * fundamentally different: "you already own this" → restore, "this

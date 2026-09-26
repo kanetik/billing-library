@@ -37,7 +37,6 @@ import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
@@ -536,42 +535,6 @@ internal class DefaultBillingRepository(
                 delay(currentExponentialDelay)
 
                 retryPrerequisiteSuccessful = true
-            }
-
-            RetryType.REQUERY_PURCHASE_RETRY -> {
-                logger.d("Requery Purchase Retry")
-
-                val inAppPurchasesParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
-                val subscriptionsParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
-
-                withContext(dispatcher) {
-                    try {
-                        async { queryPurchases(inAppPurchasesParams) }.await()
-                        async { queryPurchases(subscriptionsParams) }.await()
-
-                        retryPrerequisiteSuccessful = true
-
-                        logger.d("Requery Purchase Success")
-                    } catch (ex: Exception) {
-                        retryPrerequisiteSuccessful = false
-
-                        // Enhanced logging for requery purchase failures
-                        if (ex is BillingException) {
-                            ex.result?.let { billingResult ->
-                                BillingLoggingUtils.logBillingFailure(
-                                    logger = logger,
-                                    billingResult = billingResult,
-                                    operationContext = "Requery Purchase Retry",
-                                    additionalContext = mapOf(
-                                        "RetryType" to RetryType.REQUERY_PURCHASE_RETRY.name
-                                    )
-                                )
-                            } ?: logger.w("Requery Purchase Failure: BillingException with null result", ex)
-                        } else {
-                            logger.w("Requery Purchase Failure", ex)
-                        }
-                    }
-                }
             }
 
             else -> return true

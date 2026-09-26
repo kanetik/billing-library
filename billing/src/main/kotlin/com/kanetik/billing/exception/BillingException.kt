@@ -248,17 +248,16 @@ public sealed class BillingException(
     public class FatalErrorException(result: BillingResult) : BillingException(result, RetryType.EXPONENTIAL_RETRY)
 
     /**
-     * Tried to purchase a non-consumable product the user already owns. Often
-     * caused by stale local state — the library re-queries owned purchases and
-     * retries, which usually surfaces the existing purchase rather than failing.
+     * Tried to purchase a non-consumable product the user already owns. Terminal —
+     * retrying the same call can't change Play's ownership record.
      *
-     * Retry strategy: [RetryType.REQUERY_PURCHASE_RETRY].
+     * Retry strategy: [RetryType.NONE].
      */
-    public class ItemAlreadyOwnedException(result: BillingResult) : BillingException(result, RetryType.REQUERY_PURCHASE_RETRY)
+    public class ItemAlreadyOwnedException(result: BillingResult) : BillingException(result)
 
     /**
      * Tried to consume a purchase the user doesn't own. Mirror of
-     * [ItemAlreadyOwnedException]; same recovery strategy.
+     * [ItemAlreadyOwnedException]; same terminal strategy.
      *
      * The lower-level [com.kanetik.billing.BillingActions.consumePurchase] /
      * [com.kanetik.billing.BillingActions.acknowledgePurchase] callers see
@@ -267,9 +266,9 @@ public sealed class BillingException(
      * rather than surfaced as `Failure(ItemNotOwnedException)`; pattern-match
      * the variant rather than the exception subclass at that layer.
      *
-     * Retry strategy: [RetryType.REQUERY_PURCHASE_RETRY].
+     * Retry strategy: [RetryType.NONE].
      */
-    public class ItemNotOwnedException(result: BillingResult) : BillingException(result, RetryType.REQUERY_PURCHASE_RETRY)
+    public class ItemNotOwnedException(result: BillingResult) : BillingException(result)
 
     /**
      * Response code that PBL doesn't document. Should be vanishingly rare; the
