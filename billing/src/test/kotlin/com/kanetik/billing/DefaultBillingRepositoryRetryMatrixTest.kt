@@ -16,20 +16,24 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 ) {
     private val code = codeNames.entries.single { it.value == codeName }.key
     private val transient = code in simpleRetryCodes || code in exponentialRetryCodes
-    private val requeryCode = code == BillingResponseCode.ITEM_ALREADY_OWNED || code == BillingResponseCode.ITEM_NOT_OWNED
 
     private val openIssue: String? = when {
-        requeryCode && op != Op.LAUNCH_FLOW && op != Op.IS_FEATURE_SUPPORTED -> "#52: requery cannot change the outcome"
         transient && op == Op.IS_FEATURE_SUPPORTED -> "#62: isFeatureSupported never retries a transient code"
         else -> null
     }
 
-    private val expectedCalls = if (transient && op != Op.LAUNCH_FLOW) 4 else 1
+    private val interactive = op == Op.QUERY_PRODUCT_DETAILS
+
+    private val expectedCalls = when {
+        !transient || op == Op.LAUNCH_FLOW -> 1
+        interactive -> 3
+        else -> 5
+    }
 
     private val expectedElapsedMs = when {
         expectedCalls == 1 -> 0L
-        code in simpleRetryCodes -> 500L * 3
-        else -> 2000L + 4000L + 8000L
+        interactive -> 500L + 500L
+        else -> 2000L + 4000L + 8000L + 16000L
     }
 
     @Test

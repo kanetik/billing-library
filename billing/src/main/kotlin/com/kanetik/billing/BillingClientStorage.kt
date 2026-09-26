@@ -4,7 +4,6 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.queryPurchasesAsync
-import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CancellationException
@@ -475,12 +474,8 @@ internal class BillingClientStorage(
         @BillingClient.ProductType productType: String
     ): List<Purchase> {
         val params = QueryPurchasesParams.newBuilder().setProductType(productType).build()
-        val result = client.queryPurchasesAsync(params)
-        if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            // Throw so the outer try/catch in queryUnacknowledgedSafely logs it.
-            // Without this, a SERVICE_DISCONNECTED / ERROR for one product type
-            // would silently return an empty list — recovery skipped, no signal.
-            throw BillingException.fromResult(result.billingResult)
+        val result = retryBillingCall(RetryProfile.BACKGROUND, logger, { it.billingResult }) {
+            client.queryPurchasesAsync(params)
         }
         return result.purchasesList
             .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }

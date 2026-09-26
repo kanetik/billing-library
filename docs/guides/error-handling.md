@@ -4,10 +4,10 @@ PBL hands you back errors as integer response codes on a `BillingResult`. The co
 
 The library does two things about that:
 
-1. Maps each response code to a typed `BillingException` subtype with a `RetryType` hint, and runs the retries that should happen automatically. Network errors back off exponentially, transient disconnects retry quickly, and ownership-mismatches re-query owned state and try once more. What reaches your `catch` is what didn't recover.
-2. Categorizes every exception into a `BillingErrorCategory` enum (seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) so your UI can localize per bucket without memorizing twelve response codes.
+1. Maps each response code to a typed `BillingException` subtype with a `RetryType` hint, and runs the retries that should happen automatically. Product-detail queries, which a user is usually waiting on, retry briefly; purchase queries, acknowledge, consume and the recovery sweep back off exponentially; ownership-mismatches are terminal (retrying can't change Play's ownership record). What reaches your `catch` is what didn't recover.
+2. Categorizes every exception into a `BillingErrorCategory` enum (eight buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `NotOwned`, `DeveloperError`, `Other`) so your UI can localize per bucket without memorizing twelve response codes.
 
-Most `BillingActions` methods that fail throw a typed `BillingException` subtype: `queryPurchases`, `queryProductDetails`, `queryProductDetailsWithUnfetched`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see [Handling `handlePurchase` failures correctly](#handling-handlepurchase-failures-correctly) below). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`, `REQUERY_PURCHASE_RETRY`) up to three times with appropriate backoff before throwing, so what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
+Most `BillingActions` methods that fail throw a typed `BillingException` subtype: `queryPurchases`, `queryProductDetails`, `queryProductDetailsWithUnfetched`, `consumePurchase`, `acknowledgePurchase`, `launchFlow`, `showInAppMessages`, `isFeatureSupported`. The high-level `handlePurchase` helper is the exception: it returns a sealed `HandlePurchaseResult` with a `Failure(BillingException)` variant instead (see [Handling `handlePurchase` failures correctly](#handling-handlepurchase-failures-correctly) below). The library's retry loop already retries transient failures (`SIMPLE_RETRY`, `EXPONENTIAL_RETRY`) before throwing, so what reaches your `catch` (or your `Failure` branch for `handlePurchase`) is whatever didn't recover. `launchFlow` runs once with no retry, because UI-initiated purchases shouldn't silently retry behind the user.
 
 For UI handling, branch on `userFacingCategory` (see [Showing errors to users](#showing-errors-to-users) below). For lower-level branching, use the sealed subtype directly:
 
@@ -34,8 +34,8 @@ try {
 | `ServiceUnavailableException` | Play Store service unreachable | `EXPONENTIAL_RETRY` |
 | `ServiceDisconnectedException` | Client connection dropped mid-call | `SIMPLE_RETRY` |
 | `FatalErrorException` | Generic Play Billing `ERROR` response code | `EXPONENTIAL_RETRY` |
-| `ItemAlreadyOwnedException` | One-time product already owned | `REQUERY_PURCHASE_RETRY` |
-| `ItemNotOwnedException` | Trying to consume something not in inventory | `REQUERY_PURCHASE_RETRY` |
+| `ItemAlreadyOwnedException` | One-time product already owned | `NONE` |
+| `ItemNotOwnedException` | Trying to consume something not in inventory | `NONE` |
 | `BillingUnavailableException` | `BILLING_UNAVAILABLE` — Play Store missing/disabled **or** transiently unavailable (the code is ambiguous; see [deterministic availability](#deterministic-availability-for-irreversible-decisions)) | `NONE` |
 | `ItemUnavailableException` | Product not configured for this user/country | `NONE` |
 | `DeveloperErrorException` | API misuse — fix the code | `NONE` |
@@ -110,13 +110,14 @@ Treat the three verdicts by their *terminality*, not their optimism:
 
 **Never display `BillingException.message` in your UI.** It's a debug-context dump (class name, response code, sub-response, debug message) intended for logs, Crashlytics, and dashboards. Showing it leaks internal Play strings like `ServiceDisconnectedException` and `BILLING_RESPONSE_CODE_3` into your dialogs.
 
-For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — seven buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
+For UI, branch on `BillingException.userFacingCategory` (returns a `BillingErrorCategory` — eight buckets: `UserCanceled`, `Network`, `BillingUnavailable`, `ProductUnavailable`, `AlreadyOwned`, `NotOwned`, `DeveloperError`, `Other`) and localize per bucket from your own string resources:
 
 ```kotlin
 catch (e: BillingException) {
     when (e.userFacingCategory) {
         BillingErrorCategory.UserCanceled -> return  // not really an error
         BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+        BillingErrorCategory.NotOwned -> {}  // no-op; nothing to grant or restore
         BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
         BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
         BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
@@ -150,7 +151,7 @@ when (val r = billing.handlePurchase(purchase, consume = false)) {
 
 The `AlreadyAcknowledged` variant fires when `consume = false` and the `Purchase` already has `isAcknowledged = true`; the library short-circuits before reaching out to Play. Treat it as entitlement-equivalent to `Success`. It exists as a separate variant so consumers can distinguish "we just acked" from "it was already done" for logging / metrics, and so `Failure` no longer overlaps with `Failure(DeveloperErrorException)` from a redundant acknowledge call. **Consumers can now safely untrack-on-Failure for retry on the next recovery sweep**: `Failure` unambiguously means a transient or terminal ack failure worth retrying, never an "already-acked, this will fail forever" loop or an "ownership-mismatch, recovery can't help" loop. (Those cases surface as `AlreadyAcknowledged` and `NotOwned` respectively.) The `consume = true` path does not produce `AlreadyAcknowledged`: consumables aren't acked, they're consumed, and Play doesn't expose an `isConsumed` field on `Purchase` for a parallel check.
 
-The `NotOwned` variant fires when Play replies `ITEM_NOT_OWNED` from the underlying acknowledge / consume call after the library's `RetryType.REQUERY_PURCHASE_RETRY` budget is exhausted. Semantically distinct from `Failure`: ownership disagrees with the input (typically a stale `queryPurchases` snapshot), and retrying the ack against a non-owned purchase keeps returning `ITEM_NOT_OWNED`, so recovery sweeps can't help. Don't grant; defer to your grace / revoke logic and consider re-querying owned purchases. Previously this surfaced as `Failure(BillingException.ItemNotOwnedException)`, forcing consumers to reach into the exception subclass hierarchy to distinguish ownership-mismatch from transient ack-call failures.
+The `NotOwned` variant fires when Play replies `ITEM_NOT_OWNED` from the underlying acknowledge / consume call — a terminal response the library does not retry. Semantically distinct from `Failure`: ownership disagrees with the input (typically a stale `queryPurchases` snapshot), and retrying the ack against a non-owned purchase keeps returning `ITEM_NOT_OWNED`, so recovery sweeps can't help. Don't grant; defer to your grace / revoke logic and consider re-querying owned purchases. Previously this surfaced as `Failure(BillingException.ItemNotOwnedException)`, forcing consumers to reach into the exception subclass hierarchy to distinguish ownership-mismatch from transient ack-call failures.
 
 The auto-recovery sweep (see [Purchase recovery](purchase-recovery.md)) re-emits the unacknowledged purchase on the next successful connection, so a transient `Failure` is recoverable; a granted-then-refunded purchase is not.
 

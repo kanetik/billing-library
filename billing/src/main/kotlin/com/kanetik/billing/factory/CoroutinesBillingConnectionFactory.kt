@@ -168,8 +168,7 @@ internal class CoroutinesBillingConnectionFactory(
 
     /**
      * Whether a [RetryType] warrants an internal *connection* retry.
-     * [RetryType.REQUERY_PURCHASE_RETRY] is meaningless before a connection
-     * exists, and [RetryType.NONE] is terminal — both surface immediately.
+     * [RetryType.NONE] is terminal and surfaces immediately.
      */
     private fun RetryType.isTransientForConnection(): Boolean =
         this == RetryType.SIMPLE_RETRY || this == RetryType.EXPONENTIAL_RETRY

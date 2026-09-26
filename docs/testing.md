@@ -130,8 +130,8 @@ The most useful Lab feature for library validation. Force any response code on a
 2. Add response codes you want simulated:
     - `USER_CANCELED` → exercises your `FlowOutcome.Canceled` branch.
     - `BILLING_UNAVAILABLE` → triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`).
-    - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.REQUERY_PURCHASE_RETRY`) and your `FlowOutcome.ItemAlreadyOwned` branch.
-    - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's exponential-backoff retry loop (`RetryType.EXPONENTIAL_RETRY`).
+    - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.NONE`) and your `FlowOutcome.ItemAlreadyOwned` branch.
+    - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's retry loop (`RetryType.EXPONENTIAL_RETRY`).
     - `SERVICE_DISCONNECTED` → `BillingException.ServiceDisconnectedException` (`RetryType.SIMPLE_RETRY`).
     - `SERVICE_UNAVAILABLE` → `BillingException.ServiceUnavailableException` (`RetryType.EXPONENTIAL_RETRY`).
     - `DEVELOPER_ERROR` → `BillingException.DeveloperErrorException` (`RetryType.NONE`).

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
+### Changed
+
+- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result. Source-breaking for any exhaustive `when` over `BillingErrorCategory`; add a `NotOwned` arm. Callers with an `else` arm will now route `ITEM_NOT_OWNED` there instead of to `AlreadyOwned`.
+- **`RetryType.REQUERY_PURCHASE_RETRY` removed.** `ItemAlreadyOwnedException` and `ItemNotOwnedException` are now `RetryType.NONE` — the requery prerequisite behind them discarded its results and could recurse without a depth limit when `queryPurchasesAsync` itself returned one of these codes. Neither code can change on retry, so the retry loop now surfaces both immediately. Source-breaking for any exhaustive `when` over `RetryType`. Purchase-recovery for an already-owned item is tracked separately (#56).
+- Billing calls now retry according to context. `queryProductDetails` / `queryProductDetailsWithUnfetched` retry a transient failure up to 3 attempts, 500 ms apart (about 1 s at most, down from about 14 s). `queryPurchases`, `acknowledgePurchase` and `consumePurchase` back off exponentially over 5 attempts (2 s, 4 s, 8 s, 16 s), and `SERVICE_DISCONNECTED` now gets that same backoff instead of three 500 ms retries.
+
 ### Fixed
 
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
@@ -16,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A terminal connection failure (e.g. `BILLING_UNAVAILABLE` while the Play Store is updating) no longer sticks for as long as something collects `connectToBilling()`. The next operation or new `connectToBilling()` subscriber starts a fresh connection. (#53)
 - Operations no longer run on a `BillingClient` that the 60s idle stop has ended; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
 - `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
+- The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
 
 ## [0.1.5] - 2026-06-26
 
