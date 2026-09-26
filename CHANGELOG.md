@@ -12,11 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`RetryType.REQUERY_PURCHASE_RETRY` removed.** `ItemAlreadyOwnedException` and `ItemNotOwnedException` are now `RetryType.NONE` — the requery prerequisite behind them discarded its results and could recurse without a depth limit when `queryPurchasesAsync` itself returned one of these codes. Neither code can change on retry, so the retry loop now surfaces both immediately. Source-breaking for any exhaustive `when` over `RetryType`. Purchase-recovery for an already-owned item is tracked separately (#56).
+- Billing calls now retry according to context. `queryProductDetails` / `queryProductDetailsWithUnfetched` retry a transient failure up to 3 attempts, 500 ms apart (about 1 s at most, down from about 14 s). `queryPurchases`, `acknowledgePurchase` and `consumePurchase` back off exponentially over 5 attempts (2 s, 4 s, 8 s, 16 s), and `SERVICE_DISCONNECTED` now gets that same backoff instead of three 500 ms retries.
 
 ### Fixed
 
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
 - `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
+- The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
 
 ## [0.1.5] - 2026-06-26
 
