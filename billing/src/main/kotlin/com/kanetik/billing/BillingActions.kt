@@ -372,7 +372,7 @@ public interface BillingActions {
      *  - [FlowOutcome.Canceled][com.kanetik.billing.FlowOutcome.Canceled]
      *  - [FlowOutcome.ItemAlreadyOwned][com.kanetik.billing.FlowOutcome.ItemAlreadyOwned]
      *  - [FlowOutcome.ItemUnavailable][com.kanetik.billing.FlowOutcome.ItemUnavailable]
-     *  - [FlowOutcome.PaymentDeclined][com.kanetik.billing.FlowOutcome.PaymentDeclined]
+     *  - [FlowOutcome.UserBillingError][com.kanetik.billing.FlowOutcome.UserBillingError]
      *  - [FlowOutcome.Failure][com.kanetik.billing.FlowOutcome.Failure]
      *  - [FlowOutcome.UnknownResponse][com.kanetik.billing.FlowOutcome.UnknownResponse]
      *

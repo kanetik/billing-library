@@ -75,11 +75,13 @@ internal class FlowPurchasesUpdatedListener(
             BillingResponseCode.ITEM_ALREADY_OWNED -> listOf(FlowOutcome.ItemAlreadyOwned(purchases, result))
             BillingResponseCode.ITEM_UNAVAILABLE -> listOf(FlowOutcome.ItemUnavailable(purchases, result))
             BillingResponseCode.BILLING_UNAVAILABLE -> {
-                // Here (mid-flow) this code means a declined payment, not missing
-                // billing — kept out of Failure so it never carries
-                // BillingErrorCategory.BillingUnavailable.
+                // Here (mid-flow) Play has already shown the user feedback about
+                // why the purchase didn't go through (declined payment, outdated
+                // Play Store, unsupported country, admin-disabled purchases, or
+                // an OEM-blocked Play Store) — kept out of Failure so it never
+                // carries BillingErrorCategory.BillingUnavailable.
                 BillingLoggingUtils.logBillingFlowFailure(logger, result)
-                listOf(FlowOutcome.PaymentDeclined(purchases, result))
+                listOf(FlowOutcome.UserBillingError(purchases, result))
             }
             BillingResponseCode.NETWORK_ERROR,
             BillingResponseCode.SERVICE_DISCONNECTED,
