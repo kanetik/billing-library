@@ -145,9 +145,8 @@ public sealed class BillingException(
     }
 
     /**
-     * Network connectivity issue talking to Play Store. Transient — the library
-     * retries with exponential backoff. After the retry budget is spent, surface
-     * to the user as "no connection".
+     * Network connectivity issue talking to Play Store. Transient. After the
+     * retry budget is spent, surface to the user as "no connection".
      *
      * Retry strategy: [RetryType.EXPONENTIAL_RETRY].
      */
@@ -167,9 +166,7 @@ public sealed class BillingException(
      *
      * Since PBL 8's
      * [com.android.billingclient.api.BillingClient.Builder.enableAutoServiceReconnection]
-     * is on, the underlying client reconnects in the background; a short fixed
-     * delay gives it time to do so before the library surfaces the error to the
-     * caller.
+     * is on, the underlying client reconnects in the background.
      *
      * Retry strategy: [RetryType.SIMPLE_RETRY].
      */
