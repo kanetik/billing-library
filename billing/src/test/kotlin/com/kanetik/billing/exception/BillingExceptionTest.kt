@@ -161,22 +161,20 @@ class BillingExceptionTest {
 
     @Test
     fun `userFacingCategory maps ProductUnavailable to ItemUnavailable only`() {
-        // ItemAlreadyOwnedException + ItemNotOwnedException have distinct UX
-        // (restore-silently / log-no-op) from ItemUnavailable (genuinely-not-for-sale)
-        // and now go in the AlreadyOwned bucket instead.
         assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_UNAVAILABLE)).userFacingCategory)
             .isEqualTo(BillingErrorCategory.ProductUnavailable)
     }
 
     @Test
-    fun `userFacingCategory maps AlreadyOwned bucket`() {
-        listOf(
-            BillingResponseCode.ITEM_ALREADY_OWNED,
-            BillingResponseCode.ITEM_NOT_OWNED
-        ).forEach { code ->
-            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
-                .isEqualTo(BillingErrorCategory.AlreadyOwned)
-        }
+    fun `userFacingCategory maps ItemAlreadyOwned to AlreadyOwned bucket`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_ALREADY_OWNED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.AlreadyOwned)
+    }
+
+    @Test
+    fun `userFacingCategory maps ItemNotOwned to its own NotOwned bucket`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_NOT_OWNED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.NotOwned)
     }
 
     @Test
