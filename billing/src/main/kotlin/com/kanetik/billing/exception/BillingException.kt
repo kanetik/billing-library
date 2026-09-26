@@ -204,11 +204,12 @@ public sealed class BillingException(
      * install **and** for transient states (Play Store mid-update, account still
      * syncing right after install), so it is ambiguous.
      *
-     * Common causes:
-     *  - The user is on a non-Play distribution (e.g. some Huawei devices).
-     *  - The Play Store has been disabled or never installed.
-     *  - The user's account isn't eligible for purchases.
-     *  - A transient hiccup that will clear on its own.
+     * Common causes (per Play's own error guide): an outdated Play Store, an
+     * unsupported country, purchases disabled by an enterprise admin, a
+     * payment method Play can't charge, or the Play Store blocked by the
+     * device (an OEM kids-mode restriction, for example) — plus a transient
+     * hiccup that clears on its own (Play Store mid-update, account still
+     * syncing right after install).
      *
      * Retry strategy: [RetryType.NONE] — not retried at the connection layer
      * because an in-loop retry won't flip it. **Do not** treat it as terminal for
