@@ -12,6 +12,8 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -132,7 +134,6 @@ class DefaultBillingRepositoryReconnectTest {
         assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(0)
     }
 
-    @Ignore("#63: a startConnection that never calls back is never abandoned or retried")
     @Test
     fun `after a hung connect times out the next operation starts a fresh connection`() = runTest {
         val play = FakePlay().apply { connectCodes.addLast(null) }
@@ -143,6 +144,85 @@ class DefaultBillingRepositoryReconnectTest {
 
         assertThat(later.exceptionOrNull()).isNull()
         assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a hung connect ends its client when the setup times out`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val repo = repositoryOver(play)
+
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+        runCurrent()
+
+        assertThat(play.endedClients).contains(play.clients.first())
+        assertThat(play.clients).hasSize(1)
+    }
+
+    @Test
+    fun `a hung connect is retried on a fresh client`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val repo = repositoryOver(play)
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        repo.perform(Op.QUERY_PURCHASES)
+
+        assertThat(play.clients).hasSize(2)
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
+    }
+
+    @Test
+    fun `connectToBilling reports an error once every connect attempt hangs`() = runTest {
+        val play = FakePlay().apply { repeat(ConnectionRetryPolicy.DEFAULT_MAX_ATTEMPTS) { connectCodes.addLast(null) } }
+        val repo = repositoryOver(play)
+
+        val start = testScheduler.currentTime
+        val result = repo.connectToBilling().first()
+
+        assertThat((result as BillingConnectionResult.Error).exception)
+            .isInstanceOf(BillingException.ServiceUnavailableException::class.java)
+        assertThat(play.startConnectionCount).isEqualTo(ConnectionRetryPolicy.DEFAULT_MAX_ATTEMPTS)
+        assertThat(testScheduler.currentTime - start).isEqualTo(4 * 30_000L + 2000L + 4000L + 8000L)
+    }
+
+    @Test
+    fun `with no retry a hung connect reports an error when the setup times out`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val repo = repositoryOver(play, ConnectionRetryPolicy.None)
+
+        val start = testScheduler.currentTime
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isInstanceOf(BillingConnectionResult.Error::class.java)
+        assertThat(testScheduler.currentTime - start).isEqualTo(30_000L)
+    }
+
+    @Test
+    fun `onBillingServiceDisconnected before setup finishes retries startConnection`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val repo = repositoryOver(play)
+        val op = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        runCurrent()
+
+        play.stateListeners.single().onBillingServiceDisconnected()
+        val outcome = timed { op.await() }
+
+        assertThat(op.await().exceptionOrNull()).isNull()
+        assertThat(play.startConnectionCount).isEqualTo(2)
+        assertThat(play.clients).hasSize(1)
+        assertThat(outcome.elapsedMs).isEqualTo(ConnectionRetryPolicy.DEFAULT_SIMPLE_RETRY_BACKOFF_MILLIS)
+    }
+
+    @Test
+    fun `with no retry onBillingServiceDisconnected before setup finishes fails the operation`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val repo = repositoryOver(play, ConnectionRetryPolicy.None)
+        val op = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        runCurrent()
+
+        play.stateListeners.single().onBillingServiceDisconnected()
+
+        assertThat(op.await().exceptionOrNull())
+            .isInstanceOf(BillingException.ServiceDisconnectedException::class.java)
     }
 
     @Test
