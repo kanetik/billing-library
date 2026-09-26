@@ -27,7 +27,8 @@ public enum class BillingErrorCategory {
      * Network or Play Store connectivity issue. Includes
      * [BillingException.NetworkErrorException], [BillingException.ServiceDisconnectedException],
      * and [BillingException.ServiceUnavailableException]. Often transient
-     * — the library has already retried with backoff before throwing, so
+     * — most calls have already retried with backoff before throwing (see
+     * [BillingException]'s class-level KDoc for the calls that don't), so
      * surface as "connection problem, please try again."
      */
     Network,

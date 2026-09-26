@@ -17,12 +17,9 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
     private val code = codeNames.entries.single { it.value == codeName }.key
     private val transient = code in simpleRetryCodes || code in exponentialRetryCodes
 
-    private val openIssue: String? = when {
-        transient && op == Op.IS_FEATURE_SUPPORTED -> "#62: isFeatureSupported never retries a transient code"
-        else -> null
-    }
+    private val openIssue: String? = null
 
-    private val interactive = op == Op.QUERY_PRODUCT_DETAILS
+    private val interactive = op == Op.QUERY_PRODUCT_DETAILS || op == Op.IS_FEATURE_SUPPORTED
 
     private val expectedCalls = when {
         !transient || op == Op.LAUNCH_FLOW -> 1
@@ -76,8 +73,10 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
         val result = runCatching { repo.perform(op) }
 
         when {
-            op == Op.IS_FEATURE_SUPPORTED ->
-                assertThat(result.getOrThrow()).isEqualTo(code == BillingResponseCode.OK)
+            op == Op.IS_FEATURE_SUPPORTED && code == BillingResponseCode.OK ->
+                assertThat(result.getOrThrow()).isEqualTo(true)
+            op == Op.IS_FEATURE_SUPPORTED && code == BillingResponseCode.FEATURE_NOT_SUPPORTED ->
+                assertThat(result.getOrThrow()).isEqualTo(false)
             code == BillingResponseCode.OK ->
                 assertThat(result.isSuccess).isTrue()
             else ->
