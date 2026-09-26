@@ -1195,30 +1195,30 @@
 <h1 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h1>
 <p>Default is silent. Opt into logcat with one line, or wire your own adapter to route through Crashlytics, Timber, or whatever you prefer.</p>
 <h2 id="silent-default">Silent (default)<a class="headerlink" href="#silent-default" title="Permanent link">&para;</a></h2>
-<p><code>kotlin
-val billing = BillingRepositoryCreator.create(context)</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="logcat">Logcat<a class="headerlink" href="#logcat" title="Permanent link">&para;</a></h2>
-<p><code>kotlin
-val billing = BillingRepositoryCreator.create(context, logger = BillingLogger.Android)</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">.</span><span class="na">Android</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="crashlytics-adapter">Crashlytics adapter<a class="headerlink" href="#crashlytics-adapter" title="Permanent link">&para;</a></h2>
 <p>Your code, ~10 lines. The library doesn't dictate a tag — pick one that fits your logging convention (here, <code>"Billing"</code>). If you omit <code>.tag(...)</code>, Timber falls back to the calling class name; <code>android.util.Log</code> requires a tag explicitly.</p>
-<p><code>kotlin
-class CrashlyticsBillingLogger : BillingLogger {
-    override fun d(message: String, throwable: Throwable?) {
-        Timber.tag("Billing").d(throwable, message)
-    }
-    override fun w(message: String, throwable: Throwable?) {
-        Timber.tag("Billing").w(throwable, message)
-    }
-    override fun e(message: String, throwable: Throwable?) {
-        Timber.tag("Billing").e(throwable, message)
-        FirebaseCrashlytics.getInstance().recordException(
-            throwable ?: BillingLogException(message)
-        )
-    }
-}</code></p>
-<p><code>kotlin
-val billing = BillingRepositoryCreator.create(context, logger = CrashlyticsBillingLogger())</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">CrashlyticsBillingLogger</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingLogger</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">d</span><span class="p">(</span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span><span class="w"> </span><span class="n">throwable</span><span class="p">:</span><span class="w"> </span><span class="n">Throwable?</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Timber</span><span class="p">.</span><span class="na">tag</span><span class="p">(</span><span class="s">"Billing"</span><span class="p">).</span><span class="na">d</span><span class="p">(</span><span class="n">throwable</span><span class="p">,</span><span class="w"> </span><span class="n">message</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">w</span><span class="p">(</span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span><span class="w"> </span><span class="n">throwable</span><span class="p">:</span><span class="w"> </span><span class="n">Throwable?</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Timber</span><span class="p">.</span><span class="na">tag</span><span class="p">(</span><span class="s">"Billing"</span><span class="p">).</span><span class="na">w</span><span class="p">(</span><span class="n">throwable</span><span class="p">,</span><span class="w"> </span><span class="n">message</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">e</span><span class="p">(</span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span><span class="w"> </span><span class="n">throwable</span><span class="p">:</span><span class="w"> </span><span class="n">Throwable?</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Timber</span><span class="p">.</span><span class="na">tag</span><span class="p">(</span><span class="s">"Billing"</span><span class="p">).</span><span class="na">e</span><span class="p">(</span><span class="n">throwable</span><span class="p">,</span><span class="w"> </span><span class="n">message</span><span class="p">)</span>
+<span class="w">        </span><span class="n">FirebaseCrashlytics</span><span class="p">.</span><span class="na">getInstance</span><span class="p">().</span><span class="na">recordException</span><span class="p">(</span>
+<span class="w">            </span><span class="n">throwable</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="n">BillingLogException</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CrashlyticsBillingLogger</span><span class="p">())</span>
+</code></pre></div>
 <p>The library does not depend on Timber, Crashlytics, or any logging framework — that wiring is fully on the consumer side.</p>
 
 

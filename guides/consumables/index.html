@@ -1250,78 +1250,78 @@
 </ul>
 <p>The library's job ends at "I successfully consumed this purchase with Play; safe for you to grant now"; the wallet's job is everything else.</p>
 <h2 id="minimal-sketch">Minimal sketch<a class="headerlink" href="#minimal-sketch" title="Permanent link">&para;</a></h2>
-<p>```kotlin
-class CoinWallet(private val storage: WalletStorage) {
-    private val _balance = MutableStateFlow(storage.read())
-    val balance: StateFlow<Int> = _balance.asStateFlow()</p>
-<pre><code>suspend fun grant(units: Int) {
-    val next = _balance.value + units
-    storage.write(next)
-    _balance.value = next
-}
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">CoinWallet</span><span class="p">(</span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">storage</span><span class="p">:</span><span class="w"> </span><span class="n">WalletStorage</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">_balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MutableStateFlow</span><span class="p">(</span><span class="n">storage</span><span class="p">.</span><span class="na">read</span><span class="p">())</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">balance</span><span class="p">:</span><span class="w"> </span><span class="n">StateFlow</span><span class="o">&lt;</span><span class="kt">Int</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_balance</span><span class="p">.</span><span class="na">asStateFlow</span><span class="p">()</span>
 
-suspend fun spend(units: Int): Boolean {
-    if (_balance.value &lt; units) return false
-    val next = _balance.value - units
-    storage.write(next)
-    _balance.value = next
-    return true
-}
-</code></pre>
-<p>}</p>
-<p>class ShopViewModel(
-    private val billing: BillingRepository,
-    private val wallet: CoinWallet,
-) : ViewModel() {
-    private val unitsPerSku = mapOf(
-        "coins_pack_50"   to 50,
-        "coins_pack_500"  to 500,
-        "coins_pack_5000" to 5_000,
-    )</p>
-<pre><code>init {
-    viewModelScope.launch {
-        billing.observePurchaseUpdates().collect { event -&gt;
-            when (event) {
-                is OwnedPurchases.Live -&gt; event.purchases.forEach { grantOrSkip(it) }
-                is OwnedPurchases.Recovered -&gt; event.purchases.forEach { grantOrSkip(it) }
-                else -&gt; { /* not our concern here */ }
-            }
-        }
-    }
-}
+<span class="w">    </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">grant</span><span class="p">(</span><span class="n">units</span><span class="p">:</span><span class="w"> </span><span class="kt">Int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_balance</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">units</span>
+<span class="w">        </span><span class="n">storage</span><span class="p">.</span><span class="na">write</span><span class="p">(</span><span class="n">next</span><span class="p">)</span>
+<span class="w">        </span><span class="n">_balance</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span>
+<span class="w">    </span><span class="p">}</span>
 
-private suspend fun grantOrSkip(purchase: Purchase) {
-    // Find the wallet SKU on this purchase. Returning early on a non-match
-    // keeps the wallet branch separate from any EntitlementCache branch
-    // your app also runs against the same stream.
-    val unitsPer = purchase.products
-        .firstNotNullOfOrNull { unitsPerSku[it] } ?: return
+<span class="w">    </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">spend</span><span class="p">(</span><span class="n">units</span><span class="p">:</span><span class="w"> </span><span class="kt">Int</span><span class="p">):</span><span class="w"> </span><span class="kt">Boolean</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">_balance</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">units</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_balance</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">units</span>
+<span class="w">        </span><span class="n">storage</span><span class="p">.</span><span class="na">write</span><span class="p">(</span><span class="n">next</span><span class="p">)</span>
+<span class="w">        </span><span class="n">_balance</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
 
-    when (val r = billing.handlePurchase(purchase, consume = true)) {
-        HandlePurchaseResult.Success -&gt;
-            wallet.grant(units = unitsPer * purchase.quantity)
-        HandlePurchaseResult.AlreadyAcknowledged -&gt; {
-            // Unreachable for consume = true. Consumables aren't acked
-            // (they're consumed); short-circuit only fires on the
-            // consume = false path. Branch present for exhaustiveness.
-        }
-        HandlePurchaseResult.NotPurchased -&gt; {
-            // Pending — wait for the matching Live update that arrives
-            // when payment confirms. The library re-delivers it.
-        }
-        HandlePurchaseResult.NotOwned -&gt; {
-            // Stale snapshot — Play says this purchase isn't owned. Defer
-            // to your reconciliation logic; do not credit the wallet.
-        }
-        is HandlePurchaseResult.Failure -&gt; {
-            // Don't grant. The recovery sweep re-emits the unacknowledged
-            // purchase on the next connect for retry.
-        }
-    }
-}
-</code></pre>
-<p>}
-```</p>
+<span class="kd">class</span><span class="w"> </span><span class="nc">ShopViewModel</span><span class="p">(</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span><span class="p">,</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">wallet</span><span class="p">:</span><span class="w"> </span><span class="n">CoinWallet</span><span class="p">,</span>
+<span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ViewModel</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">unitsPerSku</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mapOf</span><span class="p">(</span>
+<span class="w">        </span><span class="s">"coins_pack_50"</span><span class="w">   </span><span class="n">to</span><span class="w"> </span><span class="m">50</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"coins_pack_500"</span><span class="w">  </span><span class="n">to</span><span class="w"> </span><span class="m">500</span><span class="p">,</span>
+<span class="w">        </span><span class="s">"coins_pack_5000"</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="m">5</span><span class="n">_000</span><span class="p">,</span>
+<span class="w">    </span><span class="p">)</span>
+
+<span class="w">    </span><span class="k">init</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">viewModelScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">().</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">                </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Live</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">grantOrSkip</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">grantOrSkip</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">else</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* not our concern here */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">grantOrSkip</span><span class="p">(</span><span class="n">purchase</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Find the wallet SKU on this purchase. Returning early on a non-match</span>
+<span class="w">        </span><span class="c1">// keeps the wallet branch separate from any EntitlementCache branch</span>
+<span class="w">        </span><span class="c1">// your app also runs against the same stream.</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">unitsPer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span>
+<span class="w">            </span><span class="p">.</span><span class="na">firstNotNullOfOrNull</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">unitsPerSku</span><span class="o">[</span><span class="nb">it</span><span class="o">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="k">return</span>
+
+<span class="w">        </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">                </span><span class="n">wallet</span><span class="p">.</span><span class="na">grant</span><span class="p">(</span><span class="n">units</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">unitsPer</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">purchase</span><span class="p">.</span><span class="na">quantity</span><span class="p">)</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// Unreachable for consume = true. Consumables aren't acked</span>
+<span class="w">                </span><span class="c1">// (they're consumed); short-circuit only fires on the</span>
+<span class="w">                </span><span class="c1">// consume = false path. Branch present for exhaustiveness.</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// Pending — wait for the matching Live update that arrives</span>
+<span class="w">                </span><span class="c1">// when payment confirms. The library re-delivers it.</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// Stale snapshot — Play says this purchase isn't owned. Defer</span>
+<span class="w">                </span><span class="c1">// to your reconciliation logic; do not credit the wallet.</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// Don't grant. The recovery sweep re-emits the unacknowledged</span>
+<span class="w">                </span><span class="c1">// purchase on the next connect for retry.</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Three things to call out about this shape:</p>
 <ul>
 <li><strong><code>purchase.quantity</code> matters.</strong> Read it on every grant. Defaults to <code>1</code> so single-unit code stays correct, but ignoring it on a multi-quantity purchase silently under-credits. See <a href="../multi-quantity/">Multi-quantity purchases</a>.</li>

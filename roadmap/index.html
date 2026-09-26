@@ -1656,13 +1656,13 @@ or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.
 </ul>
 <h4 id="replacement-mode-api-name-the-intent-not-the-mode">Replacement-mode API: name the intent, not the mode<a class="headerlink" href="#replacement-mode-api-name-the-intent-not-the-mode" title="Permanent link">&para;</a></h4>
 <p>Don't expose PBL's six raw replacement-mode integers directly — the names tell you <em>what proration math runs</em>, not <em>what plan change you're making</em>. Wrap intent in a sealed type so callers say what they mean and the helper picks the right PBL mode internally:</p>
-<p><code>kotlin
-public sealed class SubscriptionChange {
-    public data class Upgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
-    public data class Downgrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
-    public data class CrossGrade(val from: Purchase, val to: ProductDetails, val offerToken: String) : SubscriptionChange()
-    public data class AddOn(val existing: Purchase, val addition: ProductDetails, val offerToken: String) : SubscriptionChange()
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">sealed</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">SubscriptionChange</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">Upgrade</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">from</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">to</span><span class="p">:</span><span class="w"> </span><span class="n">ProductDetails</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">offerToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">SubscriptionChange</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">Downgrade</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">from</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">to</span><span class="p">:</span><span class="w"> </span><span class="n">ProductDetails</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">offerToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">SubscriptionChange</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">CrossGrade</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">from</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">to</span><span class="p">:</span><span class="w"> </span><span class="n">ProductDetails</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">offerToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">SubscriptionChange</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">AddOn</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">existing</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">addition</span><span class="p">:</span><span class="w"> </span><span class="n">ProductDetails</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">offerToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">SubscriptionChange</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Mapping the helper applies internally:</p>
 <table>
 <thead>
@@ -1700,17 +1700,17 @@ public sealed class SubscriptionChange {
 <p>When a subscription replacement completes, the new <code>Purchase</code> carries a <code>linkedPurchaseToken</code> field pointing to the prior subscription. Treating that as a fresh purchase (vs a replacement of an existing one) double-grants entitlement. PBL's <code>Purchase</code> API doesn't expose a getter for it — <code>Purchase.AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>; <code>linkedPurchaseToken</code> is only present in <code>purchase.originalJson</code>. Right now the library would emit a replacement purchase as <code>OwnedPurchases.Live</code> / <code>OwnedPurchases.Recovered</code>, leaving the consumer to parse the JSON themselves — easy to miss and clunky to write.</p>
 <p>(RevenueCat's edge-case article — see the <a href="#v01x-optional-ergonomics-revenuecat-edge-case-review">v0.1.x section above</a> — independently flags this exact double-grant trap, which validates the typed-variant approach. The standalone <code>Purchase.linkedPurchaseToken()</code> accessor noted there is the v0.1.x <em>stopgap</em> for protocol-level subscription adopters; this typed variant is the real fix and supersedes it.)</p>
 <p>Fix: add a dedicated <code>OwnedPurchases</code> variant emitted <em>instead of</em> <code>Live</code> (or <code>Recovered</code>) whenever <code>linkedPurchaseToken</code> is non-null:</p>
-<p><code>kotlin
-// Sealed-extends OwnedPurchases so it shares the existing branch
-// position in `when (event)` collectors — consumers handling
-// owned-state today can opt into replacement-aware logic by adding
-// the new arm without rewriting their existing OwnedPurchases.Live /
-// OwnedPurchases.Recovered handling.
-public data class SubscriptionReplacement(
-    val newPurchase: Purchase,
-    val linkedPurchaseToken: String,
-    override val purchases: List&lt;Purchase&gt; = listOf(newPurchase),
-) : OwnedPurchases()</code></p>
+<div class="highlight"><pre><span></span><code><span class="c1">// Sealed-extends OwnedPurchases so it shares the existing branch</span>
+<span class="c1">// position in `when (event)` collectors — consumers handling</span>
+<span class="c1">// owned-state today can opt into replacement-aware logic by adding</span>
+<span class="c1">// the new arm without rewriting their existing OwnedPurchases.Live /</span>
+<span class="c1">// OwnedPurchases.Recovered handling.</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">SubscriptionReplacement</span><span class="p">(</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">newPurchase</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">,</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">linkedPurchaseToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span>
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">purchases</span><span class="p">:</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Purchase</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">listOf</span><span class="p">(</span><span class="n">newPurchase</span><span class="p">),</span>
+<span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">()</span>
+</code></pre></div>
 <p>Detection lives in <code>FlowPurchasesUpdatedListener.computeUpdates</code>: when <code>responseCode == OK</code> and any settled purchase has a non-empty <code>linkedPurchaseToken</code> field in <code>originalJson</code>, emit <code>OwnedPurchases.SubscriptionReplacement</code> for that one (still partition the rest into <code>OwnedPurchases.Live</code> for completed-and-acknowledged-or-pending-ack purchases and <code>FlowOutcome.Pending</code> for <code>PURCHASE_STATE_PENDING</code> purchases, as today). Also emit <code>OwnedPurchases.SubscriptionReplacement</code> from the recovery sweep when it surfaces a replacement-style purchase that the prior session never processed — same JSON parsing, same conditions. Detection requires JSON-parsing <code>purchase.originalJson</code> and reading the <code>linkedPurchaseToken</code> field; PBL doesn't expose a getter (<code>Purchase.AccountIdentifiers</code> only carries the obfuscated IDs).</p>
 <p>This makes the wrong code not type-check: you literally can't unpack the variant without seeing both tokens. The consumer's correct response is "process the new token, invalidate the old."</p>
 <h4 id="sweep-impact">Sweep impact<a class="headerlink" href="#sweep-impact" title="Permanent link">&para;</a></h4>
@@ -1723,7 +1723,7 @@ public data class SubscriptionReplacement(
 <li>Robolectric included → unblocks the five classes deferred from v0.1.x's test suite:</li>
 <li><code>PurchaseVerifier</code> (needs <code>android.util.Base64</code>)</li>
 <li><code>ProductDetails.toOneTimeFlowParams</code> (needs real PBL <code>BillingFlowParams.Builder</code> to satisfy validation)</li>
-<li><code>DefaultBillingRepository</code> orchestration (retry loop, <code>withTimeout</code>, <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)</li>
+<li><code>DefaultBillingRepository</code> orchestration (<code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)</li>
 <li><code>showInAppMessages</code> (needs the real <code>InAppMessageResult</code> shape)</li>
 <li>Billing Choice wrappers + result mapping (<code>isBillingChoiceAvailable</code> / <code>getBillingChoiceInfo</code> / <code>showBillingProgramInformationDialog</code> and the <code>mapChoiceScreenType</code> / <code>mapBillingChoiceDetails</code> / <code>mapBillingChoiceAvailability</code> helpers — same PBL-callback-over-a-fake-<code>BillingClient</code> need as <code>showInAppMessages</code>; added experimental in v0.1.x) — <a href="https://github.com/kanetik/billing-library/issues/42">#42</a></li>
 <li>Unit tests covering every state transition the fake claims to support</li>
@@ -1744,40 +1744,40 @@ public data class SubscriptionReplacement(
 <p><strong>Status:</strong> designed but uncommitted. No consumer has asked for this — captured here so the design isn't lost when one does, and so we don't accidentally bolt analytics onto the wrong place (e.g. the <code>BillingLogger</code> interface) in the meantime.</p>
 <p><strong>Premise:</strong> the library should never dial out. But consumers reasonably want to instrument their integration — track recovery-sweep counts in Firebase, alert on high failure rates in Crashlytics, A/B test acknowledgement timing. The right shape is <em>structured events the library emits, the consumer routes wherever</em>. Library never touches a network; consumer owns the destination, the privacy story, and the regulatory surface.</p>
 <h3 id="surface">Surface<a class="headerlink" href="#surface" title="Permanent link">&para;</a></h3>
-<p>```kotlin
-public sealed class BillingTelemetryEvent {
-    public data object ConnectionEstablished : BillingTelemetryEvent()
-    public data class ConnectionFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()</p>
-<pre><code>public data class RecoverySweepRan(val unacknowledgedCount: Int) : BillingTelemetryEvent()
-public data class RecoverySweepFailed(val category: BillingErrorCategory) : BillingTelemetryEvent()
+<div class="highlight"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">sealed</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">BillingTelemetryEvent</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">object</span><span class="w"> </span><span class="nc">ConnectionEstablished</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">ConnectionFailed</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">category</span><span class="p">:</span><span class="w"> </span><span class="n">BillingErrorCategory</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
 
-public data class RetryAttempted(
-    val operation: String,         // "queryProductDetails", "consume", etc.
-    val attempt: Int,              // 1-indexed
-    val category: BillingErrorCategory
-) : BillingTelemetryEvent()
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">RecoverySweepRan</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">unacknowledgedCount</span><span class="p">:</span><span class="w"> </span><span class="kt">Int</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">RecoverySweepFailed</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">category</span><span class="p">:</span><span class="w"> </span><span class="n">BillingErrorCategory</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
 
-public data class HandlePurchaseSucceeded(
-    val productIds: List&lt;String&gt;,
-    val consume: Boolean,
-    val recovered: Boolean         // true if from a Recovered emission, false from Success
-) : BillingTelemetryEvent()
-public data class HandlePurchaseFailed(
-    val productIds: List&lt;String&gt;,
-    val consume: Boolean,
-    val category: BillingErrorCategory
-) : BillingTelemetryEvent()
-public data object AcknowledgeShortCircuited : BillingTelemetryEvent()  // already-acked path
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">RetryAttempted</span><span class="p">(</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">operation</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span><span class="w">         </span><span class="c1">// "queryProductDetails", "consume", etc.</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">attempt</span><span class="p">:</span><span class="w"> </span><span class="kt">Int</span><span class="p">,</span><span class="w">              </span><span class="c1">// 1-indexed</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">category</span><span class="p">:</span><span class="w"> </span><span class="n">BillingErrorCategory</span>
+<span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
 
-public data class PurchaseFlowLaunched(val productId: String) : BillingTelemetryEvent()
-public data object PurchaseFlowAlreadyInProgress : BillingTelemetryEvent()
-public data object PurchaseFlowWatchdogTriggered : BillingTelemetryEvent()
-</code></pre>
-<p>}</p>
-<p>public interface BillingTelemetryOwner {
-    public fun observeTelemetry(): SharedFlow<BillingTelemetryEvent>
-}
-```</p>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">HandlePurchaseSucceeded</span><span class="p">(</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">productIds</span><span class="p">:</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">String</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">consume</span><span class="p">:</span><span class="w"> </span><span class="kt">Boolean</span><span class="p">,</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">recovered</span><span class="p">:</span><span class="w"> </span><span class="kt">Boolean</span><span class="w">         </span><span class="c1">// true if from a Recovered emission, false from Success</span>
+<span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">HandlePurchaseFailed</span><span class="p">(</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">productIds</span><span class="p">:</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">String</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">consume</span><span class="p">:</span><span class="w"> </span><span class="kt">Boolean</span><span class="p">,</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">category</span><span class="p">:</span><span class="w"> </span><span class="n">BillingErrorCategory</span>
+<span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">object</span><span class="w"> </span><span class="nc">AcknowledgeShortCircuited</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span><span class="w">  </span><span class="c1">// already-acked path</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">PurchaseFlowLaunched</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">productId</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">object</span><span class="w"> </span><span class="nc">PurchaseFlowAlreadyInProgress</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">data</span><span class="w"> </span><span class="kd">object</span><span class="w"> </span><span class="nc">PurchaseFlowWatchdogTriggered</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nc">BillingTelemetryOwner</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">observeTelemetry</span><span class="p">():</span><span class="w"> </span><span class="n">SharedFlow</span><span class="o">&lt;</span><span class="n">BillingTelemetryEvent</span><span class="o">&gt;</span>
+<span class="p">}</span>
+</code></pre></div>
 <p><code>BillingRepository</code> extends <code>BillingTelemetryOwner</code> alongside the existing <code>BillingActions</code> / <code>BillingConnector</code> / <code>BillingPurchaseUpdatesOwner</code>.</p>
 <h3 id="why-a-separate-interface-not-billinglogger">Why a separate interface, not <code>BillingLogger</code><a class="headerlink" href="#why-a-separate-interface-not-billinglogger" title="Permanent link">&para;</a></h3>
 <p><code>BillingLogger</code> is human-readable strings for logcat / Crashlytics breadcrumbs. Telemetry events are structured records for analytics pipelines. Same destination occasionally; different data shape, different consumers, different contracts. Mixing them on one interface bloats both with concerns that don't belong together.</p>
@@ -1792,25 +1792,25 @@ public data object PurchaseFlowWatchdogTriggered : BillingTelemetryEvent()
 <h3 id="default-behavior">Default behavior<a class="headerlink" href="#default-behavior" title="Permanent link">&para;</a></h3>
 <p><code>MutableSharedFlow&lt;BillingTelemetryEvent&gt;(extraBufferCapacity = 32)</code>. Always emitting; cost is one struct allocation per event plus a small buffer (~3KB worst case). Consumer subscribes via <code>observeTelemetry()</code> when they want them; otherwise events flow into the buffer and roll off. No opt-in toggle in v1 — the cost is too small to justify a configuration knob.</p>
 <h3 id="wire-up-example-readme-addition">Wire-up example (README addition)<a class="headerlink" href="#wire-up-example-readme-addition" title="Permanent link">&para;</a></h3>
-<p><code>kotlin
-lifecycleScope.launch {
-    billing.observeTelemetry().collect { event -&gt;
-        when (event) {
-            is BillingTelemetryEvent.HandlePurchaseFailed -&gt; {
-                Firebase.analytics.logEvent("billing_handle_failed") {
-                    param("category", event.category.name)
-                    param("consume", event.consume.toString())
-                    // do NOT log productIds verbatim if they're SKU-named with PII
-                }
-            }
-            is BillingTelemetryEvent.RecoverySweepRan -&gt;
-                Firebase.analytics.logEvent("billing_recovery") {
-                    param("count", event.unacknowledgedCount.toLong())
-                }
-            else -&gt; {}  // no-op for events you don't care about
-        }
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="n">lifecycleScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">billing</span><span class="p">.</span><span class="na">observeTelemetry</span><span class="p">().</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">        </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">.</span><span class="na">HandlePurchaseFailed</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">Firebase</span><span class="p">.</span><span class="na">analytics</span><span class="p">.</span><span class="na">logEvent</span><span class="p">(</span><span class="s">"billing_handle_failed"</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">param</span><span class="p">(</span><span class="s">"category"</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">category</span><span class="p">.</span><span class="na">name</span><span class="p">)</span>
+<span class="w">                    </span><span class="n">param</span><span class="p">(</span><span class="s">"consume"</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">consume</span><span class="p">.</span><span class="na">toString</span><span class="p">())</span>
+<span class="w">                    </span><span class="c1">// do NOT log productIds verbatim if they're SKU-named with PII</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">BillingTelemetryEvent</span><span class="p">.</span><span class="na">RecoverySweepRan</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">                </span><span class="n">Firebase</span><span class="p">.</span><span class="na">analytics</span><span class="p">.</span><span class="na">logEvent</span><span class="p">(</span><span class="s">"billing_recovery"</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">param</span><span class="p">(</span><span class="s">"count"</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">unacknowledgedCount</span><span class="p">.</span><span class="na">toLong</span><span class="p">())</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">  </span><span class="c1">// no-op for events you don't care about</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="out-of-scope-for-v1">Out of scope for v1<a class="headerlink" href="#out-of-scope-for-v1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>No event-type filtering at the library level — consumer does its own <code>filterIsInstance</code> / <code>when</code>.</li>

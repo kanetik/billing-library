@@ -1922,7 +1922,7 @@
 <ul>
 <li><code>PurchaseVerifier</code> — uses <code>android.util.Base64</code>, requires Robolectric for JVM unit tests.</li>
 <li><code>ProductDetails.toOneTimeFlowParams</code> — PBL's <code>BillingFlowParams.ProductDetailsParams.build()</code> does strict internal validation that conflicts with partial mockk-relaxed <code>ProductDetails</code>; selector logic is small + covered by <code>:sample</code> integration use until the artifact lands.</li>
-<li><code>DefaultBillingRepository</code> orchestration tests — retry loop, <code>connectToClientAndCall</code> <code>withTimeout</code> behavior, <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping. Mocking the billing-ktx suspend extensions (<code>client.queryPurchasesAsync(...)</code> etc.) via <code>mockkStatic</code> is brittle against PBL version bumps. The orchestration is small (~30 lines) and every piece it orchestrates is independently tested in v0.1.0 (exception mapping, listener partition, lifecycle, ext helpers). Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.</li>
+<li><code>DefaultBillingRepository</code> orchestration tests — <code>launchFlow</code> error wrapping, <code>queryProductDetailsWithUnfetched</code> mapping. Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.</li>
 <li><code>showInAppMessages</code> — <code>InAppMessageResult</code> is final + has no easily-buildable test fixture. Cover via <code>:sample</code> integration use until the artifact arrives.</li>
 </ul>
 <h2 id="trademark-license-guardrails">Trademark / license guardrails<a class="headerlink" href="#trademark-license-guardrails" title="Permanent link">&para;</a></h2>

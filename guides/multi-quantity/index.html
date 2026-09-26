@@ -1180,21 +1180,21 @@
 <p>You enable <em>Multi-quantity purchases</em> on the product in Play Console. From then on, Play's own purchase dialog renders a quantity picker; the user picks N units; Play processes the whole transaction and returns one <code>Purchase</code> whose <code>purchase.quantity</code> field carries the unit count. The library wrapper calls <code>toOneTimeFlowParams(...)</code> the same way for any quantity — there is no per-launch quantity to set from your code on PBL 9.</p>
 <h2 id="what-the-client-must-do-read-purchasequantity-and-grant-accordingly">What the client must do (read <code>purchase.quantity</code> and grant accordingly)<a class="headerlink" href="#what-the-client-must-do-read-purchasequantity-and-grant-accordingly" title="Permanent link">&para;</a></h2>
 <p>Always grant <code>purchase.quantity</code> units, not 1 — and only grant after <code>handlePurchase</code> returns <code>Success</code>:</p>
-<p><code>kotlin
-private suspend fun handle(purchase: Purchase) {
-    when (val r = billing.handlePurchase(purchase, consume = true)) {
-        HandlePurchaseResult.Success -&gt; {
-            if (purchase.products.contains("coins_pack")) {
-                coinWallet.grant(amount = COINS_PER_PACK * purchase.quantity)
-            }
-        }
-        HandlePurchaseResult.AlreadyAcknowledged -&gt; {} // unreachable for consume=true (consumables aren't acked)
-        HandlePurchaseResult.NotPurchased -&gt; {} // pending; wait
-        HandlePurchaseResult.NotOwned -&gt; {} // Play says not owned — defer to grace/revoke
-        is HandlePurchaseResult.Failure -&gt; showError(r.exception.userFacingCategory)
-        // never grant on Failure — recovery sweep retries on the next connection
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">private</span><span class="w"> </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="n">purchase</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">"coins_pack"</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">coinWallet</span><span class="p">.</span><span class="na">grant</span><span class="p">(</span><span class="n">amount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">COINS_PER_PACK</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">purchase</span><span class="p">.</span><span class="na">quantity</span><span class="p">)</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// unreachable for consume=true (consumables aren't acked)</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// pending; wait</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// Play says not owned — defer to grace/revoke</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showError</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">exception</span><span class="p">.</span><span class="na">userFacingCategory</span><span class="p">)</span>
+<span class="w">        </span><span class="c1">// never grant on Failure — recovery sweep retries on the next connection</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p><code>purchase.quantity</code> defaults to <code>1</code> so single-unit code keeps working — but ignoring it on a multi-quantity purchase silently under-grants. The library handles the <em>acknowledgement</em> side correctly for any quantity (Play's consume API consumes the whole purchase regardless of unit count); only your wallet-ledger code needs the awareness.</p>
 <p>For the broader pattern of tracking consumable balances (where multi-quantity purchases land), see the <a href="../consumables/">Consumables ledger guide</a>.</p>
 

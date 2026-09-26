@@ -1102,15 +1102,15 @@
 
 <h1 id="product-details-caching">Product-details caching<a class="headerlink" href="#product-details-caching" title="Permanent link">&para;</a></h1>
 <p>The library does not cache <code>ProductDetails</code>. Each <code>queryProductDetails</code> call hits Play. If you want session-level caching, wrap the query in a <code>StateFlow</code>:</p>
-<p><code>kotlin
-class ProductCache(
-    private val billing: BillingRepository,
-    scope: CoroutineScope,
-) {
-    val products: StateFlow&lt;List&lt;ProductDetails&gt;&gt; = flow {
-        emit(billing.queryProductDetails(params))
-    }.stateIn(scope, SharingStarted.WhileSubscribed(60_000), emptyList())
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">ProductCache</span><span class="p">(</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span><span class="p">,</span>
+<span class="w">    </span><span class="n">scope</span><span class="p">:</span><span class="w"> </span><span class="n">CoroutineScope</span><span class="p">,</span>
+<span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">products</span><span class="p">:</span><span class="w"> </span><span class="n">StateFlow</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">ProductDetails</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">flow</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">emit</span><span class="p">(</span><span class="n">billing</span><span class="p">.</span><span class="na">queryProductDetails</span><span class="p">(</span><span class="n">params</span><span class="p">))</span>
+<span class="w">    </span><span class="p">}.</span><span class="na">stateIn</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span><span class="w"> </span><span class="n">SharingStarted</span><span class="p">.</span><span class="na">WhileSubscribed</span><span class="p">(</span><span class="m">60</span><span class="n">_000</span><span class="p">),</span><span class="w"> </span><span class="n">emptyList</span><span class="p">())</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>This is the recommended pattern. Library-side caching would tax consumers with their own cache (most production apps) and muddle invalidation semantics.</p>
 
 

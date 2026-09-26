@@ -1606,17 +1606,17 @@
 </tr>
 </tbody>
 </table>
-<p><code>kotlin
-val params = QueryProductDetailsParams.newBuilder()
-    .setProductList(listOf(
-        QueryProductDetailsParams.Product.newBuilder()
-            .setProductId("android.test.purchased")
-            .setProductType(BillingClient.ProductType.INAPP)
-            .build()
-    ))
-    .build()
-val products = billing.queryProductDetails(params)
-billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">QueryProductDetailsParams</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">setProductList</span><span class="p">(</span><span class="n">listOf</span><span class="p">(</span>
+<span class="w">        </span><span class="n">QueryProductDetailsParams</span><span class="p">.</span><span class="na">Product</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="na">setProductId</span><span class="p">(</span><span class="s">"android.test.purchased"</span><span class="p">)</span>
+<span class="w">            </span><span class="p">.</span><span class="na">setProductType</span><span class="p">(</span><span class="n">BillingClient</span><span class="p">.</span><span class="na">ProductType</span><span class="p">.</span><span class="na">INAPP</span><span class="p">)</span>
+<span class="w">            </span><span class="p">.</span><span class="na">build</span><span class="p">()</span>
+<span class="w">    </span><span class="p">))</span>
+<span class="w">    </span><span class="p">.</span><span class="na">build</span><span class="p">()</span>
+<span class="kd">val</span><span class="w"> </span><span class="nv">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">queryProductDetails</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+<span class="n">billing</span><span class="p">.</span><span class="na">launchFlow</span><span class="p">(</span><span class="n">activity</span><span class="p">,</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="na">first</span><span class="p">().</span><span class="na">toOneTimeFlowParams</span><span class="p">())</span>
+</code></pre></div>
 <h3 id="what-level-1-verifies">What Level 1 verifies<a class="headerlink" href="#what-level-1-verifies" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>connectToBilling()</code> reaches <code>Success</code></li>
@@ -1730,20 +1730,20 @@ billing.launchFlow(activity, products.first().toOneTimeFlowParams())</code></p>
 <p>Beyond the levels above, you'll want to test your own ViewModels, repositories, and screens that depend on <code>BillingRepository</code>. Some patterns:</p>
 <h3 id="debug-flavor-entitlement-override">Debug-flavor entitlement override<a class="headerlink" href="#debug-flavor-entitlement-override" title="Permanent link">&para;</a></h3>
 <p>Many apps short-circuit the real billing repo entirely in debug builds and read entitlement from a <code>BuildConfig</code> flag or a debug-menu setting:</p>
-<p><code>kotlin
-// debug/.../EntitlementManager.kt
-class EntitlementManager @Inject constructor(...) {
-    val isEntitled: StateFlow&lt;Boolean&gt; = MutableStateFlow(BuildConfig.DEBUG_ENTITLEMENT_OVERRIDE)
-    // ...
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="c1">// debug/.../EntitlementManager.kt</span>
+<span class="kd">class</span><span class="w"> </span><span class="nc">EntitlementManager</span><span class="w"> </span><span class="nd">@Inject</span><span class="w"> </span><span class="k">constructor</span><span class="p">(...)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">isEntitled</span><span class="p">:</span><span class="w"> </span><span class="n">StateFlow</span><span class="o">&lt;</span><span class="kt">Boolean</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MutableStateFlow</span><span class="p">(</span><span class="n">BuildConfig</span><span class="p">.</span><span class="na">DEBUG_ENTITLEMENT_OVERRIDE</span><span class="p">)</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>This lets you develop gated UI without touching billing at all. Combine with Level 1 or Level 2 for tests that actually exercise the billing flow.</p>
 <h3 id="mocking-billingrepository-in-your-unit-tests">Mocking <code>BillingRepository</code> in your unit tests<a class="headerlink" href="#mocking-billingrepository-in-your-unit-tests" title="Permanent link">&para;</a></h3>
 <p>Until v0.2.0 ships the official <code>:billing-testing</code> artifact (with a built-in <code>FakeBillingRepository</code>), the cleanest approach in your own test code is mockk against the <code>BillingRepository</code> interface:</p>
-<p><code>kotlin
-val billing = mockk&lt;BillingRepository&gt;()
-coEvery { billing.queryProductDetails(any()) } returns listOf(productDetails())
-coEvery { billing.launchFlow(any(), any()) } returns Unit
-every { billing.observePurchaseUpdates() } returns flowOf(OwnedPurchases.Live(listOf(purchase())))</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mockk</span><span class="o">&lt;</span><span class="n">BillingRepository</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="n">coEvery</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">queryProductDetails</span><span class="p">(</span><span class="n">any</span><span class="p">())</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">returns</span><span class="w"> </span><span class="n">listOf</span><span class="p">(</span><span class="n">productDetails</span><span class="p">())</span>
+<span class="n">coEvery</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">launchFlow</span><span class="p">(</span><span class="n">any</span><span class="p">(),</span><span class="w"> </span><span class="n">any</span><span class="p">())</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">returns</span><span class="w"> </span><span class="kt">Unit</span>
+<span class="n">every</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">()</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">returns</span><span class="w"> </span><span class="n">flowOf</span><span class="p">(</span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Live</span><span class="p">(</span><span class="n">listOf</span><span class="p">(</span><span class="n">purchase</span><span class="p">())))</span>
+</code></pre></div>
 <p><code>BillingRepository</code> is composed of three narrower interfaces (<code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>). Depend on the narrowest one your code under test needs, and mock that.</p>
 <p>The library's own test suite (<code>billing/src/test/kotlin/com/kanetik/billing/</code>) uses this pattern with mockk + Truth + kotlinx-coroutines-test. Worth skimming for examples.</p>
 <h3 id="looking-ahead-billing-testing">Looking ahead: <code>:billing-testing</code><a class="headerlink" href="#looking-ahead-billing-testing" title="Permanent link">&para;</a></h3>

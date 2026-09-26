@@ -1212,47 +1212,46 @@
 
 <h1 id="dependency-injection">Dependency injection<a class="headerlink" href="#dependency-injection" title="Permanent link">&para;</a></h1>
 <h2 id="hilt">Hilt<a class="headerlink" href="#hilt" title="Permanent link">&para;</a></h2>
-<p>```kotlin
-@Module
-@InstallIn(SingletonComponent::class)
-object BillingModule {
-    @Provides
-    @Singleton
-    fun provideBillingLogger(): BillingLogger = BillingLogger.Android  // or your own adapter</p>
-<pre><code>@Provides
-@Singleton
-fun provideBillingRepository(
-    @ApplicationContext context: Context,
-    logger: BillingLogger,
-): BillingRepository = BillingRepositoryCreator.create(
-    context = context,
-    logger = logger,
-)
-</code></pre>
-<p>}
-```</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@Module</span>
+<span class="nd">@InstallIn</span><span class="p">(</span><span class="n">SingletonComponent</span><span class="o">::</span><span class="n">class</span><span class="p">)</span>
+<span class="kd">object</span><span class="w"> </span><span class="nc">BillingModule</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@Provides</span>
+<span class="w">    </span><span class="nd">@Singleton</span>
+<span class="w">    </span><span class="kd">fun</span><span class="w"> </span><span class="nf">provideBillingLogger</span><span class="p">():</span><span class="w"> </span><span class="n">BillingLogger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">.</span><span class="na">Android</span><span class="w">  </span><span class="c1">// or your own adapter</span>
+
+<span class="w">    </span><span class="nd">@Provides</span>
+<span class="w">    </span><span class="nd">@Singleton</span>
+<span class="w">    </span><span class="kd">fun</span><span class="w"> </span><span class="nf">provideBillingRepository</span><span class="p">(</span>
+<span class="w">        </span><span class="nd">@ApplicationContext</span><span class="w"> </span><span class="n">context</span><span class="p">:</span><span class="w"> </span><span class="n">Context</span><span class="p">,</span>
+<span class="w">        </span><span class="n">logger</span><span class="p">:</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">,</span>
+<span class="w">    </span><span class="p">):</span><span class="w"> </span><span class="n">BillingRepository</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">        </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">context</span><span class="p">,</span>
+<span class="w">        </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">logger</span><span class="p">,</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="koin">Koin<a class="headerlink" href="#koin" title="Permanent link">&para;</a></h2>
-<p><code>kotlin
-val billingModule = module {
-    single&lt;BillingLogger&gt; { BillingLogger.Android }
-    single&lt;BillingRepository&gt; {
-        BillingRepositoryCreator.create(
-            context = androidContext(),
-            logger = get(),
-        )
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billingModule</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">single</span><span class="o">&lt;</span><span class="n">BillingLogger</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">.</span><span class="na">Android</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="n">single</span><span class="o">&lt;</span><span class="n">BillingRepository</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">            </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">androidContext</span><span class="p">(),</span>
+<span class="w">            </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">get</span><span class="p">(),</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="manual-wiring">Manual wiring<a class="headerlink" href="#manual-wiring" title="Permanent link">&para;</a></h2>
 <p>If you're not using a DI framework, hold a single instance in your <code>Application</code>:</p>
-<p><code>kotlin
-class MyApplication : Application() {
-    val billing: BillingRepository by lazy {
-        BillingRepositoryCreator.create(
-            context = applicationContext,
-            logger = BillingLogger.Android,
-        )
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">MyApplication</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">Application</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">lazy</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">            </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">applicationContext</span><span class="p">,</span>
+<span class="w">            </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">.</span><span class="na">Android</span><span class="p">,</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Then access it via <code>(application as MyApplication).billing</code> from your Activity / ViewModel. The repository is safe to share across the process — its internal <code>connectToBilling()</code> flow uses <code>WhileSubscribed(60s)</code> to multiplex the underlying <code>BillingClient</code> across all consumers.</p>
 <h2 id="narrow-interfaces">Narrow interfaces<a class="headerlink" href="#narrow-interfaces" title="Permanent link">&para;</a></h2>
 <p><code>BillingRepository</code> is composed of three narrower interfaces (<code>BillingActions</code>, <code>BillingConnector</code>, <code>BillingPurchaseUpdatesOwner</code>). Depend on the narrowest one your code under test needs and bind it from the same singleton. This keeps test mocks tight — mocking <code>BillingActions</code> for a checkout ViewModel is far less work than mocking the full repo.</p>

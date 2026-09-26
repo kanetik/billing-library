@@ -1160,41 +1160,41 @@
 <p>Play's signature is the only on-device proof that a <code>Purchase</code>'s data is what Google actually sent, untampered. The realistic threat isn't an external app calling your listener (the <code>PurchasesUpdatedListener</code> callback runs inside your own process, and PBL doesn't expose it externally); it's tampering between Play and your code. On a rooted device, hooks like Xposed or Frida — or a modified Play Store APK, or a repackaged version of your own app — can swap in arbitrary <code>Purchase</code> data before it reaches your collector. PBL hands you <code>Purchase.signature</code> and <code>Purchase.originalJson</code> but doesn't validate them; that's on you. Without verification, your entitlement checks are trusting whatever data made it through, and on a rooted phone that's whatever the user (or a tool they're running) decides.</p>
 <p><code>PurchaseVerifier</code> (in <code>com.kanetik.billing.security</code>) does RSA signature verification of <code>Purchase.originalJson</code> against your app's public key. Play Console gives you the key when you create the app, under Monetization setup → Licensing. The check itself is small; the consequence of skipping it is that any unverified <code>Purchase</code> in your code is essentially user-supplied input.</p>
 <p>The recommended integration:</p>
-<p>```kotlin
-val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)</p>
-<p>// Sweep up OwnedPurchases (Live AND Recovered) — both carry purchases that
-// need verifying and acknowledging. Filtering only Live would skip recovered
-// purchases from a prior session, defeating the auto-recovery feature.
-// FlowOutcome is excluded by design: those events describe attempt outcomes,
-// not owned state — never grant from their <code>purchases</code> list.
-billing.observePurchaseUpdates()
-    .filterIsInstance<OwnedPurchases>()
-    .collect { event -&gt;
-        event.purchases.forEach { purchase -&gt;
-            if (!verifier.isSignatureValid(purchase)) {
-                logger.e(TAG, "Signature mismatch for ${purchase.products}")
-                // Don't grant entitlement; consider reporting to your backend.
-                return@forEach
-            }
-            // The library filters already-acknowledged purchases out of the
-            // Recovered channel at delivery time, so no consumer-side dedupe
-            // is needed. This snippet is just the verify-then-handle skeleton.
-            when (val r = billing.handlePurchase(purchase, consume = false)) {
-                HandlePurchaseResult.Success -&gt; grantEntitlement(purchase)
-                HandlePurchaseResult.AlreadyAcknowledged -&gt; grantEntitlement(purchase) // safe — no PBL call made
-                HandlePurchaseResult.NotPurchased -&gt; {} // pending — wait for terminal state
-                HandlePurchaseResult.NotOwned -&gt; {
-                    // Play says this purchase isn't owned — defer to grace/revoke logic.
-                    logger.w(TAG, "handlePurchase NotOwned for ${purchase.products}")
-                }
-                is HandlePurchaseResult.Failure -&gt; {
-                    // Don't grant — recovery sweep retries on the next clean connect.
-                    logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")
-                }
-            }
-        }
-    }
-```</p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">verifier</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PurchaseVerifier</span><span class="p">(</span><span class="n">base64PublicKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BuildConfig</span><span class="p">.</span><span class="na">PLAY_BILLING_PUBLIC_KEY</span><span class="p">)</span>
+
+<span class="c1">// Sweep up OwnedPurchases (Live AND Recovered) — both carry purchases that</span>
+<span class="c1">// need verifying and acknowledging. Filtering only Live would skip recovered</span>
+<span class="c1">// purchases from a prior session, defeating the auto-recovery feature.</span>
+<span class="c1">// FlowOutcome is excluded by design: those events describe attempt outcomes,</span>
+<span class="c1">// not owned state — never grant from their `purchases` list.</span>
+<span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">filterIsInstance</span><span class="o">&lt;</span><span class="n">OwnedPurchases</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">        </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">purchase</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">verifier</span><span class="p">.</span><span class="na">isSignatureValid</span><span class="p">(</span><span class="n">purchase</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">logger</span><span class="p">.</span><span class="na">e</span><span class="p">(</span><span class="n">TAG</span><span class="p">,</span><span class="w"> </span><span class="s">"Signature mismatch for </span><span class="si">${</span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="si">}</span><span class="s">"</span><span class="p">)</span>
+<span class="w">                </span><span class="c1">// Don't grant entitlement; consider reporting to your backend.</span>
+<span class="w">                </span><span class="k">return</span><span class="nd">@forEach</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// The library filters already-acknowledged purchases out of the</span>
+<span class="w">            </span><span class="c1">// Recovered channel at delivery time, so no consumer-side dedupe</span>
+<span class="w">            </span><span class="c1">// is needed. This snippet is just the verify-then-handle skeleton.</span>
+<span class="w">            </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span>
+<span class="w">                </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span><span class="w"> </span><span class="c1">// safe — no PBL call made</span>
+<span class="w">                </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// pending — wait for terminal state</span>
+<span class="w">                </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// Play says this purchase isn't owned — defer to grace/revoke logic.</span>
+<span class="w">                    </span><span class="n">logger</span><span class="p">.</span><span class="na">w</span><span class="p">(</span><span class="n">TAG</span><span class="p">,</span><span class="w"> </span><span class="s">"handlePurchase NotOwned for </span><span class="si">${</span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="si">}</span><span class="s">"</span><span class="p">)</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// Don't grant — recovery sweep retries on the next clean connect.</span>
+<span class="w">                    </span><span class="n">logger</span><span class="p">.</span><span class="na">e</span><span class="p">(</span><span class="n">TAG</span><span class="p">,</span><span class="w"> </span><span class="s">"handlePurchase failed: </span><span class="si">${</span><span class="n">r</span><span class="p">.</span><span class="na">exception</span><span class="p">.</span><span class="na">userFacingCategory</span><span class="si">}</span><span class="s">"</span><span class="p">)</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
 <p><code>signatureAlgorithm</code> defaults to <code>SHA1withRSA</code> (PBL-current). Override only if you know what you're doing. PBL changes this rarely, and changing it without coordinated server-side changes will fail verification on every purchase.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>

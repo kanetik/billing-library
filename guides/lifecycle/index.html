@@ -1102,16 +1102,15 @@
 
 <h1 id="lifecycle-integration">Lifecycle integration<a class="headerlink" href="#lifecycle-integration" title="Permanent link">&para;</a></h1>
 <p>Wire <code>BillingConnectionLifecycleManager</code> to anything observable — an Activity, a Fragment, or <code>ProcessLifecycleOwner.get()</code> if you want process-wide warm connection.</p>
-<p>```kotlin
-class CheckoutActivity : ComponentActivity() {
-    private val billing by lazy { BillingRepositoryCreator.create(applicationContext) }</p>
-<pre><code>override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
-}
-</code></pre>
-<p>}
-```</p>
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">CheckoutActivity</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ComponentActivity</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">lazy</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span><span class="n">applicationContext</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">onCreate</span><span class="p">(</span><span class="n">savedInstanceState</span><span class="p">:</span><span class="w"> </span><span class="n">Bundle?</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">super</span><span class="p">.</span><span class="na">onCreate</span><span class="p">(</span><span class="n">savedInstanceState</span><span class="p">)</span>
+<span class="w">        </span><span class="n">lifecycle</span><span class="p">.</span><span class="na">addObserver</span><span class="p">(</span><span class="n">BillingConnectionLifecycleManager</span><span class="p">(</span><span class="n">billing</span><span class="p">))</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>The manager calls <code>connectToBilling()</code> on <code>onStart</code>, cancels any active collector on <code>onStop</code> (the underlying <code>WhileSubscribed(60_000)</code> keeps the connection warm for 60s after the last subscriber leaves), and cancels its <code>SupervisorJob</code> on <code>onDestroy</code>.</p>
 <p>For more on the timing, see <a href="../../reference/replay-semantics/#connection-grace-window">Replay semantics</a>.</p>
 

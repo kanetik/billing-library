@@ -1238,48 +1238,47 @@
 </div>
 <h2 id="opting-in">Opting in<a class="headerlink" href="#opting-in" title="Permanent link">&para;</a></h2>
 <p>Every Billing Choice method requires opt-in. The requirement is a <em>warning</em> (not an error), so it's low-friction to adopt — annotate the call site:</p>
-<p><code>kotlin
-@OptIn(ExperimentalBillingChoiceApi::class)
-suspend fun maybeOfferBillingChoice(activity: Activity) {
-    // ... calls below
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="nd">@OptIn</span><span class="p">(</span><span class="n">ExperimentalBillingChoiceApi</span><span class="o">::</span><span class="n">class</span><span class="p">)</span>
+<span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">maybeOfferBillingChoice</span><span class="p">(</span><span class="n">activity</span><span class="p">:</span><span class="w"> </span><span class="n">Activity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// ... calls below</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="enabling-the-program-on-the-client">Enabling the program on the client<a class="headerlink" href="#enabling-the-program-on-the-client" title="Permanent link">&para;</a></h2>
 <p>For the underlying <code>BillingClient</code> to participate, it must be built with the Billing Choice program enabled. Pass the ready-made factory when you create the repository:</p>
-<p><code>kotlin
-@OptIn(ExperimentalBillingChoiceApi::class)
-val billing = BillingRepositoryCreator.create(
-    context = applicationContext,
-    billingClientFactory = BillingChoiceClientFactory(),
-)</code></p>
+<div class="highlight"><pre><span></span><code><span class="nd">@OptIn</span><span class="p">(</span><span class="n">ExperimentalBillingChoiceApi</span><span class="o">::</span><span class="n">class</span><span class="p">)</span>
+<span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">applicationContext</span><span class="p">,</span>
+<span class="w">    </span><span class="n">billingClientFactory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingChoiceClientFactory</span><span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
 <p><code>BillingChoiceClientFactory</code> is <code>DefaultBillingClientFactory</code>'s setup plus <code>enableBillingProgram(BillingClient.BillingProgram.BILLING_CHOICE)</code>. If you already supply a custom factory (you enable user-choice billing or external offers), don't stack this one — add the <code>enableBillingProgram(...)</code> call to your own builder so all your program enablements live in one place.</p>
 <h2 id="the-flow">The flow<a class="headerlink" href="#the-flow" title="Permanent link">&para;</a></h2>
 <p>The three methods mirror PBL 1:1: <strong>availability → info → dialog</strong>. Gate on availability first; skip everything if it's <code>Unavailable</code>.</p>
-<p>```kotlin
-@OptIn(ExperimentalBillingChoiceApi::class)
-suspend fun showBillingChoiceIfAvailable(activity: Activity) {
-    // 1. Gate. Unavailable is the normal answer for most apps — not an error.
-    when (val availability = billing.isBillingChoiceAvailable()) {
-        is BillingChoiceAvailability.Unavailable -&gt; return // skip the whole flow
-        is BillingChoiceAvailability.Available -&gt; {
-            // availability.choiceScreenType -&gt; who renders the choice screen
-            // availability.externalLinkAvailable -&gt; PBL's isExternalLinkAvailable
-        }
-    }</p>
-<pre><code>// 2. (Optional) Fetch Play-provided display assets to render your own screen.
-val details = billing.getBillingChoiceInfo(
-    GetBillingChoiceInfoParams.newBuilder().build()
-)
-// details.imageUrl, details.loyaltyInfo (both nullable)
+<div class="highlight"><pre><span></span><code><span class="nd">@OptIn</span><span class="p">(</span><span class="n">ExperimentalBillingChoiceApi</span><span class="o">::</span><span class="n">class</span><span class="p">)</span>
+<span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">showBillingChoiceIfAvailable</span><span class="p">(</span><span class="n">activity</span><span class="p">:</span><span class="w"> </span><span class="n">Activity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 1. Gate. Unavailable is the normal answer for most apps — not an error.</span>
+<span class="w">    </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">availability</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">isBillingChoiceAvailable</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">BillingChoiceAvailability</span><span class="p">.</span><span class="na">Unavailable</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="c1">// skip the whole flow</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">BillingChoiceAvailability</span><span class="p">.</span><span class="na">Available</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// availability.choiceScreenType -&gt; who renders the choice screen</span>
+<span class="w">            </span><span class="c1">// availability.externalLinkAvailable -&gt; PBL's isExternalLinkAvailable</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
 
-// 3. Show Play's information dialog. Main thread — PBL renders from the
-//    activity's window. Throws a BillingException subtype if Play rejects.
-billing.showBillingProgramInformationDialog(
-    activity = activity,
-    params = BillingProgramInformationDialogParams.newBuilder().build(),
-)
-</code></pre>
-<p>}
-```</p>
+<span class="w">    </span><span class="c1">// 2. (Optional) Fetch Play-provided display assets to render your own screen.</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">details</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">getBillingChoiceInfo</span><span class="p">(</span>
+<span class="w">        </span><span class="n">GetBillingChoiceInfoParams</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">().</span><span class="na">build</span><span class="p">()</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="w">    </span><span class="c1">// details.imageUrl, details.loyaltyInfo (both nullable)</span>
+
+<span class="w">    </span><span class="c1">// 3. Show Play's information dialog. Main thread — PBL renders from the</span>
+<span class="w">    </span><span class="c1">//    activity's window. Throws a BillingException subtype if Play rejects.</span>
+<span class="w">    </span><span class="n">billing</span><span class="p">.</span><span class="na">showBillingProgramInformationDialog</span><span class="p">(</span>
+<span class="w">        </span><span class="n">activity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">activity</span><span class="p">,</span>
+<span class="w">        </span><span class="n">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingProgramInformationDialogParams</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">().</span><span class="na">build</span><span class="p">(),</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Behavior notes:</p>
 <ul>
 <li><strong><code>isBillingChoiceAvailable()</code></strong> never throws on a non-OK availability response — "not available" is reported as <code>BillingChoiceAvailability.Unavailable</code>, because for the vast majority of apps that's the expected steady state, not a failure.</li>

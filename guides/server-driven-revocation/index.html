@@ -1216,41 +1216,40 @@
 <p>If your backend posts notifications back to the client (e.g., "subscription state changed"), call <code>queryPurchases</code> to refresh and let the existing <code>observePurchaseUpdates</code> pipeline handle the result.</p>
 <h2 id="emitting-revocation-events">Emitting revocation events<a class="headerlink" href="#emitting-revocation-events" title="Permanent link">&para;</a></h2>
 <p>Refunds, chargebacks, and other server-driven entitlement reversals don't come through PBL's <code>PurchasesUpdatedListener</code>. They originate on Play's side, hit your backend through RTDN → Cloud Pub/Sub, and reach the app over whatever transport you've wired (FCM push, polling, deeplink). <code>BillingRepository</code> exposes one entry point for that:</p>
-<p><code>kotlin
-public suspend fun emitExternalRevocation(purchaseToken: String, reason: RevocationReason)</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">emitExternalRevocation</span><span class="p">(</span><span class="n">purchaseToken</span><span class="p">:</span><span class="w"> </span><span class="kt">String</span><span class="p">,</span><span class="w"> </span><span class="n">reason</span><span class="p">:</span><span class="w"> </span><span class="n">RevocationReason</span><span class="p">)</span>
+</code></pre></div>
 <p>The library does <strong>not</strong> subscribe to FCM, RTDN, or anything server-side. That's your decision (transport, auth, decoding). Your FCM listener (or polling worker, etc.) decodes the payload into a <code>(purchaseToken, RevocationReason)</code> pair and calls <code>emitExternalRevocation</code>. The event surfaces as <code>PurchaseRevoked</code> through the same flow you already collect:</p>
-<p>```kotlin
-class FcmRevocationReceiver : FirebaseMessagingService() {
-    @Inject lateinit var billing: BillingRepository</p>
-<pre><code>// Service-scoped CoroutineScope so emitExternalRevocation runs without
-// blocking the FCM callback thread. SupervisorJob keeps a single emit
-// failure from cancelling sibling work; the scope is cancelled in
-// onDestroy below so emits don't outlive the service.
-private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+<div class="highlight"><pre><span></span><code><span class="kd">class</span><span class="w"> </span><span class="nc">FcmRevocationReceiver</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">FirebaseMessagingService</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@Inject</span><span class="w"> </span><span class="kd">lateinit</span><span class="w"> </span><span class="kd">var</span><span class="w"> </span><span class="nv">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span>
 
-override fun onMessageReceived(message: RemoteMessage) {
-    val token = message.data["purchaseToken"] ?: return
-    // Message-type strings here are app-defined — what your backend chose
-    // to put in the FCM payload. They don't have to match RTDN's
-    // SUBSCRIPTION_REVOKED / SUBSCRIPTION_EXPIRED constants; the backend
-    // already decoded those before sending the FCM. Pick whatever's
-    // convenient for your backend ↔ client contract.
-    val reason = when (message.data["type"]) {
-        "REFUND" -&gt; RevocationReason.Refunded
-        "CHARGEBACK" -&gt; RevocationReason.Chargeback
-        "SUBS_EXPIRED" -&gt; RevocationReason.SubscriptionExpired
-        else -&gt; RevocationReason.Other
-    }
-    scope.launch { billing.emitExternalRevocation(token, reason) }
-}
+<span class="w">    </span><span class="c1">// Service-scoped CoroutineScope so emitExternalRevocation runs without</span>
+<span class="w">    </span><span class="c1">// blocking the FCM callback thread. SupervisorJob keeps a single emit</span>
+<span class="w">    </span><span class="c1">// failure from cancelling sibling work; the scope is cancelled in</span>
+<span class="w">    </span><span class="c1">// onDestroy below so emits don't outlive the service.</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">scope</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CoroutineScope</span><span class="p">(</span><span class="n">SupervisorJob</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Dispatchers</span><span class="p">.</span><span class="na">IO</span><span class="p">)</span>
 
-override fun onDestroy() {
-    scope.cancel()
-    super.onDestroy()
-}
-</code></pre>
-<p>}
-```</p>
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">onMessageReceived</span><span class="p">(</span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="n">RemoteMessage</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">message</span><span class="p">.</span><span class="na">data</span><span class="o">[</span><span class="s">"purchaseToken"</span><span class="o">]</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="k">return</span>
+<span class="w">        </span><span class="c1">// Message-type strings here are app-defined — what your backend chose</span>
+<span class="w">        </span><span class="c1">// to put in the FCM payload. They don't have to match RTDN's</span>
+<span class="w">        </span><span class="c1">// SUBSCRIPTION_REVOKED / SUBSCRIPTION_EXPIRED constants; the backend</span>
+<span class="w">        </span><span class="c1">// already decoded those before sending the FCM. Pick whatever's</span>
+<span class="w">        </span><span class="c1">// convenient for your backend ↔ client contract.</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">message</span><span class="p">.</span><span class="na">data</span><span class="o">[</span><span class="s">"type"</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="s">"REFUND"</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">RevocationReason</span><span class="p">.</span><span class="na">Refunded</span>
+<span class="w">            </span><span class="s">"CHARGEBACK"</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">RevocationReason</span><span class="p">.</span><span class="na">Chargeback</span>
+<span class="w">            </span><span class="s">"SUBS_EXPIRED"</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">RevocationReason</span><span class="p">.</span><span class="na">SubscriptionExpired</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">RevocationReason</span><span class="p">.</span><span class="na">Other</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">scope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">emitExternalRevocation</span><span class="p">(</span><span class="n">token</span><span class="p">,</span><span class="w"> </span><span class="n">reason</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">onDestroy</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">scope</span><span class="p">.</span><span class="na">cancel</span><span class="p">()</span>
+<span class="w">        </span><span class="k">super</span><span class="p">.</span><span class="na">onDestroy</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>(For longer-running work or for guaranteed delivery across process death, use WorkManager instead. <code>emitExternalRevocation</code> is a fast, in-memory hand-off, but the surrounding decode + persistence is a different question.)</p>
 <h2 id="other-emit-triggers">Other emit triggers<a class="headerlink" href="#other-emit-triggers" title="Permanent link">&para;</a></h2>
 <p>RTDN→FCM is the canonical transport, but <code>emitExternalRevocation</code> is the right hook anywhere you have authoritative evidence that ownership flipped. <code>EntitlementCache</code> treats <code>OwnedPurchases.Live</code>/<code>Recovered</code> as grant-only (see <a href="../entitlement-cache/#when-to-use-it">EntitlementCache</a>), so an empty owned-purchases result alone never transitions the cache to <code>Revoked</code>. You have to push the event yourself. Two common cases beyond FCM:</p>

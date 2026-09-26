@@ -1154,83 +1154,83 @@
 <h1 id="quick-start-one-time-iap">Quick start (one-time IAP)<a class="headerlink" href="#quick-start-one-time-iap" title="Permanent link">&para;</a></h1>
 <p>A complete one-time-IAP integration. Subscriptions work at the protocol level via raw <code>QueryPurchasesParams</code> + <code>BillingFlowParams</code>; subscription-specific helpers ship in v0.2.0 (see the <a href="../roadmap/">Roadmap</a>).</p>
 <p>(Standard AndroidX / coroutines imports are omitted for readability; only the library's own imports are listed. The omitted ones are <code>ComponentActivity</code>, <code>Bundle</code>, <code>lifecycleScope</code>, and <code>kotlinx.coroutines.launch</code>.)</p>
-<p>```kotlin
-import com.android.billingclient.api.BillingClient
-import com.android.billingclient.api.Purchase
-import com.android.billingclient.api.QueryProductDetailsParams
-import com.kanetik.billing.BillingRepositoryCreator
-import com.kanetik.billing.FlowOutcome
-import com.kanetik.billing.HandlePurchaseResult
-import com.kanetik.billing.OwnedPurchases
-import com.kanetik.billing.PurchaseRevoked
-import com.kanetik.billing.ext.toOneTimeFlowParams
-import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
-import com.kanetik.billing.logging.BillingLogger</p>
-<p>class CheckoutActivity : ComponentActivity() {</p>
-<pre><code>private val billing by lazy {
-    BillingRepositoryCreator.create(
-        context = applicationContext,
-        logger = BillingLogger.Android, // or your own adapter; default is Noop (silent)
-    )
-}
+<div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nn">com.android.billingclient.api.BillingClient</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.android.billingclient.api.Purchase</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.android.billingclient.api.QueryProductDetailsParams</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.BillingRepositoryCreator</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.FlowOutcome</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.HandlePurchaseResult</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.OwnedPurchases</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.PurchaseRevoked</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.ext.toOneTimeFlowParams</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.logging.BillingLogger</span>
 
-override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+<span class="kd">class</span><span class="w"> </span><span class="nc">CheckoutActivity</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ComponentActivity</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 
-    // Keep the connection alive for the lifetime of this activity.
-    lifecycle.addObserver(BillingConnectionLifecycleManager(billing))
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="n">lazy</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">            </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">applicationContext</span><span class="p">,</span>
+<span class="w">            </span><span class="n">logger</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingLogger</span><span class="p">.</span><span class="na">Android</span><span class="p">,</span><span class="w"> </span><span class="c1">// or your own adapter; default is Noop (silent)</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
 
-    // Observe purchase events. The library's BillingClientStorage tracks
-    // acknowledged tokens internally and filters them out of `Recovered`
-    // at delivery time, so already-handled recovered purchases aren't
-    // re-delivered on re-subscribe — no consumer-side dedupe needed.
-    lifecycleScope.launch {
-        billing.observePurchaseUpdates().collect { event -&gt;
-            when (event) {
-                is OwnedPurchases.Live -&gt; event.purchases.forEach { handle(it) }
-                is OwnedPurchases.Recovered -&gt; event.purchases.forEach { handle(it) }
-                is FlowOutcome.Pending -&gt; showPendingNotice() // do NOT grant entitlement yet
-                is FlowOutcome.Canceled -&gt; {}
-                is FlowOutcome.ItemAlreadyOwned -&gt; restoreEntitlement()
-                is FlowOutcome.ItemUnavailable -&gt; showSoldOut()
-                is FlowOutcome.Failure -&gt; showError(event.exception.userFacingCategory)
-                is FlowOutcome.UnknownResponse -&gt; reportFailure(event.code)
-                is PurchaseRevoked -&gt; revokeEntitlement(event.purchaseToken, event.reason)
-            }
-        }
-    }
-}
+<span class="w">    </span><span class="kd">override</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">onCreate</span><span class="p">(</span><span class="n">savedInstanceState</span><span class="p">:</span><span class="w"> </span><span class="n">Bundle?</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">super</span><span class="p">.</span><span class="na">onCreate</span><span class="p">(</span><span class="n">savedInstanceState</span><span class="p">)</span>
 
-fun onBuyClicked() = lifecycleScope.launch {
-    val products = billing.queryProductDetails(
-        QueryProductDetailsParams.newBuilder()
-            .setProductList(listOf(
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId("pro_toolkit")
-                    .setProductType(BillingClient.ProductType.INAPP)
-                    .build()
-            ))
-            .build()
-    )
-    val product = products.firstOrNull() ?: return@launch
-    billing.launchFlow(this@CheckoutActivity, product.toOneTimeFlowParams())
-}
+<span class="w">        </span><span class="c1">// Keep the connection alive for the lifetime of this activity.</span>
+<span class="w">        </span><span class="n">lifecycle</span><span class="p">.</span><span class="na">addObserver</span><span class="p">(</span><span class="n">BillingConnectionLifecycleManager</span><span class="p">(</span><span class="n">billing</span><span class="p">))</span>
 
-private suspend fun handle(purchase: Purchase) {
-    // handlePurchase returns a sealed HandlePurchaseResult — branch on it.
-    // See Error handling for the full pattern.
-    when (val r = billing.handlePurchase(purchase, consume = false)) {
-        HandlePurchaseResult.Success -&gt; grantEntitlement()
-        HandlePurchaseResult.AlreadyAcknowledged -&gt; grantEntitlement() // safe — no PBL call needed
-        HandlePurchaseResult.NotPurchased -&gt; {} // pending — wait for terminal state
-        HandlePurchaseResult.NotOwned -&gt; {} // Play says not owned — defer to grace/revoke logic
-        is HandlePurchaseResult.Failure -&gt; showError(r.exception.userFacingCategory)
-        // do NOT grant on Failure — recovery sweep retries on the next connection
-    }
-}
-</code></pre>
-<p>}
-```</p>
+<span class="w">        </span><span class="c1">// Observe purchase events. The library's BillingClientStorage tracks</span>
+<span class="w">        </span><span class="c1">// acknowledged tokens internally and filters them out of `Recovered`</span>
+<span class="w">        </span><span class="c1">// at delivery time, so already-handled recovered purchases aren't</span>
+<span class="w">        </span><span class="c1">// re-delivered on re-subscribe — no consumer-side dedupe needed.</span>
+<span class="w">        </span><span class="n">lifecycleScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">().</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">                </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Live</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">handle</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">handle</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">Pending</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showPendingNotice</span><span class="p">()</span><span class="w"> </span><span class="c1">// do NOT grant entitlement yet</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">Canceled</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">ItemAlreadyOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">restoreEntitlement</span><span class="p">()</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">ItemUnavailable</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showSoldOut</span><span class="p">()</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showError</span><span class="p">(</span><span class="n">event</span><span class="p">.</span><span class="na">exception</span><span class="p">.</span><span class="na">userFacingCategory</span><span class="p">)</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="p">.</span><span class="na">UnknownResponse</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">reportFailure</span><span class="p">(</span><span class="n">event</span><span class="p">.</span><span class="na">code</span><span class="p">)</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">PurchaseRevoked</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">revokeEntitlement</span><span class="p">(</span><span class="n">event</span><span class="p">.</span><span class="na">purchaseToken</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">reason</span><span class="p">)</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">fun</span><span class="w"> </span><span class="nf">onBuyClicked</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lifecycleScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">queryProductDetails</span><span class="p">(</span>
+<span class="w">            </span><span class="n">QueryProductDetailsParams</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">()</span>
+<span class="w">                </span><span class="p">.</span><span class="na">setProductList</span><span class="p">(</span><span class="n">listOf</span><span class="p">(</span>
+<span class="w">                    </span><span class="n">QueryProductDetailsParams</span><span class="p">.</span><span class="na">Product</span><span class="p">.</span><span class="na">newBuilder</span><span class="p">()</span>
+<span class="w">                        </span><span class="p">.</span><span class="na">setProductId</span><span class="p">(</span><span class="s">"pro_toolkit"</span><span class="p">)</span>
+<span class="w">                        </span><span class="p">.</span><span class="na">setProductType</span><span class="p">(</span><span class="n">BillingClient</span><span class="p">.</span><span class="na">ProductType</span><span class="p">.</span><span class="na">INAPP</span><span class="p">)</span>
+<span class="w">                        </span><span class="p">.</span><span class="na">build</span><span class="p">()</span>
+<span class="w">                </span><span class="p">))</span>
+<span class="w">                </span><span class="p">.</span><span class="na">build</span><span class="p">()</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">product</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="na">firstOrNull</span><span class="p">()</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="k">return</span><span class="nd">@launch</span>
+<span class="w">        </span><span class="n">billing</span><span class="p">.</span><span class="na">launchFlow</span><span class="p">(</span><span class="k">this</span><span class="nd">@CheckoutActivity</span><span class="p">,</span><span class="w"> </span><span class="n">product</span><span class="p">.</span><span class="na">toOneTimeFlowParams</span><span class="p">())</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">handle</span><span class="p">(</span><span class="n">purchase</span><span class="p">:</span><span class="w"> </span><span class="n">Purchase</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// handlePurchase returns a sealed HandlePurchaseResult — branch on it.</span>
+<span class="w">        </span><span class="c1">// See Error handling for the full pattern.</span>
+<span class="w">        </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">()</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">()</span><span class="w"> </span><span class="c1">// safe — no PBL call needed</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// pending — wait for terminal state</span>
+<span class="w">            </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// Play says not owned — defer to grace/revoke logic</span>
+<span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showError</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">exception</span><span class="p">.</span><span class="na">userFacingCategory</span><span class="p">)</span>
+<span class="w">            </span><span class="c1">// do NOT grant on Failure — recovery sweep retries on the next connection</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>That's enough for a working one-time-IAP integration.</p>
 <h2 id="whats-worth-reading-next">What's worth reading next<a class="headerlink" href="#whats-worth-reading-next" title="Permanent link">&para;</a></h2>
 <p>A few topics are worth picking up before you ship, especially if Play Billing is new to you. The order below isn't strict, but it's the order that builds context if you read sequentially:</p>

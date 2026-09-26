@@ -1158,26 +1158,26 @@
 
 <h1 id="pre-order-multi-offer-one-time-products">Pre-order / multi-offer one-time products<a class="headerlink" href="#pre-order-multi-offer-one-time-products" title="Permanent link">&para;</a></h1>
 <p>Play Billing lets a one-time product carry multiple offers — a pre-order discount alongside the regular price, alternative price tiers, etc. The <code>toOneTimeFlowParams</code> extension takes an optional selector:</p>
-<p><code>kotlin
-val params = productDetails.toOneTimeFlowParams(
-    offerSelector = { offers -&gt;
-        offers.firstOrNull { it.offerId?.contains("preorder") == true }
-            ?: offers.firstOrNull()
-    }
-)</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">productDetails</span><span class="p">.</span><span class="na">toOneTimeFlowParams</span><span class="p">(</span>
+<span class="w">    </span><span class="n">offerSelector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">offers</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">        </span><span class="n">offers</span><span class="p">.</span><span class="na">firstOrNull</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">offerId</span><span class="o">?.</span><span class="na">contains</span><span class="p">(</span><span class="s">"preorder"</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="o">?:</span><span class="w"> </span><span class="n">offers</span><span class="p">.</span><span class="na">firstOrNull</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
 <p>Default selector picks the first offer. If your app has only one offer per product, you can ignore the parameter.</p>
 <h2 id="pre-orders-use-ispreorder">Pre-orders: use <code>isPreorder</code><a class="headerlink" href="#pre-orders-use-ispreorder" title="Permanent link">&para;</a></h2>
 <p>PBL 8.1+ exposes pre-order metadata via <code>OneTimePurchaseOfferDetails.preorderDetails</code>. The library wraps that as a <code>Boolean</code> extension for ergonomic switching:</p>
-<p>```kotlin
-import com.kanetik.billing.ext.isPreorder</p>
-<p>val params = productDetails.toOneTimeFlowParams(
-    offerSelector = { offers -&gt;
-        val preorder = offers.firstOrNull { it.isPreorder }
-        val regular = offers.firstOrNull { !it.isPreorder }
-        if (userOptedIntoPreorder) preorder ?: regular else regular ?: preorder
-    }
-)
-```</p>
+<div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.ext.isPreorder</span>
+
+<span class="kd">val</span><span class="w"> </span><span class="nv">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">productDetails</span><span class="p">.</span><span class="na">toOneTimeFlowParams</span><span class="p">(</span>
+<span class="w">    </span><span class="n">offerSelector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">offers</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">preorder</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">offers</span><span class="p">.</span><span class="na">firstOrNull</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">isPreorder</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="nv">regular</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">offers</span><span class="p">.</span><span class="na">firstOrNull</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">!</span><span class="nb">it</span><span class="p">.</span><span class="na">isPreorder</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">userOptedIntoPreorder</span><span class="p">)</span><span class="w"> </span><span class="n">preorder</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="n">regular</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">regular</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="n">preorder</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
 <p>Three wrinkles to remember when wiring pre-orders:</p>
 <ul>
 <li>The purchase shows up as <code>FlowOutcome.Pending</code> until Play fulfills it on the release date — <strong>do not grant entitlement on that pending event</strong>. Wait for the matching <code>OwnedPurchases.Live</code> update that arrives when fulfillment lands.</li>

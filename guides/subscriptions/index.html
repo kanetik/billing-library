@@ -1170,12 +1170,12 @@
 <p>Planned for v0.2.0 — see the <a href="../../roadmap/">Roadmap</a> for the full list of subs work pending. If you ship subscriptions on v0.1.x, you write the offer-token + replacement logic directly with PBL APIs; the rest of the library (connection, retry, error mapping, lifecycle, logging) still applies.</p>
 <h2 id="subscription-replacement-parsing-linkedpurchasetoken-yourself">Subscription replacement: parsing <code>linkedPurchaseToken</code> yourself<a class="headerlink" href="#subscription-replacement-parsing-linkedpurchasetoken-yourself" title="Permanent link">&para;</a></h2>
 <p>A subscription upgrade/downgrade/crossgrade purchase carries a non-null <code>linkedPurchaseToken</code> pointing at the prior subscription. Treating that as a fresh grant double-grants entitlement on plan changes. PBL's <code>Purchase</code> API doesn't expose a getter for <code>linkedPurchaseToken</code> (<code>AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>); the field is only present in <code>purchase.originalJson</code>. Until the v0.2.0 typed <code>SubscriptionReplacement</code> variant ships, parse it yourself:</p>
-<p><code>kotlin
-fun Purchase.linkedPurchaseToken(): String? = try {
-    org.json.JSONObject(originalJson)
-        .optString("linkedPurchaseToken")
-        .takeIf { it.isNotEmpty() }
-} catch (e: org.json.JSONException) { null }</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">fun</span><span class="w"> </span><span class="n">Purchase</span><span class="p">.</span><span class="nf">linkedPurchaseToken</span><span class="p">():</span><span class="w"> </span><span class="kt">String?</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">org</span><span class="p">.</span><span class="na">json</span><span class="p">.</span><span class="na">JSONObject</span><span class="p">(</span><span class="n">originalJson</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">optString</span><span class="p">(</span><span class="s">"linkedPurchaseToken"</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">takeIf</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">isNotEmpty</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="p">:</span><span class="w"> </span><span class="n">org</span><span class="p">.</span><span class="na">json</span><span class="p">.</span><span class="na">JSONException</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
 <p>Treat a non-null result as a plan change (invalidate the old token, grant against the new one) rather than a fresh purchase. IAP-only apps are unaffected — one-time products never carry a <code>linkedPurchaseToken</code>.</p>
 
 

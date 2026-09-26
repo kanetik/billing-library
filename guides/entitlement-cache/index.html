@@ -1330,76 +1330,76 @@
 </ul>
 <p>Consumables and entitlements often coexist in the same app; the <code>productKeySelector</code> is the seam where you tell the cache "ignore these, they're wallet credits."</p>
 <h2 id="single-entitlement-wiring">Single-entitlement wiring<a class="headerlink" href="#single-entitlement-wiring" title="Permanent link">&para;</a></h2>
-<p>```kotlin
-import com.kanetik.billing.entitlement.EntitlementCache
-import com.kanetik.billing.entitlement.EntitlementState
-import com.kanetik.billing.entitlement.EntitlementSnapshot
-import com.kanetik.billing.entitlement.EntitlementStorage
-import com.kanetik.billing.entitlement.GracePolicy
-import java.util.concurrent.TimeUnit</p>
-<p>class AdRemovalViewModel(
-    billing: BillingRepository,
-    storage: EntitlementStorage<Unit>, // your impl — see below
-) : ViewModel() {</p>
-<pre><code>private val cache = EntitlementCache(
-    purchasesUpdates = billing.observePurchaseUpdates(),
-    storage = storage,
-    gracePolicy = GracePolicy(
-        billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
-        transientFailureMs   = TimeUnit.HOURS.toMillis(6),
-    ),
-    productKeySelector = { purchase -&gt;
-        if (purchase.products.contains("ad_removal")) Unit else null
-    },
-)
+<div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.EntitlementCache</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.EntitlementState</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.EntitlementSnapshot</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.EntitlementStorage</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.GracePolicy</span>
+<span class="k">import</span><span class="w"> </span><span class="nn">java.util.concurrent.TimeUnit</span>
 
-init {
-    // start() is suspend so hydration completes before it returns —
-    // the first read of cache.state.value reflects the persisted
-    // snapshot, not the default empty map. Launch it from viewModelScope
-    // so init isn't blocked.
-    viewModelScope.launch { cache.start(viewModelScope) }
-}
+<span class="kd">class</span><span class="w"> </span><span class="nc">AdRemovalViewModel</span><span class="p">(</span>
+<span class="w">    </span><span class="n">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span><span class="p">,</span>
+<span class="w">    </span><span class="n">storage</span><span class="p">:</span><span class="w"> </span><span class="n">EntitlementStorage</span><span class="o">&lt;</span><span class="kt">Unit</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="c1">// your impl — see below</span>
+<span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ViewModel</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 
-val adsRemoved: StateFlow&lt;Boolean&gt; = cache.stateFor(Unit)
-    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
-    .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-</code></pre>
-<p>}
-```</p>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">cache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EntitlementCache</span><span class="p">(</span>
+<span class="w">        </span><span class="n">purchasesUpdates</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">(),</span>
+<span class="w">        </span><span class="n">storage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storage</span><span class="p">,</span>
+<span class="w">        </span><span class="n">gracePolicy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GracePolicy</span><span class="p">(</span>
+<span class="w">            </span><span class="n">billingUnavailableMs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">HOURS</span><span class="p">.</span><span class="na">toMillis</span><span class="p">(</span><span class="m">72</span><span class="p">),</span>
+<span class="w">            </span><span class="n">transientFailureMs</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">HOURS</span><span class="p">.</span><span class="na">toMillis</span><span class="p">(</span><span class="m">6</span><span class="p">),</span>
+<span class="w">        </span><span class="p">),</span>
+<span class="w">        </span><span class="n">productKeySelector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">purchase</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">"ad_removal"</span><span class="p">))</span><span class="w"> </span><span class="kt">Unit</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">    </span><span class="p">)</span>
+
+<span class="w">    </span><span class="k">init</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// start() is suspend so hydration completes before it returns —</span>
+<span class="w">        </span><span class="c1">// the first read of cache.state.value reflects the persisted</span>
+<span class="w">        </span><span class="c1">// snapshot, not the default empty map. Launch it from viewModelScope</span>
+<span class="w">        </span><span class="c1">// so init isn't blocked.</span>
+<span class="w">        </span><span class="n">viewModelScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">start</span><span class="p">(</span><span class="n">viewModelScope</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">adsRemoved</span><span class="p">:</span><span class="w"> </span><span class="n">StateFlow</span><span class="o">&lt;</span><span class="kt">Boolean</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">stateFor</span><span class="p">(</span><span class="kt">Unit</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">Granted</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">InGrace</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="p">.</span><span class="na">stateIn</span><span class="p">(</span><span class="n">viewModelScope</span><span class="p">,</span><span class="w"> </span><span class="n">SharingStarted</span><span class="p">.</span><span class="na">Eagerly</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="multi-entitlement-wiring">Multi-entitlement wiring<a class="headerlink" href="#multi-entitlement-wiring" title="Permanent link">&para;</a></h2>
-<p>```kotlin
-enum class GameEntitlement { PRO_TOOLKIT, EXPANSION_PACK }</p>
-<p>class ShopViewModel(
-    billing: BillingRepository,
-    storage: EntitlementStorage<GameEntitlement>,
-) : ViewModel() {</p>
-<pre><code>private val cache = EntitlementCache(
-    purchasesUpdates = billing.observePurchaseUpdates(),
-    storage = storage,
-    gracePolicy = GracePolicy(
-        billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
-        transientFailureMs   = TimeUnit.HOURS.toMillis(6),
-    ),
-    productKeySelector = { purchase -&gt;
-        when {
-            "pro_toolkit"    in purchase.products -&gt; GameEntitlement.PRO_TOOLKIT
-            "expansion_pack" in purchase.products -&gt; GameEntitlement.EXPANSION_PACK
-            else -&gt; null   // consumable currency packs bypass the cache; see the consumables guide
-        }
-    },
-)
+<div class="highlight"><pre><span></span><code><span class="kd">enum</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">GameEntitlement</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">PRO_TOOLKIT</span><span class="p">,</span><span class="w"> </span><span class="n">EXPANSION_PACK</span><span class="w"> </span><span class="p">}</span>
 
-init { viewModelScope.launch { cache.start(viewModelScope) } }
+<span class="kd">class</span><span class="w"> </span><span class="nc">ShopViewModel</span><span class="p">(</span>
+<span class="w">    </span><span class="n">billing</span><span class="p">:</span><span class="w"> </span><span class="n">BillingRepository</span><span class="p">,</span>
+<span class="w">    </span><span class="n">storage</span><span class="p">:</span><span class="w"> </span><span class="n">EntitlementStorage</span><span class="o">&lt;</span><span class="n">GameEntitlement</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ViewModel</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 
-val hasProToolkit: Flow&lt;Boolean&gt; = cache.stateFor(GameEntitlement.PRO_TOOLKIT)
-    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="nv">cache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EntitlementCache</span><span class="p">(</span>
+<span class="w">        </span><span class="n">purchasesUpdates</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">(),</span>
+<span class="w">        </span><span class="n">storage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">storage</span><span class="p">,</span>
+<span class="w">        </span><span class="n">gracePolicy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GracePolicy</span><span class="p">(</span>
+<span class="w">            </span><span class="n">billingUnavailableMs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">HOURS</span><span class="p">.</span><span class="na">toMillis</span><span class="p">(</span><span class="m">72</span><span class="p">),</span>
+<span class="w">            </span><span class="n">transientFailureMs</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">HOURS</span><span class="p">.</span><span class="na">toMillis</span><span class="p">(</span><span class="m">6</span><span class="p">),</span>
+<span class="w">        </span><span class="p">),</span>
+<span class="w">        </span><span class="n">productKeySelector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">purchase</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">            </span><span class="k">when</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="s">"pro_toolkit"</span><span class="w">    </span><span class="k">in</span><span class="w"> </span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">GameEntitlement</span><span class="p">.</span><span class="na">PRO_TOOLKIT</span>
+<span class="w">                </span><span class="s">"expansion_pack"</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">purchase</span><span class="p">.</span><span class="na">products</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">GameEntitlement</span><span class="p">.</span><span class="na">EXPANSION_PACK</span>
+<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kc">null</span><span class="w">   </span><span class="c1">// consumable currency packs bypass the cache; see the consumables guide</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">    </span><span class="p">)</span>
 
-val hasExpansion: Flow&lt;Boolean&gt; = cache.stateFor(GameEntitlement.EXPANSION_PACK)
-    .map { it is EntitlementState.Granted || it is EntitlementState.InGrace }
-</code></pre>
-<p>}
-```</p>
+<span class="w">    </span><span class="k">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">viewModelScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">start</span><span class="p">(</span><span class="n">viewModelScope</span><span class="p">)</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">hasProToolkit</span><span class="p">:</span><span class="w"> </span><span class="n">Flow</span><span class="o">&lt;</span><span class="kt">Boolean</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">stateFor</span><span class="p">(</span><span class="n">GameEntitlement</span><span class="p">.</span><span class="na">PRO_TOOLKIT</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">Granted</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">InGrace</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">hasExpansion</span><span class="p">:</span><span class="w"> </span><span class="n">Flow</span><span class="o">&lt;</span><span class="kt">Boolean</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">stateFor</span><span class="p">(</span><span class="n">GameEntitlement</span><span class="p">.</span><span class="na">EXPANSION_PACK</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">Granted</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">it</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">EntitlementState</span><span class="p">.</span><span class="na">InGrace</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
 <p>The cache exposes a <code>StateFlow&lt;Map&lt;K, EntitlementState&gt;&gt;</code>. Keys absent from the map are implicitly <code>EntitlementState.Revoked</code> (the cache hasn't observed a granting purchase for them). Each per-key value is one of three terminal states:</p>
 <ul>
@@ -1421,66 +1421,65 @@ val hasExpansion: Flow&lt;Boolean&gt; = cache.stateFor(GameEntitlement.EXPANSION
 <p>The remaining <code>FlowOutcome</code> variants (<code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>UnknownResponse</code>) are no-ops; they don't change owned-purchase state, and <code>Pending</code> must not grant entitlement (per Play's rules).</p>
 <h2 id="storage-is-your-responsibility">Storage is your responsibility<a class="headerlink" href="#storage-is-your-responsibility" title="Permanent link">&para;</a></h2>
 <p>The library doesn't pick a persistence library. Implement <code>EntitlementStorage&lt;K&gt;</code> against whatever your app already uses (DataStore, EncryptedSharedPreferences, Room, signed prefs against a server-issued key). The interface is two suspend functions:</p>
-<p><code>kotlin
-interface EntitlementStorage&lt;K : Any&gt; {
-    suspend fun readAll(): Map&lt;K, EntitlementSnapshot&gt;
-    suspend fun write(key: K, snapshot: EntitlementSnapshot)
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">interface</span><span class="w"> </span><span class="nc">EntitlementStorage</span><span class="o">&lt;</span><span class="n">K</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="kt">Any</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">readAll</span><span class="p">():</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">K</span><span class="p">,</span><span class="w"> </span><span class="n">EntitlementSnapshot</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">key</span><span class="p">:</span><span class="w"> </span><span class="n">K</span><span class="p">,</span><span class="w"> </span><span class="n">snapshot</span><span class="p">:</span><span class="w"> </span><span class="n">EntitlementSnapshot</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Your implementation is responsible for serializing <code>K</code> to a stable on-disk identifier. For <code>String</code> keys that's the identity; for <code>enum class</code> keys use <code>K.name</code> (not <code>toString()</code> — it's overridable); for sealed classes pick a stable discriminator field. Stability across app upgrades matters — renaming an enum constant breaks the on-disk mapping.</p>
 <p><code>EntitlementSnapshot</code> is plain data: <code>(isEntitled: Boolean, confirmedAtMs: Long, purchaseToken: String?)</code>. The cache calls <code>readAll()</code> once on <code>start()</code> to hydrate, then <code>write(key, snapshot)</code> on every entitlement-affecting transition. <code>InGrace</code> is <strong>not</strong> persisted — grace re-derives from the most recent confirmed <code>confirmedAtMs</code> on read, which keeps an attacker who can manipulate storage from extending the window indefinitely.</p>
 <p>For most apps the on-device storage is fine: a tampered snapshot gets overwritten the next time <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirms (or fails to confirm via <code>PurchaseRevoked</code>) the entitlement. The cache trusts what storage returns.</p>
 <h2 id="tamper-resistant-storage">Tamper-resistant storage<a class="headerlink" href="#tamper-resistant-storage" title="Permanent link">&para;</a></h2>
 <p>If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where the paid entitlement has real value), wrap your <code>EntitlementStorage&lt;K&gt;</code> in <code>SignedEntitlementStorage&lt;K&gt;</code>. The decorator signs each snapshot on every write (using a key-aware canonical encoding so cross-key sig swaps fail verification) and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start for that key, and the next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> re-confirms truth).</p>
-<p>```kotlin
-import com.kanetik.billing.entitlement.signed.*</p>
-<p>val storage: EntitlementStorage<GameEntitlement> = SignedEntitlementStorage(
-    delegate = MyDataStoreEntitlementStorage(context),
-    keyProvider = KeystoreBackedKeyProvider.create(),
-    signatureStore = SharedPreferencesSignatureStore(context),
-    keyToStorageId = { it.name },   // stable string per K instance
-    onTamperDetected = { entitlementKey, event -&gt;
-        when (event) {
-            TamperEvent.MissingSignature -&gt; logger.info("First read for $entitlementKey")
-            TamperEvent.InvalidSignature -&gt; logger.warn("Possible tampering on $entitlementKey")
-            is TamperEvent.UnsupportedVersion -&gt;
-                logger.warn("Unknown sig version ${event.version} on $entitlementKey")
-        }
-    },
-)
-val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productKeySelector)
-```</p>
+<div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.entitlement.signed.*</span>
+
+<span class="kd">val</span><span class="w"> </span><span class="nv">storage</span><span class="p">:</span><span class="w"> </span><span class="n">EntitlementStorage</span><span class="o">&lt;</span><span class="n">GameEntitlement</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SignedEntitlementStorage</span><span class="p">(</span>
+<span class="w">    </span><span class="n">delegate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MyDataStoreEntitlementStorage</span><span class="p">(</span><span class="n">context</span><span class="p">),</span>
+<span class="w">    </span><span class="n">keyProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">KeystoreBackedKeyProvider</span><span class="p">.</span><span class="na">create</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">signatureStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SharedPreferencesSignatureStore</span><span class="p">(</span><span class="n">context</span><span class="p">),</span>
+<span class="w">    </span><span class="n">keyToStorageId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">name</span><span class="w"> </span><span class="p">},</span><span class="w">   </span><span class="c1">// stable string per K instance</span>
+<span class="w">    </span><span class="n">onTamperDetected</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">entitlementKey</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">        </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">TamperEvent</span><span class="p">.</span><span class="na">MissingSignature</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">logger</span><span class="p">.</span><span class="na">info</span><span class="p">(</span><span class="s">"First read for </span><span class="si">$</span><span class="n">entitlementKey</span><span class="s">"</span><span class="p">)</span>
+<span class="w">            </span><span class="n">TamperEvent</span><span class="p">.</span><span class="na">InvalidSignature</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">logger</span><span class="p">.</span><span class="na">warn</span><span class="p">(</span><span class="s">"Possible tampering on </span><span class="si">$</span><span class="n">entitlementKey</span><span class="s">"</span><span class="p">)</span>
+<span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">TamperEvent</span><span class="p">.</span><span class="na">UnsupportedVersion</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">                </span><span class="n">logger</span><span class="p">.</span><span class="na">warn</span><span class="p">(</span><span class="s">"Unknown sig version </span><span class="si">${</span><span class="n">event</span><span class="p">.</span><span class="na">version</span><span class="si">}</span><span class="s"> on </span><span class="si">$</span><span class="n">entitlementKey</span><span class="s">"</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="p">)</span>
+<span class="kd">val</span><span class="w"> </span><span class="nv">cache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EntitlementCache</span><span class="p">(</span><span class="n">purchasesUpdates</span><span class="p">,</span><span class="w"> </span><span class="n">storage</span><span class="p">,</span><span class="w"> </span><span class="n">gracePolicy</span><span class="p">,</span><span class="w"> </span><span class="n">productKeySelector</span><span class="p">)</span>
+</code></pre></div>
 <p><code>SignedEntitlementStorage</code> keeps the library neutral on the persistence backend — the underlying <code>EntitlementStorage</code> still owns the snapshot bytes, the signature blobs (one per entitlement key) live separately in <code>SignatureStore</code>. Pick <code>KeystoreBackedKeyProvider</code> (the recommended default; uses Android Keystore HMAC keys, hardware-backed where available) or <code>ServerSeededKeyProvider</code> (per-install seed from your backend, cached locally — see its KDoc for the plaintext-cache caveat). The library can't enforce key non-extractability and isn't a replacement for server-side validation; both caveats are documented on the relevant types.</p>
 <p><code>onTamperDetected</code> receives the entitlement key (as serialized via <code>keyToStorageId</code>) along with the typed <code>TamperEvent</code>. A tamper on one key doesn't affect the others — verified snapshots for the unaffected keys still flow through. The most common event in practice is <code>MissingSignature</code> — fired the first time the decorator reads a snapshot that was written by a release without <code>SignedEntitlementStorage</code>. Treat it differently from <code>InvalidSignature</code> in your telemetry; the latter is the strong tamper indicator.</p>
 <h3 id="migrating-an-existing-unsigned-snapshot">Migrating an existing unsigned snapshot<a class="headerlink" href="#migrating-an-existing-unsigned-snapshot" title="Permanent link">&para;</a></h3>
 <p>By default, the first read after wrapping an existing unsigned snapshot fires <code>TamperEvent.MissingSignature</code> and omits that key from the verified map — a one-time cold-start for that entitlement. The next <code>OwnedPurchases.Live</code> or <code>OwnedPurchases.Recovered</code> confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.</p>
 <p>If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call <code>SignedEntitlementStorage.migrateUnsignedSnapshot</code> once per entitlement on first launch after upgrade, guarded by your own marker:</p>
-<p>```kotlin
-suspend fun bootstrapEntitlementStorage(context: Context): EntitlementStorage<GameEntitlement> {
-    val rawStorage = MyDataStoreEntitlementStorage(context)
-    val keyProvider = KeystoreBackedKeyProvider.create()
-    val sigStore = SharedPreferencesSignatureStore(context)</p>
-<pre><code>if (!prefs.getBoolean("entitlement_signed_migrated", false)) {
-    for (entitlement in GameEntitlement.values()) {
-        SignedEntitlementStorage.migrateUnsignedSnapshot(
-            entitlementKey = entitlement.name,
-            entitlementCacheKey = entitlement,
-            delegate = rawStorage,
-            keyProvider = keyProvider,
-            signatureStore = sigStore,
-        )
-    }
-    prefs.edit().putBoolean("entitlement_signed_migrated", true).apply()
-}
-return SignedEntitlementStorage(
-    delegate = rawStorage,
-    keyProvider = keyProvider,
-    signatureStore = sigStore,
-    keyToStorageId = { it.name },
-    onTamperDetected = { _, _ -&gt; },
-)
-</code></pre>
-<p>}
-```</p>
+<div class="highlight"><pre><span></span><code><span class="kd">suspend</span><span class="w"> </span><span class="kd">fun</span><span class="w"> </span><span class="nf">bootstrapEntitlementStorage</span><span class="p">(</span><span class="n">context</span><span class="p">:</span><span class="w"> </span><span class="n">Context</span><span class="p">):</span><span class="w"> </span><span class="n">EntitlementStorage</span><span class="o">&lt;</span><span class="n">GameEntitlement</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">rawStorage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MyDataStoreEntitlementStorage</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">keyProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">KeystoreBackedKeyProvider</span><span class="p">.</span><span class="na">create</span><span class="p">()</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">sigStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SharedPreferencesSignatureStore</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">prefs</span><span class="p">.</span><span class="na">getBoolean</span><span class="p">(</span><span class="s">"entitlement_signed_migrated"</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">entitlement</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">GameEntitlement</span><span class="p">.</span><span class="na">values</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">SignedEntitlementStorage</span><span class="p">.</span><span class="na">migrateUnsignedSnapshot</span><span class="p">(</span>
+<span class="w">                </span><span class="n">entitlementKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">entitlement</span><span class="p">.</span><span class="na">name</span><span class="p">,</span>
+<span class="w">                </span><span class="n">entitlementCacheKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">entitlement</span><span class="p">,</span>
+<span class="w">                </span><span class="n">delegate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rawStorage</span><span class="p">,</span>
+<span class="w">                </span><span class="n">keyProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">keyProvider</span><span class="p">,</span>
+<span class="w">                </span><span class="n">signatureStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sigStore</span><span class="p">,</span>
+<span class="w">            </span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">prefs</span><span class="p">.</span><span class="na">edit</span><span class="p">().</span><span class="na">putBoolean</span><span class="p">(</span><span class="s">"entitlement_signed_migrated"</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">).</span><span class="na">apply</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">SignedEntitlementStorage</span><span class="p">(</span>
+<span class="w">        </span><span class="n">delegate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rawStorage</span><span class="p">,</span>
+<span class="w">        </span><span class="n">keyProvider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">keyProvider</span><span class="p">,</span>
+<span class="w">        </span><span class="n">signatureStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sigStore</span><span class="p">,</span>
+<span class="w">        </span><span class="n">keyToStorageId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">name</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="n">onTamperDetected</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Tradeoff: the helper trusts the existing snapshot once. If pre-upgrade tampering is in your threat model, skip the helper and accept the cold-start. The helper itself can't be made into a permanent decorator mode without leaving a "delete the sig file to re-trigger migration" backdoor — that's why it's a static one-shot guarded by consumer-side state.</p>
 <h2 id="wiring-the-connection">Wiring the connection<a class="headerlink" href="#wiring-the-connection" title="Permanent link">&para;</a></h2>
 <p><code>EntitlementCache</code> consumes <code>observePurchaseUpdates()</code>, which on its own does not hold the underlying Play Billing connection open. Pair the cache with <code>BillingConnectionLifecycleManager</code> (or your own <code>connectToBilling()</code> collector) so the connection stays warm and the recovery sweep on connect can fire — that sweep is what produces the <code>OwnedPurchases.Recovered</code> events the cache uses to confirm entitlement after process restarts. See <a href="../lifecycle/">Lifecycle integration</a>.</p>

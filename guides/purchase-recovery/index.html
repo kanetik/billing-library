@@ -1274,67 +1274,67 @@
 <p>The recovery channel uses <code>replay = 1</code> internally, so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases. That's important: in many apps the collector is in a ViewModel that races the connection coming up.</p>
 <h2 id="handling-recovered-events">Handling <code>Recovered</code> events<a class="headerlink" href="#handling-recovered-events" title="Permanent link">&para;</a></h2>
 <p>Same code path as <code>Live</code>. Hand each purchase to <code>handlePurchase</code>, the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.</p>
-<p><code>kotlin
-is OwnedPurchases.Recovered -&gt; event.purchases.forEach { purchase -&gt;
-    when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
-        HandlePurchaseResult.Success -&gt; grantEntitlement(purchase)  // recovery is the whole point — actually grant
-        HandlePurchaseResult.AlreadyAcknowledged -&gt; {
-            // Not reachable from a Recovered snapshot in practice — the sweep
-            // pre-filters PURCHASED &amp;&amp; !isAcknowledged, so the local
-            // isAcknowledged flag is false and handlePurchase doesn't
-            // short-circuit. Listed for exhaustiveness; the arm fires from
-            // a manual queryPurchases reconciliation where you have a fresh
-            // Purchase with isAcknowledged=true.
-            grantEntitlement(purchase)
-        }
-        is HandlePurchaseResult.Failure -&gt; {
-            // Surface the error if you want, but DO NOT grant entitlement.
-            // The library doesn't mark the token as acknowledged on Failure,
-            // so the next sweep will surface this purchase again for retry.
-        }
-        HandlePurchaseResult.NotPurchased -&gt; {}
-        HandlePurchaseResult.NotOwned -&gt; {
-            // Play says this purchase isn't owned anymore (refunded, revoked,
-            // already consumed). Don't grant; defer to grace/revoke logic.
-        }
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">purchase</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">    </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// or true for consumables</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span><span class="w">  </span><span class="c1">// recovery is the whole point — actually grant</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// Not reachable from a Recovered snapshot in practice — the sweep</span>
+<span class="w">            </span><span class="c1">// pre-filters PURCHASED &amp;&amp; !isAcknowledged, so the local</span>
+<span class="w">            </span><span class="c1">// isAcknowledged flag is false and handlePurchase doesn't</span>
+<span class="w">            </span><span class="c1">// short-circuit. Listed for exhaustiveness; the arm fires from</span>
+<span class="w">            </span><span class="c1">// a manual queryPurchases reconciliation where you have a fresh</span>
+<span class="w">            </span><span class="c1">// Purchase with isAcknowledged=true.</span>
+<span class="w">            </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// Surface the error if you want, but DO NOT grant entitlement.</span>
+<span class="w">            </span><span class="c1">// The library doesn't mark the token as acknowledged on Failure,</span>
+<span class="w">            </span><span class="c1">// so the next sweep will surface this purchase again for retry.</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// Play says this purchase isn't owned anymore (refunded, revoked,</span>
+<span class="w">            </span><span class="c1">// already consumed). Don't grant; defer to grace/revoke logic.</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>You don't need a consumer-side dedupe <code>Set&lt;String&gt;</code>. Earlier versions of the library required one because <code>replay = 1</code> would re-deliver the cached snapshot to a re-attached collector even after the consumer had already acknowledged the purchase. The library now tracks acknowledged tokens internally (in <code>BillingClientStorage.acknowledgedTokens</code>) and filters the cached snapshot against that set at delivery time, so re-attached subscribers don't see already-handled recovered purchases.</p>
 <p>You should still treat the <code>Recovered</code> branch idempotently if you fire other one-shot UX off it (badge animations, analytics events, etc.). The library's dedupe is about not re-handling the <em>purchase</em>, not about coalescing your side-effects.</p>
 <h2 id="live-vs-recovered-when-the-ux-should-differ">Live vs. Recovered: when the UX should differ<a class="headerlink" href="#live-vs-recovered-when-the-ux-should-differ" title="Permanent link">&para;</a></h2>
 <p><code>Live</code> and <code>Recovered</code> are separate variants so you can branch your UX. Don't show "thanks for your purchase!" on a sweep that ran when the user opened the app. The handle/grant code is identical for one-time products; only the surrounding UX differs.</p>
-<p><code>kotlin
-billing.observePurchaseUpdates().collect { event -&gt;
-    when (event) {
-        is OwnedPurchases.Live -&gt; {
-            event.purchases.forEach { handle(it) }
-            fireConfetti() // user-initiated; celebrate
-        }
-        is OwnedPurchases.Recovered -&gt; {
-            // Same handle() call as Live — but no confetti. Background
-            // recovery, not a fresh purchase.
-            event.purchases.forEach { handle(it) }
-        }
-        is FlowOutcome -&gt; { /* sub-when on Pending / Canceled / etc. */ }
-    }
-}</code></p>
+<div class="highlight"><pre><span></span><code><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">().</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
+<span class="w">    </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Live</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">handle</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">            </span><span class="n">fireConfetti</span><span class="p">()</span><span class="w"> </span><span class="c1">// user-initiated; celebrate</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// Same handle() call as Live — but no confetti. Background</span>
+<span class="w">            </span><span class="c1">// recovery, not a fresh purchase.</span>
+<span class="w">            </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">handle</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">FlowOutcome</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* sub-when on Pending / Canceled / etc. */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="subscription-replacements-need-extra-care-until-v020">Subscription replacements need extra care (until v0.2.0)<a class="headerlink" href="#subscription-replacements-need-extra-care-until-v020" title="Permanent link">&para;</a></h2>
 <p>Subscription upgrade/downgrade/crossgrade purchases carry a non-null <code>linkedPurchaseToken</code> pointing at the prior subscription. If you treat one as a fresh grant rather than a replacement, you've double-granted entitlement on the plan change. The new purchase shows up in <code>OwnedPurchases.Live</code> (or <code>Recovered</code> if recovered after a crash) and looks identical to a brand-new buy.</p>
 <p>PBL's <code>Purchase</code> API doesn't expose a getter for <code>linkedPurchaseToken</code> (<code>AccountIdentifiers</code> only carries <code>obfuscatedAccountId</code> / <code>obfuscatedProfileId</code>); the field is only present in <code>purchase.originalJson</code>. Until v0.2.0 ships the typed <code>OwnedPurchases.SubscriptionReplacement</code> variant (see the <a href="../../roadmap/">Roadmap</a>), consumers using subscriptions need to parse it themselves:</p>
-<p><code>kotlin
-fun Purchase.linkedPurchaseToken(): String? = try {
-    org.json.JSONObject(originalJson)
-        .optString("linkedPurchaseToken")
-        .takeIf { it.isNotEmpty() }
-} catch (e: org.json.JSONException) { null }</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">fun</span><span class="w"> </span><span class="n">Purchase</span><span class="p">.</span><span class="nf">linkedPurchaseToken</span><span class="p">():</span><span class="w"> </span><span class="kt">String?</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">org</span><span class="p">.</span><span class="na">json</span><span class="p">.</span><span class="na">JSONObject</span><span class="p">(</span><span class="n">originalJson</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">optString</span><span class="p">(</span><span class="s">"linkedPurchaseToken"</span><span class="p">)</span>
+<span class="w">        </span><span class="p">.</span><span class="na">takeIf</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">it</span><span class="p">.</span><span class="na">isNotEmpty</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="p">:</span><span class="w"> </span><span class="n">org</span><span class="p">.</span><span class="na">json</span><span class="p">.</span><span class="na">JSONException</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
 <p>A non-null result is a plan change: invalidate the old token's grant and grant against the new one. IAP-only apps are unaffected; one-time products never carry a <code>linkedPurchaseToken</code>.</p>
 <h2 id="opting-out">Opting out<a class="headerlink" href="#opting-out" title="Permanent link">&para;</a></h2>
 <p>If you run a server-side reconciliation queue and you'd rather have it own this concern:</p>
-<p><code>kotlin
-val billing = BillingRepositoryCreator.create(
-    context = applicationContext,
-    recoverPurchasesOnConnect = false
-)</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">val</span><span class="w"> </span><span class="nv">billing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BillingRepositoryCreator</span><span class="p">.</span><span class="na">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">context</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">applicationContext</span><span class="p">,</span>
+<span class="w">    </span><span class="n">recoverPurchasesOnConnect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+<span class="p">)</span>
+</code></pre></div>
 <p>The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.</p>
 
 
