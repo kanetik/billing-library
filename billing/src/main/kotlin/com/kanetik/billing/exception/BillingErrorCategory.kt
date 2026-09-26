@@ -38,9 +38,8 @@ public enum class BillingErrorCategory {
      * feature the call requested. Includes:
      *  - [BillingException.BillingUnavailableException] — billing itself
      *    isn't usable for this call (see its own KDoc for the documented
-     *    causes: outdated Play Store, unsupported country, admin-disabled
-     *    purchases, an unchargeable payment method, or an OEM-blocked Play
-     *    Store).
+     *    causes: declined payment, outdated Play Store, unsupported
+     *    country, admin-disabled purchases, or an OEM-blocked Play Store).
      *  - [BillingException.FeatureNotSupportedException] — the specific
      *    feature isn't supported on this Play Store install (older Play
      *    versions, regional rollout limitations, device capability gaps —
