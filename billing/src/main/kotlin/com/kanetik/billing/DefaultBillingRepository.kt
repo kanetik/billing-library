@@ -460,7 +460,8 @@ internal class DefaultBillingRepository(
                         logger.d("attempt $attemptCount failed")
 
                         retryType = BillingException.fromResult(billingResult).retryType
-                        prerequisiteSuccessful = handleRetryPrerequisite(retryType, exponentialDelay, dispatcher)
+                        prerequisiteSuccessful = attemptCount < maxAttempts &&
+                            handleRetryPrerequisite(retryType, exponentialDelay, dispatcher)
                         if (retryType == RetryType.EXPONENTIAL_RETRY) {
                             exponentialDelay *= EXPONENTIAL_RETRY_FACTOR
                         }
