@@ -102,7 +102,8 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                     is OwnedPurchases -> event.purchases.forEach { handlePurchaseAndLog(it) }
                     is FlowOutcome -> {
                         // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
-                        // UnknownResponse — sample just logs the variant name above.
+                        // UserBillingError / UnknownResponse — sample just logs the
+                        // variant name above.
                         // Real apps should branch per sub-variant. Critically: do NOT
                         // write event.purchases to an entitlement cache from this branch
                         // — see PurchaseEvent KDoc. The library tracks acknowledged

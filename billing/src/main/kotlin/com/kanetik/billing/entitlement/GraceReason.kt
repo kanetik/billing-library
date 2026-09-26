@@ -8,10 +8,11 @@ package com.kanetik.billing.entitlement
  *
  *  - [BillingUnavailable] — the [com.kanetik.billing.exception.BillingErrorCategory.BillingUnavailable]
  *    bucket, which in practice here means `FeatureNotSupportedException`:
- *    mid-flow, PBL's `BILLING_UNAVAILABLE` response code (Play Services
- *    missing, account ineligible, region restriction) is classified as a
- *    declined payment ([com.kanetik.billing.FlowOutcome.PaymentDeclined])
- *    rather than `Failure`, so it never reaches [GraceReason]. These outages
+ *    mid-flow, PBL's `BILLING_UNAVAILABLE` response code (declined payment,
+ *    outdated Play Store, unsupported country, admin-disabled purchases,
+ *    OEM-blocked Play Store) is classified as a user-facing billing error
+ *    ([com.kanetik.billing.FlowOutcome.UserBillingError]) rather than
+ *    `Failure`, so it never reaches [GraceReason]. These outages
  *    are typically longer-lived than transient network blips, so
  *    [GracePolicy] exposes them as a separate knob — apps may want a longer
  *    grace window before yanking a paid entitlement for "this Play Store

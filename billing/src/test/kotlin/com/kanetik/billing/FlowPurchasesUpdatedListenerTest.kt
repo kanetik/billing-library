@@ -138,19 +138,19 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `BILLING_UNAVAILABLE from a purchase flow emits FlowOutcome PaymentDeclined, not Failure`() {
+    fun `BILLING_UNAVAILABLE from a purchase flow emits FlowOutcome UserBillingError, not Failure`() {
         val (sink, listener) = newListener()
         val r = result(BillingResponseCode.BILLING_UNAVAILABLE)
 
         listener.onPurchasesUpdated(r, emptyList())
 
         val event = sink.replayCache.single()
-        assertThat(event).isInstanceOf(FlowOutcome.PaymentDeclined::class.java)
-        assertThat((event as FlowOutcome.PaymentDeclined).result).isSameInstanceAs(r)
+        assertThat(event).isInstanceOf(FlowOutcome.UserBillingError::class.java)
+        assertThat((event as FlowOutcome.UserBillingError).result).isSameInstanceAs(r)
     }
 
     @Test
-    fun `BILLING_UNAVAILABLE carries the insufficient-funds sub-response code on PaymentDeclined`() {
+    fun `BILLING_UNAVAILABLE carries the insufficient-funds sub-response code on UserBillingError`() {
         val (sink, listener) = newListener()
         val r = result(
             BillingResponseCode.BILLING_UNAVAILABLE,
@@ -159,7 +159,7 @@ class FlowPurchasesUpdatedListenerTest {
 
         listener.onPurchasesUpdated(r, emptyList())
 
-        val event = sink.replayCache.single() as FlowOutcome.PaymentDeclined
+        val event = sink.replayCache.single() as FlowOutcome.UserBillingError
         assertThat(event.result.onPurchasesUpdatedSubResponseCode)
             .isEqualTo(OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS)
     }

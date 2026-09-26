@@ -19,9 +19,15 @@ import com.kanetik.billing.exception.BillingException
  * Suspend-style operations against Google Play Billing.
  *
  * Every method waits for the underlying [com.android.billingclient.api.BillingClient]
- * connection (see [BillingConnector]), runs with internal retry / backoff for transient
- * failures, and surfaces hard failures as a typed [BillingException] subtype so
- * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
+ * connection (see [BillingConnector]). Most surface a hard failure as a typed
+ * [BillingException] subtype so consumers can branch by
+ * [com.kanetik.billing.RetryType] without parsing strings — the exception is
+ * `isBillingChoiceAvailable`, which reports a non-OK response as
+ * `BillingChoiceAvailability.Unavailable` rather than throwing. Most methods
+ * also retry transient failures internally before throwing; [launchFlow],
+ * [showInAppMessages], `getBillingChoiceInfo`, and
+ * `showBillingProgramInformationDialog` make a single attempt with no retry
+ * loop instead.
  *
  * ## Wrapping suspend members for resilience
  *
@@ -368,7 +374,7 @@ public interface BillingActions {
      *  - [FlowOutcome.Canceled][com.kanetik.billing.FlowOutcome.Canceled]
      *  - [FlowOutcome.ItemAlreadyOwned][com.kanetik.billing.FlowOutcome.ItemAlreadyOwned]
      *  - [FlowOutcome.ItemUnavailable][com.kanetik.billing.FlowOutcome.ItemUnavailable]
-     *  - [FlowOutcome.PaymentDeclined][com.kanetik.billing.FlowOutcome.PaymentDeclined]
+     *  - [FlowOutcome.UserBillingError][com.kanetik.billing.FlowOutcome.UserBillingError]
      *  - [FlowOutcome.Failure][com.kanetik.billing.FlowOutcome.Failure]
      *  - [FlowOutcome.UnknownResponse][com.kanetik.billing.FlowOutcome.UnknownResponse]
      *
