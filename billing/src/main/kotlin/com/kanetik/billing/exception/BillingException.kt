@@ -33,12 +33,14 @@ import com.kanetik.billing.RetryType
  *
  * Most methods apply [retryType] internally inside a retry loop before
  * throwing; [com.kanetik.billing.BillingActions.launchFlow],
- * [com.kanetik.billing.BillingActions.showInAppMessages], and the Billing
- * Choice methods throw on the first non-OK response instead — see
- * [com.kanetik.billing.BillingActions]'s class-level KDoc. The exception
- * carried by a purchase flow's `FlowOutcome.Failure` is thrown on the first
- * attempt too — nothing retries a purchase-flow attempt today — so
- * [retryType] there is informational only.
+ * [com.kanetik.billing.BillingActions.showInAppMessages],
+ * `getBillingChoiceInfo`, and `showBillingProgramInformationDialog` throw on
+ * the first non-OK response instead — see
+ * [com.kanetik.billing.BillingActions]'s class-level KDoc. `isBillingChoiceAvailable`
+ * never throws; it reports a non-OK response as `BillingChoiceAvailability.Unavailable`.
+ * The exception carried by a purchase flow's `FlowOutcome.Failure` is thrown
+ * on the first attempt too — nothing retries a purchase-flow attempt today —
+ * so [retryType] there is informational only.
  *
  * ## ⚠️ Never display [message] to end users
  *
