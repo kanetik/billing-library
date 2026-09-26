@@ -295,13 +295,19 @@ public sealed class FlowOutcome : PurchaseEvent {
     public data class Pending(
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is Pending && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /** User dismissed the purchase flow. `purchases` is typically empty. */
     public data class Canceled(
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is Canceled && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * Non-consumable already owned. Treat as already-granted: restore
@@ -311,7 +317,10 @@ public sealed class FlowOutcome : PurchaseEvent {
     public data class ItemAlreadyOwned(
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is ItemAlreadyOwned && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * Product not available for this user (region, country, configuration).
@@ -320,12 +329,18 @@ public sealed class FlowOutcome : PurchaseEvent {
     public data class ItemUnavailable(
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is ItemUnavailable && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     public data class PaymentDeclined(
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is PaymentDeclined && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * A purchase-flow callback that surfaced a typed [BillingException] subtype
@@ -348,7 +363,11 @@ public sealed class FlowOutcome : PurchaseEvent {
         public val exception: BillingException,
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean =
+            other is Failure && exception == other.exception && purchases == other.purchases
+        override fun hashCode(): Int = 31 * exception.hashCode() + purchases.hashCode()
+    }
 
     /**
      * Any response code outside the documented set above. Raw integer code
@@ -358,7 +377,11 @@ public sealed class FlowOutcome : PurchaseEvent {
         val code: Int,
         override val purchases: List<Purchase>,
         override val result: BillingResult,
-    ) : FlowOutcome()
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean =
+            other is UnknownResponse && code == other.code && purchases == other.purchases
+        override fun hashCode(): Int = 31 * code + purchases.hashCode()
+    }
 }
 
 /**
