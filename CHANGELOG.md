@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`isFeatureSupported` now throws for any non-OK response other than `FEATURE_NOT_SUPPORTED`, instead of returning `false`.** The four transient codes (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, `ERROR`, `NETWORK_ERROR`) get `INTERACTIVE` retries first; every other non-OK code — `BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `USER_CANCELED`, the `ITEM_*` codes, and any unrecognized code — now throws its typed `BillingException` on the first attempt rather than returning `false`. `false` is reserved for a real `FEATURE_NOT_SUPPORTED`. Callers that treated the old `false` as a catch-all "not supported for any reason" need to add exception handling. (#62)
 - **`ProductDetails.toOneTimeFlowParams` now returns `BillingFlowParams?`.**
   Previously it always returned a non-null `BillingFlowParams`, even when no
   offer token could be resolved (an absent or empty
@@ -65,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
 - `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
+- `isFeatureSupported` now retries transient `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `ERROR` / `NETWORK_ERROR` responses via the `INTERACTIVE` retry profile, instead of returning `false` on the first failure. See **Breaking** above for the return-value change. (#62)
 
 ## [0.1.5] - 2026-06-26
 

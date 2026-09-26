@@ -123,8 +123,11 @@ internal class DefaultBillingRepository(
 
     @AnyThread
     override suspend fun isFeatureSupported(@FeatureType feature: String): Boolean {
-        return connectToClientAndCall {
-            getResultStatus(it.isFeatureSupported(feature).responseCode) == ResultStatus.SUCCESS
+        return try {
+            executeBillingOperation(RetryProfile.INTERACTIVE, { client -> client.isFeatureSupported(feature) })
+            true
+        } catch (e: BillingException.FeatureNotSupportedException) {
+            false
         }
     }
 
@@ -491,19 +494,6 @@ internal class DefaultBillingRepository(
                     .setDebugMessage("Unhandled billing result type: $typeName")
                     .build()
             }
-        }
-    }
-
-    private fun getResultStatus(responseCode: Int): ResultStatus {
-        return when (responseCode) {
-            BillingResponseCode.OK ->
-                ResultStatus.SUCCESS
-
-            BillingResponseCode.USER_CANCELED ->
-                ResultStatus.CANCELED
-
-            else ->
-                ResultStatus.ERROR
         }
     }
 
