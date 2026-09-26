@@ -168,7 +168,7 @@ These need Robolectric (or instrumented tests) and are better served once that a
 
 - `PurchaseVerifier` — uses `android.util.Base64`, requires Robolectric for JVM unit tests.
 - `ProductDetails.toOneTimeFlowParams` — PBL's `BillingFlowParams.ProductDetailsParams.build()` does strict internal validation that conflicts with partial mockk-relaxed `ProductDetails`; selector logic is small + covered by `:sample` integration use until the artifact lands.
-- `DefaultBillingRepository` orchestration tests — retry loop, `connectToClientAndCall` `withTimeout` behavior, `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping. Mocking the billing-ktx suspend extensions (`client.queryPurchasesAsync(...)` etc.) via `mockkStatic` is brittle against PBL version bumps. The orchestration is small (~30 lines) and every piece it orchestrates is independently tested in v0.1.0 (exception mapping, listener partition, lifecycle, ext helpers). Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.
+- `DefaultBillingRepository` orchestration tests — `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping. Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.
 - `showInAppMessages` — `InAppMessageResult` is final + has no easily-buildable test fixture. Cover via `:sample` integration use until the artifact arrives.
 
 ## Trademark / license guardrails

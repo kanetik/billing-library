@@ -143,7 +143,7 @@ New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:
 - Robolectric included → unblocks the five classes deferred from v0.1.x's test suite:
   - `PurchaseVerifier` (needs `android.util.Base64`)
   - `ProductDetails.toOneTimeFlowParams` (needs real PBL `BillingFlowParams.Builder` to satisfy validation)
-  - `DefaultBillingRepository` orchestration (retry loop, `withTimeout`, `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)
+  - `DefaultBillingRepository` orchestration (`launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping — needs Robolectric's looper for proper dispatcher behavior + the real PBL classes)
   - `showInAppMessages` (needs the real `InAppMessageResult` shape)
   - Billing Choice wrappers + result mapping (`isBillingChoiceAvailable` / `getBillingChoiceInfo` / `showBillingProgramInformationDialog` and the `mapChoiceScreenType` / `mapBillingChoiceDetails` / `mapBillingChoiceAvailability` helpers — same PBL-callback-over-a-fake-`BillingClient` need as `showInAppMessages`; added experimental in v0.1.x) — [#42](https://github.com/kanetik/billing-library/issues/42)
 - Unit tests covering every state transition the fake claims to support
