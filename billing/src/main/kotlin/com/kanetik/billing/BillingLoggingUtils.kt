@@ -3,6 +3,7 @@ package com.kanetik.billing
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingClient.OnPurchasesUpdatedSubResponseCode
 import com.android.billingclient.api.BillingResult
+import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 
 /**
@@ -48,7 +49,7 @@ internal object BillingLoggingUtils {
     }
 
     /**
-     * Logs billing failures with enhanced context (sub-response codes etc.) at warn level.
+     * Logs billing failures with enhanced context (sub-response codes etc.).
      */
     fun logBillingFailure(
         logger: BillingLogger,
@@ -71,7 +72,12 @@ internal object BillingLoggingUtils {
             }
         }
 
-        logger.w("Billing failure - $fullContextBuilder")
+        val message = "Billing failure - $fullContextBuilder"
+        when (BillingException.fromResult(billingResult)) {
+            is BillingException.UserCanceledException -> logger.d(message)
+            is BillingException.DeveloperErrorException -> logger.e(message)
+            else -> logger.w(message)
+        }
     }
 
     /**

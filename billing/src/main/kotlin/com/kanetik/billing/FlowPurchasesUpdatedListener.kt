@@ -15,6 +15,10 @@ internal class FlowPurchasesUpdatedListener(
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
         val safePurchases = purchases.orEmpty()
+        logger.d(
+            "onPurchasesUpdated: " +
+                BillingLoggingUtils.createDetailedBillingContext(result, operationContext = "onPurchasesUpdated")
+        )
         val updates = computeUpdates(result, safePurchases)
         for (update in updates) {
             val emitted = updateSubject.tryEmit(update)
@@ -48,20 +52,13 @@ internal class FlowPurchasesUpdatedListener(
                 val (pending, settled) = purchases.partition {
                     it.purchaseState == Purchase.PurchaseState.PENDING
                 }
-                if (settled.isEmpty() && pending.isEmpty()) {
-                    // PBL fired the listener with literally nothing (settled + pending
-                    // both empty). There's no actionable signal for the consumer —
-                    // an empty OwnedPurchases.Live used to be forwarded here and
-                    // silently wiped entitlement caches keyed off event.purchases,
-                    // so we drop the event at the source. Symmetric with
-                    // BillingClientStorage's empty-Recovered filter (same observable
-                    // contract; mechanism differs — Live is dropped at construction,
-                    // Recovered downstream of the sweep). Trace via logger so the
-                    // breadcrumb is preserved for diagnostics — issue #13 specifically
-                    // called for a library-internal log here rather than a consumer-
-                    // facing event.
-                    logger.d("PBL onPurchasesUpdated(OK) fired with no purchases — dropped (no actionable signal)")
-                }
+                // PBL sometimes fires the listener with settled + pending both empty.
+                // There's no actionable signal for the consumer — an empty
+                // OwnedPurchases.Live used to be forwarded here and silently wiped
+                // entitlement caches keyed off event.purchases, so we drop the event
+                // at the source. Symmetric with BillingClientStorage's empty-Recovered
+                // filter (same observable contract; mechanism differs — Live is
+                // dropped at construction, Recovered downstream of the sweep).
                 buildList {
                     if (settled.isNotEmpty()) {
                         add(OwnedPurchases.Live(settled))
@@ -74,13 +71,11 @@ internal class FlowPurchasesUpdatedListener(
             BillingResponseCode.USER_CANCELED -> listOf(FlowOutcome.Canceled(purchases, result))
             BillingResponseCode.ITEM_ALREADY_OWNED -> listOf(FlowOutcome.ItemAlreadyOwned(purchases, result))
             BillingResponseCode.ITEM_UNAVAILABLE -> listOf(FlowOutcome.ItemUnavailable(purchases, result))
-            BillingResponseCode.BILLING_UNAVAILABLE -> {
+            BillingResponseCode.BILLING_UNAVAILABLE ->
                 // Here (mid-flow) this code means a declined payment, not missing
                 // billing — kept out of Failure so it never carries
                 // BillingErrorCategory.BillingUnavailable.
-                BillingLoggingUtils.logBillingFlowFailure(logger, result)
                 listOf(FlowOutcome.PaymentDeclined(purchases, result))
-            }
             BillingResponseCode.NETWORK_ERROR,
             BillingResponseCode.SERVICE_DISCONNECTED,
             BillingResponseCode.SERVICE_UNAVAILABLE,

@@ -167,8 +167,10 @@ public class PurchaseFlowCoordinator(
             throw ce
         } catch (e: BillingException.BillingUnavailableException) {
             isPurchaseFlowInProgress.set(false)
-            logger.w("PurchaseFlow[$correlationId]: billing unavailable", e)
             PurchaseFlowResult.BillingUnavailable
+        } catch (e: BillingException) {
+            isPurchaseFlowInProgress.set(false)
+            PurchaseFlowResult.Error(e)
         } catch (t: Throwable) {
             isPurchaseFlowInProgress.set(false)
             logger.e("PurchaseFlow[$correlationId]: launch failed", t)

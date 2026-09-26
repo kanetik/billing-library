@@ -210,7 +210,7 @@ internal class DefaultBillingRepository(
         try {
             // Check that activity is still valid before launching billing flow
             if (activity.isFinishing || activity.isDestroyed) {
-                logger.w("Cannot launch billing flow - activity is no longer valid")
+                logger.e("Cannot launch billing flow - activity is no longer valid")
                 val billingResult = BillingResult.newBuilder()
                     .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
                     .setDebugMessage("Attempted to launch billing flow with an invalid activity")

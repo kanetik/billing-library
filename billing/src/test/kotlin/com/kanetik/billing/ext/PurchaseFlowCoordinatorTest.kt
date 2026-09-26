@@ -247,6 +247,78 @@ class PurchaseFlowCoordinatorTest {
     }
 
     @Test
+    fun `BillingUnavailableException is not logged by the coordinator`() = runTest {
+        // executeBillingOperation already logs the failure at the severity
+        // matching its classification — logging it again here would double-log
+        // the same outcome.
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val unavailableException = BillingException.BillingUnavailableException(
+            BillingResult.newBuilder()
+                .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.BILLING_UNAVAILABLE)
+                .build()
+        )
+        coEvery { billing.launchFlow(any(), any()) } throws unavailableException
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+        assertThat(result).isEqualTo(PurchaseFlowResult.BillingUnavailable)
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `a BillingException other than BillingUnavailable is not logged by the coordinator`() = runTest {
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val alreadyOwned = BillingException.ItemAlreadyOwnedException(
+            BillingResult.newBuilder()
+                .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED)
+                .build()
+        )
+        coEvery { billing.launchFlow(any(), any()) } throws alreadyOwned
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat((result as PurchaseFlowResult.Error).cause).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `a non-BillingException throwable is logged once at error with the throwable attached`() = runTest {
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val crash = IllegalStateException("unexpected")
+        coEvery { billing.launchFlow(any(), any()) } throws crash
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(captor.errors).hasSize(1)
+        val loggedThrowable = captor.errors.single().second
+        assertThat(loggedThrowable).isInstanceOf(IllegalStateException::class.java)
+        assertThat(loggedThrowable?.message).isEqualTo("unexpected")
+        assertThat(captor.warnings).isEmpty()
+    }
+
+    @Test
     fun `arbitrary throwable maps to Error result preserving the cause type and message`() = runTest {
         val billing = mockk<BillingRepository>()
         coEvery { billing.launchFlow(any(), any()) } throws IllegalStateException("simulated")
@@ -357,4 +429,19 @@ class PurchaseFlowCoordinatorTest {
     }
 
     abstract class ActivityLifecycle : Activity(), LifecycleOwner
+
+    private class CapturingLogger : BillingLogger {
+        val debugs = mutableListOf<Pair<String, Throwable?>>()
+        val warnings = mutableListOf<Pair<String, Throwable?>>()
+        val errors = mutableListOf<Pair<String, Throwable?>>()
+        override fun d(message: String, throwable: Throwable?) {
+            debugs += message to throwable
+        }
+        override fun w(message: String, throwable: Throwable?) {
+            warnings += message to throwable
+        }
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message to throwable
+        }
+    }
 }

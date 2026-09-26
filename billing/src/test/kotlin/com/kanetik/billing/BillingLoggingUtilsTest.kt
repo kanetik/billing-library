@@ -86,6 +86,40 @@ class BillingLoggingUtilsTest {
     }
 
     @Test
+    fun `logBillingFailure routes USER_CANCELED to logger d, not w`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.USER_CANCELED)
+        )
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.debugs).hasSize(1)
+        assertThat(captor.debugs.single().first).startsWith("Billing failure - ")
+    }
+
+    @Test
+    fun `logBillingFailure routes DEVELOPER_ERROR to logger e, not w`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.DEVELOPER_ERROR)
+        )
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).hasSize(1)
+    }
+
+    @Test
+    fun `logBillingFailure routes ITEM_ALREADY_OWNED to logger w without a throwable`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.ITEM_ALREADY_OWNED)
+        )
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.warnings.single().second).isNull()
+    }
+
+    @Test
     fun `logBillingFailure filters null additionalContext entries`() {
         val captor = CapturingLogger()
         BillingLoggingUtils.logBillingFailure(
