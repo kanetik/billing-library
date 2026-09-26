@@ -11,13 +11,10 @@ package com.kanetik.billing
  *    (e.g. service disconnected; PBL's auto-reconnect needs a moment).
  *  - [EXPONENTIAL_RETRY] — back off and try again; the error is recoverable but
  *    may need network or service recovery time.
- *  - [REQUERY_PURCHASE_RETRY] — re-query owned purchases before retrying. Used for
- *    `ITEM_ALREADY_OWNED` / `ITEM_NOT_OWNED` mismatches caused by stale local state.
  *  - [NONE] — error is terminal; do not retry.
  */
 public enum class RetryType {
     SIMPLE_RETRY,
     EXPONENTIAL_RETRY,
-    REQUERY_PURCHASE_RETRY,
     NONE
 }

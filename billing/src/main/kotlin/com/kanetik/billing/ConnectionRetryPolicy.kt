@@ -32,10 +32,8 @@ package com.kanetik.billing
  * [BillingActions] call; connection setup was simply the one path that had no
  * retry layer of its own. The default backoff values match that loop.
  *
- * Failures classified [RetryType.REQUERY_PURCHASE_RETRY] or [RetryType.NONE]
- * are terminal at the connection layer (requerying owned purchases is
- * meaningless before a connection exists), so they surface immediately
- * regardless of this policy.
+ * Failures classified [RetryType.NONE] are terminal at the connection layer,
+ * so they surface immediately regardless of this policy.
  *
  * @property maxAttempts Total number of connection attempts, including the
  *   first. Must be `>= 1`. A value of `1` disables internal retry — the
