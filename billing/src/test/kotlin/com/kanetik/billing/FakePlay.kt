@@ -126,7 +126,8 @@ internal class FakePlay {
 
 internal fun TestScope.storageOver(
     play: FakePlay,
-    policy: ConnectionRetryPolicy = ConnectionRetryPolicy()
+    policy: ConnectionRetryPolicy = ConnectionRetryPolicy(),
+    recoverPurchasesOnConnect: Boolean = false
 ): BillingClientStorage = BillingClientStorage(
     billingFactory = CoroutinesBillingConnectionFactory(
         context = mockk(relaxed = true),
@@ -137,7 +138,7 @@ internal fun TestScope.storageOver(
     logger = BillingLogger.Noop,
     connectionShareScope = backgroundScope,
     ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-    recoverPurchasesOnConnect = false
+    recoverPurchasesOnConnect = recoverPurchasesOnConnect
 )
 
 internal fun TestScope.repositoryOver(
