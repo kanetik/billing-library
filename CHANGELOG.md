@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result.
+- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result. Source-breaking for any exhaustive `when` over `BillingErrorCategory`; add a `NotOwned` arm. Callers with an `else` arm will now route `ITEM_NOT_OWNED` there instead of to `AlreadyOwned`.
 - **`RetryType.REQUERY_PURCHASE_RETRY` removed.** `ItemAlreadyOwnedException` and `ItemNotOwnedException` are now `RetryType.NONE` — the requery prerequisite behind them discarded its results and could recurse without a depth limit when `queryPurchasesAsync` itself returned one of these codes. Neither code can change on retry, so the retry loop now surfaces both immediately. Source-breaking for any exhaustive `when` over `RetryType`. Purchase-recovery for an already-owned item is tracked separately (#56).
 
 ### Fixed
