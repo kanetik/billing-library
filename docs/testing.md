@@ -131,7 +131,7 @@ The most useful Lab feature for library validation. Force any response code on a
 1. Dashboard → **Response simulator → Manage**.
 2. Add response codes you want simulated:
     - `USER_CANCELED` → exercises your `FlowOutcome.Canceled` branch.
-    - `BILLING_UNAVAILABLE` → triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`).
+    - `BILLING_UNAVAILABLE` → outside a purchase flow, triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`); simulated on the purchase flow itself, surfaces as `FlowOutcome.UserBillingError` instead.
     - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.NONE`) and your `FlowOutcome.ItemAlreadyOwned` branch.
     - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's retry loop (`RetryType.EXPONENTIAL_RETRY`).
     - `SERVICE_DISCONNECTED` → `BillingException.ServiceDisconnectedException` (`RetryType.SIMPLE_RETRY`).

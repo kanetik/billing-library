@@ -63,6 +63,7 @@ class CheckoutActivity : ComponentActivity() {
                     is FlowOutcome.Canceled -> {}
                     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
                     is FlowOutcome.ItemUnavailable -> showSoldOut()
+                    is FlowOutcome.UserBillingError -> showBillingIssue()
                     is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
                     is FlowOutcome.UnknownResponse -> reportFailure(event.code)
                     is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)

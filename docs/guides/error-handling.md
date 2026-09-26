@@ -44,7 +44,7 @@ try {
 | `UnknownException` | Response code PBL doesn't document — log it | `NONE` |
 | `WrappedException` | Non-PBL throwable wrapped by `handlePurchase` (NPE, `IllegalStateException` from a custom `BillingActions` impl, `AssertionError` from a fake, etc.) or surfaced while establishing the connection (e.g. a custom `BillingClientFactory` throwing). Distinct from `UnknownException`; carries `originalCause` for diagnostics. | `NONE` |
 
-`RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly: for most calls the library has already retried before throwing (see the exceptions listed above). The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
+`RetryType` is exposed on every exception via `e.retryType`, but you usually don't need to consult it directly: for most calls the library has already retried before throwing (see the exceptions listed above). The exception carried by a purchase flow's `FlowOutcome.Failure` is not retried either — nothing retries a purchase-flow attempt today — so `retryType` there is informational only. The hint is there for diagnostics and for callers wanting to render "we'll try again automatically" messaging on the early throw paths.
 
 ## Connection-setup retry
 

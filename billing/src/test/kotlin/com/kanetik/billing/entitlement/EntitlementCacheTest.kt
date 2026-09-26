@@ -9,6 +9,7 @@ import com.kanetik.billing.OwnedPurchases
 import com.kanetik.billing.PurchaseEvent
 import com.kanetik.billing.PurchaseRevoked
 import com.kanetik.billing.RevocationReason
+import com.kanetik.billing.billingResult
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.fakePurchase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -162,7 +163,7 @@ class EntitlementCacheTest {
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdTwo))))
         runCurrent()
 
-        updates.emit(FlowOutcome.Failure(billingUnavailableException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(billingUnavailableException(), emptyList(), billingResult(BillingResponseCode.BILLING_UNAVAILABLE)))
         runCurrent()
 
         for (key in listOf(TestKey.ONE, TestKey.TWO)) {
@@ -177,12 +178,25 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `UserBillingError leaves a Granted key untouched (unlike Failure with BillingUnavailable)`() = runTest {
+        val (cache, updates, _, _, job) = newCache()
+        updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
+        runCurrent()
+
+        updates.emit(FlowOutcome.UserBillingError(emptyList(), billingResult(BillingResponseCode.BILLING_UNAVAILABLE)))
+        runCurrent()
+
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        job.cancelAndJoin()
+    }
+
+    @Test
     fun `Failure with NetworkError transitions every Granted key to InGrace TransientFailure`() = runTest {
         val (cache, updates, _, clock, job) = newCache()
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
 
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
         runCurrent()
 
         val state = cache.state.value[TestKey.ONE]
@@ -200,12 +214,12 @@ class EntitlementCacheTest {
         val (cache, updates, _, _, job) = newCache(clock = mutableClock::value)
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
         runCurrent()
         val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
 
         mutableClock.advance(grace.expiresAtMs - mutableClock.value + 1L)
-        updates.emit(FlowOutcome.Pending(emptyList()))
+        updates.emit(FlowOutcome.Pending(emptyList(), billingResult(BillingResponseCode.OK)))
         runCurrent()
 
         assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Revoked)
@@ -222,7 +236,7 @@ class EntitlementCacheTest {
         )
         updates.emit(OwnedPurchases.Live(listOf(fakePurchase(productId = productIdOne))))
         runCurrent()
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
         runCurrent()
         val grace = cache.state.value[TestKey.ONE] as EntitlementState.InGrace
 
@@ -402,7 +416,7 @@ class EntitlementCacheTest {
     fun `Failure while no key is Granted is a no-op - no spurious InGrace`() = runTest {
         val (cache, updates, _, _, job) = newCache()
 
-        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList()))
+        updates.emit(FlowOutcome.Failure(networkErrorException(), emptyList(), billingResult(BillingResponseCode.NETWORK_ERROR)))
         runCurrent()
 
         assertThat(cache.state.value).isEmpty()
