@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
+### Fixed
+
+- `ProductDetails.toOneTimeFlowParams` no longer builds a `BillingFlowParams` with no offer token when `oneTimePurchaseOfferDetailsList` is null/empty or `offerSelector` returns null — it returns `null` instead of deferring the failure to a `DEVELOPER_ERROR` from `launchBillingFlow`.
+
+### Added
+
+- `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
+- `PurchaseFlowCoordinator.launch` accepts an `offerSelector` parameter (forwarded to `toOneTimeFlowParams`), defaulting to today's `firstOrNull()` behavior, so callers can pick among multiple offers.
+
 ## [0.1.5] - 2026-06-26
 
 ### Added
