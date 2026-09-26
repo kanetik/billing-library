@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
   ```
 
+- `GracePolicy`, `GraceReason`, and `EntitlementState.InGrace` are deprecated (`DeprecationLevel.WARNING`) rather than removed, for source compatibility. With `FlowOutcome.Failure` no longer applying grace, `EntitlementCache` never transitions any key into `InGrace`, so these types have no effect. `EntitlementCache`'s `gracePolicy` and `graceTickIntervalMs` constructor parameters are still accepted but are no longer used by the cache's periodic tick, which has been removed.
+
 ### Added
 
 - `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
@@ -79,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed two KDoc claims that a flow-outcome's `BillingException` had already been retried with backoff before reaching the consumer — nothing retries a purchase-flow attempt today (`BillingErrorCategory.Network` and `BillingException.NetworkErrorException`).
 - `GracePolicy.billingUnavailableMs` and `GraceReason.BillingUnavailable`'s KDoc named "Play Services missing, account ineligibility, region restrictions" as the trigger; those response codes are now diverted to `PaymentDeclined` and never reach grace, so `FeatureNotSupportedException` is the only one that does.
 - `FlowOutcome.Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `Failure` and `UnknownResponse` no longer factor the new `result: BillingResult` property into `equals`/`hashCode` — `BillingResult` has identity-based equality, so two field-identical events built from separately-constructed `BillingResult`s previously compared unequal. `Failure` still won't compare equal across separately-constructed `BillingException`s carrying the same subtype, unchanged from before this fix: `BillingException` itself keeps identity-based `equals` (see `BillingException`'s own KDoc), a pre-existing, deliberate design choice this PR doesn't revisit.
+- `EntitlementCache` no longer revokes long-held entitlements when a purchase-flow attempt fails. `FlowOutcome.Failure` used to be treated as evidence against every `Granted`/`InGrace` key, with grace anchored to the original (never-refreshed) `confirmedAtMs` — so a declined card or a transient network error on one purchase attempt could instantly revoke, and persist as revoked, a subscriber's unrelated month-old entitlement. `FlowOutcome.Failure` carries no product id, so the in-flight purchase's key can't be identified reliably; it is now a no-op for existing grants.
 
 ## [0.1.5] - 2026-06-26
 
