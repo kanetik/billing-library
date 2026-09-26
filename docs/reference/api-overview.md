@@ -31,5 +31,5 @@ Where each public type lives. IDE auto-import handles most of these, but here's 
 | `com.kanetik.billing.choice` *(experimental)* | `BillingChoiceActions`, `BillingChoiceAvailability`, `BillingChoiceDetails`, `ChoiceScreenType`, `ExperimentalBillingChoiceApi` |
 | `com.kanetik.billing.ext` | `validatePurchaseActivity`, `ProductDetails.toOneTimeFlowParams`, `PurchaseFlowCoordinator`, `PurchaseFlowResult` |
 | `com.kanetik.billing.security` | `PurchaseVerifier` |
-| `com.kanetik.billing.entitlement` | `EntitlementCache`, `EntitlementState`, `GracePolicy`, `GraceReason`, `EntitlementSnapshot`, `EntitlementStorage` |
+| `com.kanetik.billing.entitlement` | `EntitlementCache`, `EntitlementState`, `EntitlementSnapshot`, `EntitlementStorage` |
 | `com.kanetik.billing.entitlement.signed` | `SignedEntitlementStorage`, `KeystoreBackedKeyProvider`, `ServerSeededKeyProvider`, `SharedPreferencesSignatureStore`, `TamperEvent` |

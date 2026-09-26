@@ -42,9 +42,7 @@ package com.kanetik.billing.entitlement
  *  - [write] is called on every entitlement-affecting transition. Each call
  *    carries one `(K, EntitlementSnapshot)` pair; implementations should treat
  *    it as an upsert. Granted transitions write `isEntitled = true`; Revoked
- *    transitions write `isEntitled = false`. [EntitlementState.InGrace] is
- *    **not** persisted; grace re-derives from the most recent confirmed
- *    `confirmedAtMs` on read.
+ *    transitions write `isEntitled = false`.
  *  - Both methods are `suspend` so backing implementations can do disk I/O
  *    without blocking. Note the dispatch contexts differ:
  *      - [readAll] is invoked by `EntitlementCache.start()` in the **caller's**
@@ -56,8 +54,8 @@ package com.kanetik.billing.entitlement
  *        the scope supplied to `start()`, draining an UNLIMITED `(K, snapshot)`
  *        channel in send order. Calls are serialised; there is no per-key
  *        conflation, so back-to-back writes for the same key both reach
- *        storage. Entitlement transitions happen at human pace (PBL events,
- *        grace ticks), so the buffer is bounded in practice by activity.
+ *        storage. Entitlement transitions happen at human pace (PBL events),
+ *        so the buffer is bounded in practice by activity.
  *    Your implementation is responsible for any further dispatching it needs
  *    (e.g. wrap the body in `withContext(Dispatchers.IO)` if your storage
  *    isn't already coroutine-friendly). DataStore handles this transparently;
