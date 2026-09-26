@@ -71,7 +71,7 @@ Behavior notes:
 - **`getBillingChoiceInfo(params)`** *does* throw a [`BillingException`](error-handling.md) subtype on a non-OK response — it's an explicit fetch, so a failure is a failure. Both `BillingChoiceDetails` fields are nullable; PBL may return either asset as absent.
 - **`showBillingProgramInformationDialog(activity, params)`** must run on the main thread and throws a `BillingException` subtype if Play rejects the call.
 
-All three reuse the wrapper's existing connection management, but make a single attempt with no retry loop — a non-`OK` response throws immediately.
+All three reuse the wrapper's existing connection management, but make a single attempt with no retry loop.
 
 ## Why it's thin
 
