@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
@@ -230,7 +231,8 @@ internal class BillingClientStorage(
     private val sharingStrategy = SharingStarted.WhileSubscribed(stopTimeoutMillis = 60_000, replayExpirationMillis = 0)
 
     private val connectRequests = MutableStateFlow(0)
-    private val reconnectedFrom = AtomicReference<InternalConnectionState?>(null)
+    private val liveClient = AtomicReference<BillingClient?>(null)
+    private val reconnectedFrom = AtomicReference<InternalConnectionState.Failed?>(null)
 
     /**
      * Internal: live-client-bearing flow used by [DefaultBillingRepository] to obtain the
@@ -252,7 +254,14 @@ internal class BillingClientStorage(
         .flatMapLatest {
             flow {
                 emit(null)
-                emitAll(billingFactory.createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger)))
+                try {
+                    emitAll(
+                        billingFactory.createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger))
+                            .onEach { liveClient.set((it as? InternalConnectionState.Connected)?.client) }
+                    )
+                } finally {
+                    liveClient.set(null)
+                }
             }
         }
         .transformLatest { state ->
@@ -284,10 +293,11 @@ internal class BillingClientStorage(
             (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
         }
 
-    fun requestReconnect(stale: InternalConnectionState): Boolean =
-        (reconnectedFrom.getAndSet(stale) !== stale).also { requested ->
-            if (requested) connectRequests.update { it + 1 }
-        }
+    fun isLive(client: BillingClient): Boolean = liveClient.get() === client
+
+    fun requestReconnect(stale: InternalConnectionState.Failed) {
+        if (reconnectedFrom.getAndSet(stale) !== stale) connectRequests.update { it + 1 }
+    }
 
     /**
      * Pushes a [PurchaseRevoked] event through the dedicated revocation

@@ -519,10 +519,16 @@ internal class DefaultBillingRepository(
     }
 
     private suspend fun awaitConnection(): InternalConnectionState {
+        val cached = billingClientStorage.connectionFlow.replayCache.lastOrNull()
         val connection = billingClientStorage.connectionFlow.filterNotNull()
         val state = connection.first()
-        if (state is InternalConnectionState.Connected && state.client.isReady) return state
-        if (billingClientStorage.requestReconnect(state) && state is InternalConnectionState.Failed) return state
+        when (state) {
+            is InternalConnectionState.Connected -> if (billingClientStorage.isLive(state.client)) return state
+            is InternalConnectionState.Failed -> {
+                if (state !== cached) return state
+                billingClientStorage.requestReconnect(state)
+            }
+        }
         return connection.first { it !== state }
     }
 

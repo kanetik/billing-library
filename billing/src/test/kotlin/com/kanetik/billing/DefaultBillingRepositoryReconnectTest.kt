@@ -13,6 +13,7 @@ import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -76,6 +77,20 @@ class DefaultBillingRepositoryReconnectTest {
     }
 
     @Test
+    fun `the idle stop retires the client`() = runTest {
+        val play = FakePlay()
+        val storage = storageOver(play)
+        storage.connectionFlow.filterNotNull().first()
+        val liveBefore = storage.isLive(play.clients.single())
+
+        advanceTimeBy(60_001)
+        runCurrent()
+
+        assertThat(liveBefore).isTrue()
+        assertThat(storage.isLive(play.clients.single())).isFalse()
+    }
+
+    @Test
     fun `an operation after the idle stop runs on a fresh client`() = runTest {
         val play = FakePlay()
         val repo = repositoryOver(play)
@@ -95,13 +110,23 @@ class DefaultBillingRepositoryReconnectTest {
         val repo = repositoryOver(play)
         backgroundScope.launch { repo.connectToBilling().collect { } }
         runCurrent()
-        val first = runCatching { repo.perform(Op.QUERY_PURCHASES) }
 
-        advanceTimeBy(5_000)
-        val later = runCatching { repo.perform(Op.QUERY_PURCHASES) }
+        val result = runCatching { repo.perform(Op.QUERY_PURCHASES) }
 
-        assertThat(first.exceptionOrNull()).isInstanceOf(BillingException.BillingUnavailableException::class.java)
-        assertThat(later.exceptionOrNull()).isNull()
+        assertThat(result.exceptionOrNull()).isNull()
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a connect failure fails the operation whose connect produced it without a second connect`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+
+        val result = runCatching { repo.perform(Op.QUERY_PURCHASES) }
+        runCurrent()
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(BillingException.BillingUnavailableException::class.java)
+        assertThat(play.startConnectionCount).isEqualTo(1)
     }
 
     @Test
@@ -139,32 +164,17 @@ class DefaultBillingRepositoryReconnectTest {
         val repo = repositoryOver(play)
         backgroundScope.launch { repo.connectToBilling().collect { } }
         runCurrent()
-        runCatching { repo.perform(Op.QUERY_PURCHASES) }
 
-        val waiting = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        val first = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
+        val second = backgroundScope.async { runCatching { repo.perform(Op.QUERY_PURCHASES) } }
         runCurrent()
-        val stillWaiting = waiting.isActive
+        val stillWaiting = first.isActive && second.isActive
         play.stateListeners.last().onBillingSetupFinished(billingResult(BillingResponseCode.OK))
 
         assertThat(stillWaiting).isTrue()
-        assertThat(waiting.await().exceptionOrNull()).isNull()
+        assertThat(first.await().exceptionOrNull()).isNull()
+        assertThat(second.await().exceptionOrNull()).isNull()
         assertThat(play.startConnectionCount).isEqualTo(2)
-    }
-
-    @Test
-    fun `an operation skips a held client that is no longer ready and runs on a fresh one`() = runTest {
-        val play = FakePlay()
-        val repo = repositoryOver(play)
-        backgroundScope.launch { repo.connectToBilling().collect { } }
-        runCurrent()
-        play.clients.single().endConnection()
-
-        val result = runCatching { repo.perform(Op.QUERY_PURCHASES) }
-
-        assertThat(result.exceptionOrNull()).isNull()
-        assertThat(play.clients).hasSize(2)
-        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.first())).isEqualTo(0)
-        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
     }
 
     @Test
