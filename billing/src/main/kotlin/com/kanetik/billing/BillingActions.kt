@@ -19,9 +19,11 @@ import com.kanetik.billing.exception.BillingException
  * Suspend-style operations against Google Play Billing.
  *
  * Every method waits for the underlying [com.android.billingclient.api.BillingClient]
- * connection (see [BillingConnector]), runs with internal retry / backoff for transient
- * failures, and surfaces hard failures as a typed [BillingException] subtype so
- * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
+ * connection (see [BillingConnector]) and surfaces hard failures as a typed
+ * [BillingException] subtype so consumers can branch by
+ * [com.kanetik.billing.RetryType] without parsing strings. Most methods also
+ * retry transient failures internally before throwing; [launchFlow] and
+ * [showInAppMessages] (including the Billing Choice methods) do not.
  *
  * ## Wrapping suspend members for resilience
  *

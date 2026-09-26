@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`isFeatureSupported` now throws for any non-OK response other than `FEATURE_NOT_SUPPORTED`, instead of returning `false`.** The four transient codes (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, `ERROR`, `NETWORK_ERROR`) get `INTERACTIVE` retries first; every other non-OK code — `BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `USER_CANCELED`, the `ITEM_*` codes, and any unrecognized code — now throws its typed `BillingException` on the first attempt rather than returning `false`. `false` is reserved for a real `FEATURE_NOT_SUPPORTED`. Callers that treated the old `false` as a catch-all "not supported for any reason" need to add exception handling. (#62)
 - **`ProductDetails.toOneTimeFlowParams` now returns `BillingFlowParams?`.**
   Previously it always returned a non-null `BillingFlowParams`, even when no
   offer token could be resolved (an absent or empty
@@ -73,12 +74,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
 - `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
+- A terminal connection failure (e.g. `BILLING_UNAVAILABLE` while the Play Store is updating) no longer sticks for as long as something collects `connectToBilling()`. The next operation or new `connectToBilling()` subscriber starts a fresh connection. (#53)
+- Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
+- `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
 - The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
 - Flow-time `BILLING_UNAVAILABLE` (code 3) from `onPurchasesUpdated` — which usually means the payment was declined, not that billing is unavailable — no longer surfaces as `FlowOutcome.Failure(BillingUnavailableException)`. It now emits `FlowOutcome.PaymentDeclined(purchases, result)`, keeping it out of `BillingErrorCategory.BillingUnavailable`'s "hide billing" UX and out of `EntitlementCache`'s billing-unavailable grace window. `result.onPurchasesUpdatedSubResponseCode` still carries the specific decline reason (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) where PBL provides one. Connect-time and launch-time `BILLING_UNAVAILABLE` are unaffected.
 - `BillingLoggingUtils.logBillingFlowFailure`'s insufficient-funds hint is now reachable from the async purchase-flow path (previously only reachable from `launchFlow`'s synchronous failure branch, which never carries a sub-response code).
 - Removed two KDoc claims that a flow-outcome's `BillingException` had already been retried with backoff before reaching the consumer — nothing retries a purchase-flow attempt today (`BillingErrorCategory.Network` and `BillingException.NetworkErrorException`).
 - `GracePolicy.billingUnavailableMs` and `GraceReason.BillingUnavailable`'s KDoc named "Play Services missing, account ineligibility, region restrictions" as the trigger; those response codes are now diverted to `PaymentDeclined` and never reach grace, so `FeatureNotSupportedException` is the only one that does.
 - `FlowOutcome.Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `PaymentDeclined`, `Failure` and `UnknownResponse` no longer factor the new `result: BillingResult` property into `equals`/`hashCode` — `BillingResult` has identity-based equality, so two field-identical events built from separately-constructed `BillingResult`s previously compared unequal. `Failure` still won't compare equal across separately-constructed `BillingException`s carrying the same subtype, unchanged from before this fix: `BillingException` itself keeps identity-based `equals` (see `BillingException`'s own KDoc), a pre-existing, deliberate design choice this PR doesn't revisit.
+- `isFeatureSupported` now retries transient `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `ERROR` / `NETWORK_ERROR` responses via the `INTERACTIVE` retry profile, instead of returning `false` on the first failure. See **Breaking** above for the return-value change. (#62)
 
 ## [0.1.5] - 2026-06-26
 
