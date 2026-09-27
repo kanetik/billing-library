@@ -60,6 +60,8 @@ RTDN→FCM is the canonical transport, but `emitExternalRevocation` is the right
 
 In both cases the helper is small. Read your `EntitlementStorage` snapshot, no-op if null or already `Revoked`, otherwise call `emitExternalRevocation(snapshot.purchaseToken, reason)`.
 
+A revocation doesn't stick while Play's purchase cache on the device still lists the purchase: the next `refreshPurchases()` Snapshot, or a recovery sweep for an unacknowledged purchase, grants the key again. The library doesn't remember that the token was revoked. Keep the revoked tokens yourself (persisted, since the server signal arrives once), and while `queryPurchases` still returns one, emit its revocation again after the cache shows the key `Granted`.
+
 `PurchaseRevoked` events route through a dedicated `replay = 16` channel, separate from `OwnedPurchases.Recovered`, so a revocation that arrives before the consumer's collector attaches isn't evicted by an empty recovery sweep. (Common case: the FCM listener decodes the payload at process start, before the UI is up.) Up to 16 revocations cached for late subscribers, sized for the realistic FCM-burst case (multi-product chargebacks resolving simultaneously, or several revocations decoded at process start). The same dedupe rule applies: a re-attached collector replays its share of the cache, so gate on `purchaseToken` if your handler isn't idempotent. Bursts beyond 16 events drop the oldest first; for guaranteed delivery of every event past that bound, persist on the consumer side before calling `emitExternalRevocation`.
 
 ## `RevocationReason` buckets

@@ -98,6 +98,8 @@ The cache exposes a `StateFlow<Map<K, EntitlementState>>`. Keys absent from the 
 
 A `Granted` key stays `Granted` through a Play outage of any length; there's no time-based fallback. It changes only on an explicit `PurchaseRevoked` event. If you need a ceiling on how long a persisted snapshot is trusted, apply it yourself in your `EntitlementStorage.readAll()` (see [Storage is your responsibility](#storage-is-your-responsibility)).
 
+A `Revoked` key can go back to `Granted`. If Play's purchase cache on the device still lists a purchase your server just revoked (for example, a refund), the next `OwnedPurchases` event carrying it (a `refreshPurchases()` Snapshot, or a recovery sweep for an unacknowledged purchase) grants the key again and persists it. It stays `Granted` until you revoke it again; see [Server-driven revocation](server-driven-revocation.md#other-emit-triggers).
+
 ## When to use it
 
 Use `EntitlementCache` when you want a simple `is the user entitled to X right now?` flow off the side of your existing `observePurchaseUpdates()` integration. The cache is purely observational; it does **not** call `handlePurchase` for you. Acknowledge / consume + entitlement grant remain your collector's job. The cache just tracks the resulting confirmed observation.
@@ -107,7 +109,7 @@ Skip it if you have your own state machine you're already happy with, or if you 
 The cache reacts to two event paths that change state; everything else is a no-op:
 
 - Any `OwnedPurchases` variant (`Live`, `Recovered`, `Snapshot`) is **grant-only**. For each `PURCHASED`-state purchase, `productKeySelector` is applied; a non-null result transitions that key to `Granted` and persists. A *non-match* (selector returns null) does **not** revoke. `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to any tracked entitlement, `Recovered` only emits the unacknowledged subset (an already-acked entitlement won't appear in it), and an absent key in `Snapshot` means "not currently owned," not "revoked." Treating any of these as authoritative for revocation would falsely revoke users with already-acknowledged purchases.
-- `PurchaseRevoked` matched against *any* key's `lastConfirmedSnapshot.purchaseToken` transitions that key (and only that key) to `Revoked` immediately (no grace; Play has explicitly revoked the entitlement). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline; see [Server-driven revocation](server-driven-revocation.md).
+- `PurchaseRevoked` matched against *any* key's `lastConfirmedSnapshot.purchaseToken` transitions that key (and only that key) to `Revoked` immediately (no grace). Consumers wire `emitExternalRevocation` against their RTDN→FCM pipeline; see [Server-driven revocation](server-driven-revocation.md).
 
 The remaining `FlowOutcome` variants (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `Failure`, `UnknownResponse`) are no-ops; they don't change owned-purchase state, and `Pending` must not grant entitlement (per Play's rules). `Failure` carries no product id, so the cache can't tell which key's purchase attempt failed — existing Granted keys are left untouched rather than guessed at.
 
