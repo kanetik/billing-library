@@ -161,7 +161,7 @@ class DefaultBillingRepositoryLaunchFlowEchoSuppressionTest {
     }
 
     @Test
-    fun `a synchronous ITEM_ALREADY_OWNED echoed within the window is also suppressed`() = runTest {
+    fun `a synchronous ITEM_ALREADY_OWNED echoed within the window is emitted as FlowOutcome ItemAlreadyOwned`() = runTest {
         var now = 0L
         val play = FakePlay().apply { script(Op.LAUNCH_FLOW, BillingResponseCode.ITEM_ALREADY_OWNED) }
         val repo = repositoryOver(play, clock = { now })
@@ -178,6 +178,27 @@ class DefaultBillingRepositoryLaunchFlowEchoSuppressionTest {
         runCurrent()
 
         assertThat(thrown).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
-        assertThat(events).isEmpty()
+        assertThat(events.single()).isInstanceOf(FlowOutcome.ItemAlreadyOwned::class.java)
+    }
+
+    @Test
+    fun `a synchronous DEVELOPER_ERROR echoed within the window is emitted as FlowOutcome Failure`() = runTest {
+        var now = 0L
+        val play = FakePlay().apply { script(Op.LAUNCH_FLOW, BillingResponseCode.DEVELOPER_ERROR) }
+        val repo = repositoryOver(play, clock = { now })
+        val events = mutableListOf<PurchaseEvent>()
+        backgroundScope.launch { repo.observePurchaseUpdates().collect { events += it } }
+        runCurrent()
+
+        val thrown = runCatching { repo.launchFlow(activity(), params()) }.exceptionOrNull()
+        now += 12
+        play.purchasesUpdatedListeners.single().onPurchasesUpdated(
+            billingResult(BillingResponseCode.DEVELOPER_ERROR),
+            null
+        )
+        runCurrent()
+
+        assertThat(thrown).isInstanceOf(BillingException::class.java)
+        assertThat(events.single()).isInstanceOf(FlowOutcome.Failure::class.java)
     }
 }

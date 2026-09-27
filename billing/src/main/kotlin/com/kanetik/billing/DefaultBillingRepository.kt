@@ -304,8 +304,8 @@ internal class DefaultBillingRepository(
             } else {
                 e
             }
-            if (launchInvoked) {
-                billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode, attempt) }
+            if (launchInvoked && billingException.result?.responseCode == BillingResponseCode.BILLING_UNAVAILABLE) {
+                billingClientStorage.armLaunchFailureSuppression(attempt)
             }
             throw billingException
         }
