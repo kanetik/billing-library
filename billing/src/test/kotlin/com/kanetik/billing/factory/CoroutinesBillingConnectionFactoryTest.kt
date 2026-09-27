@@ -131,6 +131,32 @@ class CoroutinesBillingConnectionFactoryTest {
     }
 
     @Test
+    fun `a client factory throw is wrapped, surfaced as Failed, and logged exactly once at error`() = runTest {
+        val captor = CapturingLogger()
+        val boom = IllegalStateException("factory exploded")
+        val throwingFactory = object : BillingClientFactory {
+            override fun createBillingClient(
+                context: Context,
+                listener: PurchasesUpdatedListener
+            ): BillingClient = throw boom
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = throwingFactory,
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = captor
+        )
+
+        val state = factory.createBillingConnectionFlow(noopListener()).first()
+
+        assertThat(state).isInstanceOf(InternalConnectionState.Failed::class.java)
+        assertThat((state as InternalConnectionState.Failed).exception)
+            .isInstanceOf(BillingException.WrappedException::class.java)
+        assertThat(captor.errors).hasSize(1)
+        assertThat(captor.warnings).isEmpty()
+    }
+
+    @Test
     fun `None policy surfaces the first transient failure immediately`() = runTest {
         val attempts = AtomicInteger()
         val factory = factoryFor(

@@ -192,7 +192,10 @@ internal class CoroutinesBillingConnectionFactory(
             // UnknownException(BillingResult()) fallback reported responseCode=OK
             // (no-arg BillingResult) and discarded the throwable, making these
             // failures misleading in logs / Crashlytics.
-            else -> BillingException.WrappedException(error)
+            else -> {
+                logger.e("Billing connection failed with an unexpected error", error)
+                BillingException.WrappedException(error)
+            }
         }
     )
 
