@@ -12,7 +12,7 @@ fi
 top=$(git -C "${1:-.}" rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -x "$top/gradlew" ] || exit 0
 
-[ -n "$(git -C "$top" config --local core.hooksPath 2>/dev/null)" ] || git -C "$top" config --local core.hooksPath .githooks
+[ -n "$(git -C "$top" config core.hooksPath 2>/dev/null)" ] || git -C "$top" config --local core.hooksPath .githooks
 
 branch=$(git -C "$top" rev-parse --abbrev-ref HEAD)
 [ "$main_only" = true ] && [ "$branch" != main ] && exit 0
@@ -25,7 +25,11 @@ lock="$state_dir/.publish-local.lock"
 
 inputs=(billing build.gradle.kts settings.gradle.kts gradle.properties gradle/libs.versions.toml)
 untracked=$(git -C "$top" ls-files --others --exclude-standard -- "${inputs[@]}")
-hash=$( { git -C "$top" ls-files -s -- "${inputs[@]}"; git -C "$top" diff HEAD -- "${inputs[@]}"; printf '%s\n' "$untracked"; } | git hash-object --stdin)
+hash=$( {
+    git -C "$top" ls-files -s -- "${inputs[@]}"
+    git -C "$top" diff HEAD -- "${inputs[@]}"
+    [ -n "$untracked" ] && printf '%s\n' "$untracked" | git -C "$top" hash-object --stdin-paths 2>/dev/null
+} | git hash-object --stdin)
 [ "$(cat "$stamp" 2>/dev/null)" = "$hash" ] && exit 0
 
 if ! mkdir "$lock" 2>/dev/null; then
