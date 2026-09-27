@@ -45,8 +45,17 @@ internal class BillingClientStorage(
     private val logger: BillingLogger,
     private val connectionShareScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val recoverPurchasesOnConnect: Boolean = true
+    private val recoverPurchasesOnConnect: Boolean = true,
+    clock: () -> Long = { System.nanoTime() / 1_000_000L }
 ) {
+    private val launchFailureSuppression = LaunchFailureSuppression(clock)
+
+    internal fun armLaunchFailureSuppression(responseCode: Int, attempt: Long) {
+        launchFailureSuppression.arm(responseCode, attempt)
+    }
+
+    internal fun cancelLaunchFailureSuppression(): Long = launchFailureSuppression.cancel()
+
     /*
      * Four-channel architecture
      * -------------------------
@@ -275,7 +284,9 @@ internal class BillingClientStorage(
                 emit(null)
                 try {
                     emitAll(
-                        billingFactory.createBillingConnectionFlow(FlowPurchasesUpdatedListener(_liveUpdates, logger))
+                        billingFactory.createBillingConnectionFlow(
+                            FlowPurchasesUpdatedListener(_liveUpdates, logger, launchFailureSuppression)
+                        )
                             .onEach { liveClient.set((it as? InternalConnectionState.Connected)?.client) }
                     )
                 } finally {
