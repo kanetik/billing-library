@@ -235,6 +235,32 @@ class DefaultBillingRepositoryReconnectTest {
     }
 
     @Test
+    fun `a late subscriber 90s after a failure never observes the stale Error`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(90_000)
+        runCurrent()
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a connectToBilling subscriber after a failed operation never observes its Error`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
     fun `a late subscriber gets the replayed Success without a reconnect while another collector holds the share`() = runTest {
         val play = FakePlay()
         val repo = repositoryOver(play)

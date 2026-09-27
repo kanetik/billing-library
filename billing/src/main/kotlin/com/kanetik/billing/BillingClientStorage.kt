@@ -300,25 +300,22 @@ internal class BillingClientStorage(
      * leak into the consumer-facing API.
      */
     val connectionResultFlow: Flow<BillingConnectionResult> = flow {
-        val staleError = sharedConnectionResults.replayCache.lastOrNull() as? BillingConnectionResult.Error
+        val stale = connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed
         emitAll(
-            sharedConnectionResults
+            connectionFlow
                 .onSubscription {
-                    (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
+                    if (stale != null && connectionFlow.replayCache.lastOrNull() === stale) requestReconnect(stale)
                 }
-                .filter { it !== staleError }
+                .filter { it !== stale }
+                .mapNotNull { state ->
+                    when (state) {
+                        is InternalConnectionState.Connected -> BillingConnectionResult.Success
+                        is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
+                        null -> null
+                    }
+                }
         )
     }
-
-    private val sharedConnectionResults: SharedFlow<BillingConnectionResult> = connectionFlow
-        .mapNotNull { state ->
-            when (state) {
-                is InternalConnectionState.Connected -> BillingConnectionResult.Success
-                is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
-                null -> null
-            }
-        }
-        .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
 
     fun isLive(client: BillingClient): Boolean = liveClient.get() === client
 

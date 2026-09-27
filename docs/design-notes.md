@@ -90,7 +90,7 @@ These behaviors should be preserved through any refactor — they each fix a spe
 - `connectToClientAndCall` wraps `connectionFlow.first()` in `withTimeout(30_000)` — guards against scope-cancellation paths that skip the upstream `.catch` handler. Timeout surfaces as `ServiceUnavailableException`.
 - `launchFlow` passes `RetryProfile.SINGLE_ATTEMPT` to `executeBillingOperation` — UI-initiated flows shouldn't silently retry behind the user's back. Single attempt; user can tap Buy again if it failed.
 - Dispatcher split: `ioDispatcher` (default `Dispatchers.IO`) for queries / consume / acknowledge / retry loop; `uiDispatcher` (default `Dispatchers.Main`) only for `launchFlow` and `showInAppMessages`. Consumers can override either independently.
-- `BillingClientStorage.connectionFlow` and `connectionResultFlow` both use `WhileSubscribed(60_000)` grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.
+- `BillingClientStorage.connectionFlow` uses `WhileSubscribed(60_000)` grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.
 - `PurchaseFlowCoordinator` watchdog uses `compareAndSet(true, false)` — atomic check-and-clear.
 
 ## Why the design is shaped this way
