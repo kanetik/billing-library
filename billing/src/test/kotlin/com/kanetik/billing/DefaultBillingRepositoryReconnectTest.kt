@@ -324,6 +324,36 @@ class DefaultBillingRepositoryReconnectTest {
     }
 
     @Test
+    fun `the connection outlives the last connectToBilling collector by just under 60s`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(59_999)
+        runCurrent()
+
+        repo.perform(Op.QUERY_PURCHASES)
+
+        assertThat(play.startConnectionCount).isEqualTo(1)
+        assertThat(play.endedClients).isEmpty()
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.single())).isEqualTo(1)
+    }
+
+    @Test
+    fun `the connection stops just past 60s after the last connectToBilling collector leaves`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(60_001)
+        runCurrent()
+
+        repo.perform(Op.QUERY_PURCHASES)
+
+        assertThat(play.startConnectionCount).isEqualTo(2)
+        assertThat(play.endedClients).contains(play.clients.first())
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
+    }
+
+    @Test
     fun `connectToBilling replays nothing after the idle stop`() = runTest {
         val play = FakePlay()
         val repo = repositoryOver(play)
