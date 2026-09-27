@@ -2215,7 +2215,7 @@ or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.
 <tr>
 <td><code>getConnectionState()</code> direct accessor</td>
 <td>demand-driven</td>
-<td>PBL exposes <code>ConnectionState</code> (OK / CONNECTING / DISCONNECTED / DISCONNECTING). Our <code>SharedFlow&lt;BillingConnectionResult&gt;</code> collapses to Success/Error. If consumers want to render "connecting…" UI, expose the finer state.</td>
+<td>PBL exposes <code>ConnectionState</code> (OK / CONNECTING / DISCONNECTED / DISCONNECTING). Our <code>connectToBilling()</code> collapses to Success/Error. If consumers want to render "connecting…" UI, expose the finer state.</td>
 </tr>
 <tr>
 <td>Java consumer interop pass (<code>@JvmStatic</code>, <code>@JvmOverloads</code>, etc.)</td>

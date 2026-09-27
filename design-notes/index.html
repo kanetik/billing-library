@@ -1496,17 +1496,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why SharedFlow (not Flow) on the public connection / purchase-update API
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1883,17 +1872,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why SharedFlow (not Flow) on the public connection / purchase-update API
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2110,7 +2088,7 @@
 <h3 id="repository-interface">Repository interface<a class="headerlink" href="#repository-interface" title="Permanent link">&para;</a></h3>
 <p><code>BillingRepository : BillingActions, BillingPurchaseUpdatesOwner, BillingConnector</code>. Concrete impl <code>DefaultBillingRepository</code> is internal. The narrower interfaces let consumers depend on only the parts they use (e.g., a UI layer that just observes purchase updates can take <code>BillingPurchaseUpdatesOwner</code> instead of the full repository).</p>
 <h3 id="connection-contract">Connection contract<a class="headerlink" href="#connection-contract" title="Permanent link">&para;</a></h3>
-<p><code>BillingConnector.connectToBilling()</code> returns <code>SharedFlow&lt;BillingConnectionResult&gt;</code>. <code>Success</code> is a <code>data object</code> (no <code>BillingClient</code> leak — keeps the live PBL client out of public API). The library's internal use of the live <code>BillingClient</code> flows through an internal <code>InternalConnectionState</code> sealed type — consumers never see it.</p>
+<p><code>BillingConnector.connectToBilling()</code> returns <code>Flow&lt;BillingConnectionResult&gt;</code>. <code>Success</code> is a <code>data object</code> (no <code>BillingClient</code> leak — keeps the live PBL client out of public API). The library's internal use of the live <code>BillingClient</code> flows through an internal <code>InternalConnectionState</code> sealed type — consumers never see it.</p>
 <h3 id="purchase-updates">Purchase updates<a class="headerlink" href="#purchase-updates" title="Permanent link">&para;</a></h3>
 <p><code>BillingPurchaseUpdatesOwner.observePurchaseUpdates()</code> returns <code>Flow&lt;PurchaseEvent&gt;</code>. Returns the underlying flow directly (no <code>flatMapConcat</code>-induced re-subscription window). <code>PurchaseEvent</code> is a marker interface with two sealed roots — <code>OwnedPurchases</code> (variants <code>Live</code>, <code>Recovered</code>, <code>Snapshot</code>) for owned-state updates and <code>FlowOutcome</code> (variants <code>Pending</code>, <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>UserBillingError</code>, <code>Failure</code>, <code>UnknownResponse</code>) for purchase-flow attempt outcomes — plus a standalone <code>PurchaseRevoked</code> event for server-driven revocation. <code>FlowOutcome.Pending</code> carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single <code>PurchasesUpdate</code> sealed class with flat variants <code>Success</code>/<code>Pending</code>/<code>Canceled</code>/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)</p>
 <h3 id="actions">Actions<a class="headerlink" href="#actions" title="Permanent link">&para;</a></h3>
@@ -2137,7 +2115,7 @@
 <li><code>connectToClientAndCall</code> wraps <code>connectionFlow.first()</code> in <code>withTimeout(30_000)</code> — guards against scope-cancellation paths that skip the upstream <code>.catch</code> handler. Timeout surfaces as <code>ServiceUnavailableException</code>.</li>
 <li><code>launchFlow</code> passes <code>RetryProfile.SINGLE_ATTEMPT</code> to <code>executeBillingOperation</code> — UI-initiated flows shouldn't silently retry behind the user's back. Single attempt; user can tap Buy again if it failed.</li>
 <li>Dispatcher split: <code>ioDispatcher</code> (default <code>Dispatchers.IO</code>) for queries / consume / acknowledge / retry loop; <code>uiDispatcher</code> (default <code>Dispatchers.Main</code>) only for <code>launchFlow</code> and <code>showInAppMessages</code>. Consumers can override either independently.</li>
-<li><code>BillingClientStorage.connectionFlow</code> and <code>connectionResultFlow</code> both use <code>WhileSubscribed(60_000)</code> grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.</li>
+<li><code>BillingClientStorage.connectionFlow</code> uses <code>WhileSubscribed(60_000)</code> grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.</li>
 <li><code>PurchaseFlowCoordinator</code> watchdog uses <code>compareAndSet(true, false)</code> — atomic check-and-clear.</li>
 </ul>
 <h2 id="why-the-design-is-shaped-this-way">Why the design is shaped this way<a class="headerlink" href="#why-the-design-is-shaped-this-way" title="Permanent link">&para;</a></h2>
@@ -2145,8 +2123,6 @@
 <p>Single artifact + package separation is enough. Ext is ~400 LOC of clean Kotlin; R8 strips unused. v0.2.0 brings <code>:billing-testing</code> which already adds artifact count — three artifacts is worse than two. Revisit only if a consumer's R8 config can't strip ext (very unlikely).</p>
 <h3 id="why-subs-arent-in-v010">Why subs aren't in v0.1.0<a class="headerlink" href="#why-subs-arent-in-v010" title="Permanent link">&para;</a></h3>
 <p>Designing subs helpers without a real-app driver tends to produce bad ergonomics. Wakey is one-time-IAP only; we'll know what subs ergonomics should look like once Wakey or app-revenue-tracker wires subs into a real app. Pass-through API works in the meantime — consumers can build subs flows with raw <code>QueryPurchasesParams</code> / <code>BillingFlowParams</code>.</p>
-<h3 id="why-sharedflow-not-flow-on-the-public-connection-purchase-update-api">Why <code>SharedFlow</code> (not <code>Flow</code>) on the public connection / purchase-update API<a class="headerlink" href="#why-sharedflow-not-flow-on-the-public-connection-purchase-update-api" title="Permanent link">&para;</a></h3>
-<p>SharedFlow communicates the "always hot + shared" contract through the type system; lets consumers peek <code>replayCache</code> without observing the flow. The only downside (more specific type complicates fakes) is solved by <code>:billing-testing</code>'s upcoming fake — consumers can lean on that artifact rather than rolling their own.</p>
 <h3 id="why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient">Why <code>connectionResultFlow.Success</code> is a <code>data object</code> (not <code>data class(client: BillingClient)</code>)<a class="headerlink" href="#why-connectionresultflowsuccess-is-a-data-object-not-data-classclient-billingclient" title="Permanent link">&para;</a></h3>
 <p>Exposing the live <code>BillingClient</code> would leak a non-versioned PBL implementation type into our public ABI, and would tempt consumers into bypassing the library's retry/timeout/error-mapping logic. Internal coordination uses an internal <code>InternalConnectionState</code> sealed type that does carry the client; the public flow projects to the safe shape.</p>
 <h3 id="why-exceptions-not-result">Why exceptions, not <code>Result</code><a class="headerlink" href="#why-exceptions-not-result" title="Permanent link">&para;</a></h3>
@@ -2193,7 +2169,7 @@
 </tr>
 <tr>
 <td><code>getConnectionState()</code> direct accessor for v0.1.0</td>
-<td><code>SharedFlow&lt;BillingConnectionResult&gt;</code> + <code>replay = 1</code> already lets consumers do <code>flow.replayCache.firstOrNull()</code> to peek at the current state. Adding a separate API for the same info is bloat. (Listed in the <a href="../roadmap/">Roadmap</a> as a future-if-demanded enhancement.)</td>
+<td><code>connectToBilling().first()</code> already returns the current state. Adding a separate API for the same info is bloat. (Listed in the <a href="../roadmap/">Roadmap</a> as a future-if-demanded enhancement.)</td>
 </tr>
 <tr>
 <td><code>getBillingConfigAsync</code> exposure for v0.1.0</td>
@@ -2206,10 +2182,6 @@
 <tr>
 <td>Consumer-rules.pro keep for full library package</td>
 <td>Kept only the two <code>BillingLogger</code> impl objects. Other types are reachable via consumer code (typed exception subtypes, sealed variants) so R8 follows them naturally. PBL and kotlinx-coroutines ship their own consumer-rules already.</td>
-</tr>
-<tr>
-<td>Returning <code>Flow</code> (not <code>SharedFlow</code>) from <code>connectToBilling</code> / <code>observePurchaseUpdates</code></td>
-<td>See "why SharedFlow" above.</td>
 </tr>
 </tbody>
 </table>
