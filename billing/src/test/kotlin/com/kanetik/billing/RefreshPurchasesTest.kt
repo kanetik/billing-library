@@ -111,6 +111,27 @@ class RefreshPurchasesTest {
         assertThat(snapshot.purchases).containsExactly(acked, unacked)
     }
 
+    @Test
+    fun `refreshPurchases emits an empty Snapshot when nothing is owned`() = runTest {
+        val client = mockOwningClient(inApp = emptyList(), subsSupported = false)
+        val storage = BillingClientStorage(
+            billingFactory = SingleEmissionFactory(InternalConnectionState.Connected(client)),
+            logger = BillingLogger.Noop,
+            connectionShareScope = backgroundScope,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            recoverPurchasesOnConnect = false
+        )
+        val snapshotDeferred = async {
+            storage.purchasesUpdateFlow.first { it is OwnedPurchases.Snapshot } as OwnedPurchases.Snapshot
+        }
+        runCurrent()
+
+        storage.refreshOwnedPurchases(client)
+
+        val snapshot = snapshotDeferred.await()
+        assertThat(snapshot.purchases).isEmpty()
+    }
+
     private fun mockOwningClient(
         inApp: List<Purchase>,
         subs: List<Purchase> = emptyList(),

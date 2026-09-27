@@ -340,9 +340,7 @@ internal class BillingClientStorage(
             inAppDeferred.await() to subsDeferred.await()
         }
         val owned = inApp + subs
-        if (owned.isNotEmpty()) {
-            _snapshotUpdates.emit(OwnedPurchases.Snapshot(owned))
-        }
+        _snapshotUpdates.emit(OwnedPurchases.Snapshot(owned))
     }
 
     internal fun scheduleFailedAcknowledgeRetry() {
