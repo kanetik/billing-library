@@ -94,7 +94,7 @@ class CheckoutActivity : ComponentActivity() {
             HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
             HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke logic
             is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
-            // do NOT grant on Failure — the library retries automatically (in-session, then on next connect)
+            // do NOT grant on Failure — it comes back as OwnedPurchases.Recovered; handle it there
         }
     }
 }

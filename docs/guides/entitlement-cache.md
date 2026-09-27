@@ -130,7 +130,7 @@ For most apps the on-device storage is fine: a tampered snapshot gets overwritte
 
 ## Tamper-resistant storage
 
-If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where the paid entitlement has real value), wrap your `EntitlementStorage<K>` in `SignedEntitlementStorage<K>`. The decorator signs each snapshot on every write (using a key-aware canonical encoding so cross-key sig swaps fail verification) and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start for that key, and the next `OwnedPurchases.Live` or `OwnedPurchases.Recovered` re-confirms truth).
+If your threat model includes users tampering with on-device storage to extend entitlement (freemium apps where the paid entitlement has real value), wrap your `EntitlementStorage<K>` in `SignedEntitlementStorage<K>`. The decorator signs each snapshot on every write (using a key-aware canonical encoding so cross-key sig swaps fail verification) and verifies the signature on read; tampered snapshots are dropped (the cache reads them as cold-start for that key, and the next `OwnedPurchases.Snapshot` from `refreshPurchases()` re-confirms a purchase the user still owns).
 
 ```kotlin
 import com.kanetik.billing.entitlement.signed.*
@@ -158,7 +158,7 @@ val cache = EntitlementCache(purchasesUpdates, storage, productKeySelector)
 
 ### Migrating an existing unsigned snapshot
 
-By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and omits that key from the verified map — a one-time cold-start for that entitlement. The next `OwnedPurchases.Live` or `OwnedPurchases.Recovered` confirmation re-establishes truth and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
+By default, the first read after wrapping an existing unsigned snapshot fires `TamperEvent.MissingSignature` and omits that key from the verified map — a one-time cold-start for that entitlement. The next `OwnedPurchases.Snapshot` from `refreshPurchases()` re-establishes truth for a purchase the user still owns and writes a signature on the transition. That's the secure default: no perpetual "delete the signature file to bypass" attack window.
 
 If you'd rather avoid the cold-start (UX over strict-from-day-one tamper resistance), call `SignedEntitlementStorage.migrateUnsignedSnapshot` once per entitlement on first launch after upgrade, guarded by your own marker:
 
@@ -194,4 +194,6 @@ Tradeoff: the helper trusts the existing snapshot once. If pre-upgrade tampering
 
 ## Wiring the connection
 
-`EntitlementCache` consumes `observePurchaseUpdates()`, which on its own does not hold the underlying Play Billing connection open. Pair the cache with `BillingConnectionLifecycleManager` (or your own `connectToBilling()` collector) so the connection stays warm and the recovery sweep on connect can fire — that sweep is what produces the `OwnedPurchases.Recovered` events the cache uses to confirm entitlement after process restarts. See [Lifecycle integration](lifecycle.md).
+`EntitlementCache` consumes `observePurchaseUpdates()`, which on its own does not hold the underlying Play Billing connection open. Pair the cache with `BillingConnectionLifecycleManager` (or your own `connectToBilling()` collector) so the connection stays warm and the recovery sweep on connect can fire — that sweep is what produces the `OwnedPurchases.Recovered` events the cache uses to confirm unacknowledged purchases after process restarts. See [Lifecycle integration](lifecycle.md).
+
+`Recovered` only carries unacknowledged purchases, so it never re-grants a key whose snapshot is missing for an already-acknowledged purchase (after a reinstall, cleared app data, or a dropped signed snapshot). Call `refreshPurchases()` as well, for example from `onResume`: its `OwnedPurchases.Snapshot` carries every owned purchase, acknowledged or not, and the cache grants from it.

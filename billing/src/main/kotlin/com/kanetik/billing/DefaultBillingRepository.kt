@@ -224,6 +224,17 @@ internal class DefaultBillingRepository(
     }
 
     @AnyThread
+    override suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
+        if (!consume &&
+            purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
+            billingClientStorage.isMarkedAcknowledged(purchase.purchaseToken)
+        ) {
+            return HandlePurchaseResult.AlreadyAcknowledged
+        }
+        return super.handlePurchase(purchase, consume)
+    }
+
+    @AnyThread
     override suspend fun refreshPurchases() {
         connectToClientAndCall { client -> billingClientStorage.refreshOwnedPurchases(client) }
     }

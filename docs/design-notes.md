@@ -167,7 +167,6 @@ The test suite caught a real production bug — `BillingLoggingUtils.createDetai
 These need Robolectric (or instrumented tests) and are better served once that artifact lands:
 
 - `PurchaseVerifier` — uses `android.util.Base64`, requires Robolectric for JVM unit tests.
-- `ProductDetails.toOneTimeFlowParams` — PBL's `BillingFlowParams.ProductDetailsParams.build()` does strict internal validation that conflicts with partial mockk-relaxed `ProductDetails`; selector logic is small + covered by `:sample` integration use until the artifact lands.
 - `DefaultBillingRepository` orchestration tests — `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping. Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.
 - `showInAppMessages` — `InAppMessageResult` is final + has no easily-buildable test fixture. Cover via `:sample` integration use until the artifact arrives.
 

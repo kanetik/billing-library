@@ -182,8 +182,10 @@ public interface BillingActions {
      * }
      * ```
      *
-     * A failed acknowledge / consume schedules an in-session retry with
-     * backoff regardless of `recoverPurchasesOnConnect`; the auto-recovery
+     * A failed acknowledge / consume makes the library re-emit the purchase
+     * as [com.kanetik.billing.OwnedPurchases.Recovered] in-session,
+     * regardless of `recoverPurchasesOnConnect`; handling that event is what
+     * retries it. The auto-recovery
      * sweep ([com.kanetik.billing.OwnedPurchases.Recovered]) also re-emits
      * the unacknowledged purchase on the next successful connection **when**
      * [com.kanetik.billing.BillingRepositoryCreator.create]'s
@@ -211,9 +213,12 @@ public interface BillingActions {
      *     [Purchase] objects this closes the recovery hole where
      *     calling acknowledge on an already-acked purchase surfaced
      *     `Failure(DeveloperErrorException)` and made "already acked"
-     *     indistinguishable from a real ack failure. Stale snapshots
-     *     (locally `isAcknowledged = false` but Play-side `true` —
-     *     e.g., a `Recovered` replay after a successful ack) still
+     *     indistinguishable from a real ack failure. The repository from
+     *     [com.kanetik.billing.BillingRepositoryCreator.create] also
+     *     returns [HandlePurchaseResult.AlreadyAcknowledged] for a token it
+     *     has itself acknowledged or consumed in this process, whatever the
+     *     [Purchase] object says. Other stale snapshots (locally
+     *     `isAcknowledged = false` but Play-side `true`) still
      *     surface as `Failure(DeveloperErrorException)` on re-handle;
      *     the recovery sweep won't re-issue an acknowledged purchase
      *     (it filters `PURCHASED && !isAcknowledged`), so the stale
@@ -246,7 +251,7 @@ public interface BillingActions {
      *   (for non-consumables).
      * @return [HandlePurchaseResult.Success] if the call landed,
      *   [HandlePurchaseResult.AlreadyAcknowledged] if `consume = false` and
-     *   [Purchase.isAcknowledged] was already `true` (no PBL call made),
+     *   the purchase is already acknowledged (no PBL call made),
      *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
      *   state, [HandlePurchaseResult.NotOwned] if Play replied
      *   `ITEM_NOT_OWNED` from the ack / consume call (stale snapshot —

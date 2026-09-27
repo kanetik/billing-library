@@ -203,7 +203,7 @@ The library's own test suite (`billing/src/test/kotlin/com/kanetik/billing/`) us
 v0.2.0 plans a published `com.kanetik.billing:billing-testing` artifact with:
 - `FakeBillingRepository` — in-memory billing repo with scriptable behavior
 - Test-control API: `setConnectionResult`, `emitPurchaseUpdate`, `setProducts`, `throwOnNext(BillingException)`, `simulateLaunchFlowResult`
-- Robolectric included so the four classes deferred from v0.1.0's test suite (PurchaseVerifier, toOneTimeFlowParams, DefaultBillingRepository orchestration, showInAppMessages) get coverage
+- Robolectric included so the classes deferred from v0.1.0's test suite (PurchaseVerifier, DefaultBillingRepository orchestration, showInAppMessages) get coverage
 
 See the [Roadmap](roadmap.md) for the full v0.2.0 plan.
 

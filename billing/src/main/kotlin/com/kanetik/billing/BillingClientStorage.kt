@@ -143,6 +143,8 @@ internal class BillingClientStorage(
         acknowledgedTokens.update { it + token }
     }
 
+    internal fun isMarkedAcknowledged(token: String): Boolean = token in acknowledgedTokens.value
+
     /**
      * Recovery-sweep events. Typed narrower as [OwnedPurchases.Recovered] —
      * the only thing emitted on this channel is the sweep result. Replay = 1

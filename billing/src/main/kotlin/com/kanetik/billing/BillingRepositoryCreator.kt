@@ -78,8 +78,10 @@ public object BillingRepositoryCreator {
      *   crash mid-acknowledge will otherwise lose the purchase silently.
      *
      *   This flag gates only the connect-time sweep: a failed
-     *   `acknowledgePurchase` / `consumePurchase` schedules its own in-session
-     *   retry regardless of this setting — see [HandlePurchaseResult.Failure].
+     *   `acknowledgePurchase` / `consumePurchase` still re-emits the purchase
+     *   as [OwnedPurchases.Recovered] in-session regardless of this setting,
+     *   and only a collector that hands it to `handlePurchase` retries it —
+     *   see [HandlePurchaseResult.Failure].
      * @param connectionRetryPolicy Bounded retry applied to transient
      *   `startConnection` failures (`SERVICE_DISCONNECTED`,
      *   `SERVICE_UNAVAILABLE`, etc.) before a connection

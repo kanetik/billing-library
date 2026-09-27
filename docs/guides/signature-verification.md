@@ -36,8 +36,8 @@ billing.observePurchaseUpdates()
                     logger.w(TAG, "handlePurchase NotOwned for ${purchase.products}")
                 }
                 is HandlePurchaseResult.Failure -> {
-                    // Don't grant — the library retries in-session with backoff,
-                    // then on the next connect.
+                    // Don't grant — the purchase comes back as
+                    // OwnedPurchases.Recovered; handle it there to retry.
                     logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")
                 }
             }

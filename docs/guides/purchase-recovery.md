@@ -35,7 +35,7 @@ This requires that *something* is driving the connection. The standard pattern u
 
 The recovery channel uses `replay = 1` internally, so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases. That's important: in many apps the collector is in a ViewModel that races the connection coming up.
 
-A failed sweep query, or a failed acknowledge / consume, is no longer only picked up "on the next connect": the library retries both in-session with backoff. A long-lived subscriber under the 60-second `WhileSubscribed` grace window may never see a fresh connect in a given app session, so relying solely on the next connect left those two failure modes stuck until the process restarted.
+A failed sweep query, or a failed acknowledge / consume, is no longer only picked up "on the next connect": the library retries a failed sweep in-session with backoff, and after a failed acknowledge / consume it runs a fresh sweep that re-emits the purchase as `Recovered`. A long-lived subscriber under the 60-second `WhileSubscribed` grace window may never see a fresh connect in a given app session, so relying solely on the next connect left those two failure modes stuck until the process restarted.
 
 ## Refreshing on demand: `refreshPurchases()`
 
@@ -68,19 +68,17 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
         HandlePurchaseResult.Success -> grantEntitlement(purchase)  // recovery is the whole point — actually grant
         HandlePurchaseResult.AlreadyAcknowledged -> {
-            // Not reachable from a Recovered snapshot in practice — the sweep
-            // pre-filters PURCHASED && !isAcknowledged, so the local
-            // isAcknowledged flag is false and handlePurchase doesn't
-            // short-circuit. Listed for exhaustiveness; the arm fires from
-            // a manual queryPurchases reconciliation where you have a fresh
-            // Purchase with isAcknowledged=true.
+            // Fires when this repository already acknowledged the token in
+            // this process (for example, a second collector handling the
+            // same Recovered event), or from a manual queryPurchases
+            // reconciliation with a fresh Purchase where isAcknowledged=true.
             grantEntitlement(purchase)
         }
         is HandlePurchaseResult.Failure -> {
             // Surface the error if you want, but DO NOT grant entitlement.
             // The library doesn't mark the token as acknowledged on Failure —
-            // it retries automatically (in-session, then on the next sweep),
-            // which will surface this purchase again for retry.
+            // it re-emits this purchase as Recovered (in-session, then on
+            // the next sweep), and handling that Recovered event retries it.
         }
         HandlePurchaseResult.NotPurchased -> {}
         HandlePurchaseResult.NotOwned -> {
@@ -145,4 +143,4 @@ val billing = BillingRepositoryCreator.create(
 
 The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.
 
-This flag gates only the connect-time sweep. A failed `acknowledgePurchase` / `consumePurchase` still schedules its own in-session retry regardless of this setting — see [Handling `handlePurchase` failures correctly](error-handling.md#handling-handlepurchase-failures-correctly). Opting out means you're responsible for reconciliation beyond that in-session retry, typically server-driven.
+This flag gates only the connect-time sweep. A failed `acknowledgePurchase` / `consumePurchase` still re-emits the purchase as `Recovered` in-session regardless of this setting, so keep a `Recovered` branch that calls `handlePurchase` — see [Handling `handlePurchase` failures correctly](error-handling.md#handling-handlepurchase-failures-correctly). Opting out means you're responsible for reconciliation beyond that, typically server-driven.

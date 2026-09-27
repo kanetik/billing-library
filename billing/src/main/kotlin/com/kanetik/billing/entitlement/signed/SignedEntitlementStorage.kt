@@ -77,9 +77,8 @@ import java.nio.ByteBuffer
  * the next write retries from a consistent state. If the signature write
  * fails *after* the snapshot write succeeded, the next read sees a snapshot/
  * signature mismatch (or no signature on first ever write) and falls back to
- * the cold-start path for that key; the next `OwnedPurchases.Live` or
- * `OwnedPurchases.Recovered` re-confirms truth (often within the same launch,
- * once the billing connection establishes).
+ * the cold-start path for that key; the next `OwnedPurchases.Snapshot` from
+ * `refreshPurchases()` re-confirms a purchase the user still owns.
  *
  * # Threat-model caveats
  *
@@ -227,7 +226,7 @@ public class SignedEntitlementStorage<K : Any>(
          * This trusts the existing snapshot. If the device was tampered with
          * before this call ran, the resulting signature blesses the tampered
          * data. Skip this helper and accept the cold-start path
-         * ([TamperEvent.MissingSignature] → null read → live re-confirm) if
+         * ([TamperEvent.MissingSignature] → null read → re-confirmed by the next `refreshPurchases()` Snapshot) if
          * pre-upgrade tampering is in your threat model.
          *
          * # Multi-entitlement

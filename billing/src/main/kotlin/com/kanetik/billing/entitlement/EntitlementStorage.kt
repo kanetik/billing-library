@@ -32,7 +32,8 @@ package com.kanetik.billing.entitlement
  *    does not validate this defensively; it's a caller contract.
  *  - **Stable across app upgrades.** Renaming an enum constant breaks the
  *    on-disk mapping for that entitlement and surfaces as the snapshot
- *    appearing to vanish (re-confirmed on the next live purchase event).
+ *    appearing to vanish (re-confirmed by the next `OwnedPurchases.Snapshot`
+ *    from `refreshPurchases()`).
  *
  * ## Contract
  *

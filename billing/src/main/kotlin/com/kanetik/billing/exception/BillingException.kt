@@ -36,8 +36,7 @@ import com.kanetik.billing.RetryType
  * [com.kanetik.billing.BillingActions.showInAppMessages],
  * `getBillingChoiceInfo`, and `showBillingProgramInformationDialog` throw on
  * the first non-OK response instead — see
- * [com.kanetik.billing.BillingActions]'s class-level KDoc. `isBillingChoiceAvailable`
- * never throws; it reports a non-OK response as `BillingChoiceAvailability.Unavailable`.
+ * [com.kanetik.billing.BillingActions]'s class-level KDoc.
  * The exception carried by a purchase flow's `FlowOutcome.Failure` is thrown
  * on the first attempt too — nothing retries a purchase-flow attempt today —
  * so [retryType] there is informational only.

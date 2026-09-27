@@ -21,9 +21,9 @@ import com.kanetik.billing.exception.BillingException
  *    [OwnedPurchases.Recovered], [OwnedPurchases.Snapshot]) report purchases
  *    the user owns that need acknowledgement / consume / entitlement grant. Hand each to
  *    [com.kanetik.billing.BillingActions.handlePurchase] and merge into your
- *    own entitlement state — these events are **incremental updates, not
- *    authoritative owned-state snapshots** (see each variant's KDoc for the
- *    specific shape). For managed entitlement state, use
+ *    own entitlement state — apart from [OwnedPurchases.Snapshot], these
+ *    events are **incremental updates, not authoritative owned-state
+ *    snapshots** (see each variant's KDoc for the specific shape). For managed entitlement state, use
  *    [com.kanetik.billing.entitlement.EntitlementCache].
  *  - **[FlowOutcome]** — purchase-flow attempt outcomes. Variants
  *    ([FlowOutcome.Pending], [FlowOutcome.Canceled],
@@ -102,6 +102,10 @@ import com.kanetik.billing.exception.BillingException
  * handled the recovered purchase receives the cache re-filtered against the
  * current acked set — not the stale pre-ack snapshot. See the
  * [OwnedPurchases.Recovered] KDoc.
+ *
+ * [OwnedPurchases.Snapshot] events also replay to a re-attached subscriber
+ * (`replay = 1`), unfiltered: the replayed snapshot can predate
+ * [OwnedPurchases.Live] events the subscriber has already handled.
  *
  * [PurchaseRevoked] events flow through their own dedicated `replay = 16`
  * channel: revocations arriving before a subscriber attaches (the FCM
@@ -184,7 +188,8 @@ public sealed class OwnedPurchases : PurchaseEvent {
 
     /**
      * `PURCHASED && !isAcknowledged` purchases discovered by the library's
-     * automatic sweep on each successful Play Billing connection.
+     * automatic sweep on each successful Play Billing connection, and by the
+     * extra sweep it runs after a failed acknowledge / consume.
      *
      * **Same handling as [Live]** — call
      * [com.kanetik.billing.BillingActions.handlePurchase] (with `consume = true`
@@ -258,8 +263,10 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * mid-acknowledge leave purchases stranded — without a recovery sweep on
      * the next launch, the user paid and gets refunded with no entitlement.
      *
-     * Disabled via [com.kanetik.billing.BillingRepositoryCreator.create]'s
-     * `recoverPurchasesOnConnect = false` parameter (default is `true`).
+     * The connect-time sweep is disabled via
+     * [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect = false` parameter (default is `true`); the
+     * sweep after a failed acknowledge / consume runs either way.
      */
     public data class Recovered(override val purchases: List<Purchase>) : OwnedPurchases()
 
