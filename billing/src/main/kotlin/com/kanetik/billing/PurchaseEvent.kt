@@ -18,8 +18,8 @@ import com.kanetik.billing.exception.BillingException
  * entitlement code:
  *
  *  - **[OwnedPurchases]** — owned-state updates. Variants ([OwnedPurchases.Live],
- *    [OwnedPurchases.Recovered]) report purchases the user owns that need
- *    acknowledgement / consume / entitlement grant. Hand each to
+ *    [OwnedPurchases.Recovered], [OwnedPurchases.Snapshot]) report purchases
+ *    the user owns that need acknowledgement / consume / entitlement grant. Hand each to
  *    [com.kanetik.billing.BillingActions.handlePurchase] and merge into your
  *    own entitlement state — these events are **incremental updates, not
  *    authoritative owned-state snapshots** (see each variant's KDoc for the
@@ -53,6 +53,7 @@ import com.kanetik.billing.exception.BillingException
  *     when (event) {
  *         is OwnedPurchases.Live -> event.purchases.forEach { handleAndGrant(it) }
  *         is OwnedPurchases.Recovered -> event.purchases.forEach { handleAndGrant(it) }
+ *         is OwnedPurchases.Snapshot -> event.purchases.forEach { handleAndGrant(it) }
  *         is FlowOutcome.Pending -> showPendingNotice() // do NOT grant
  *         is FlowOutcome.Canceled -> {}
  *         is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
