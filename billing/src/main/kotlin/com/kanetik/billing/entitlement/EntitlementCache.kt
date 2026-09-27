@@ -77,9 +77,9 @@ import kotlinx.coroutines.sync.withLock
  * On [start], the cache hydrates from [storage] and trusts each persisted
  * Granted snapshot indefinitely — there is no max-age check at hydration
  * time. A Granted snapshot persisted six months ago in a previous session
- * still hydrates as Granted today. This is intentional: the cache treats
- * Play as the authoritative source of revocation signals, not the local
- * clock. Two things can invalidate a stale-but-hydrated Granted state for
+ * still hydrates as Granted today. This is intentional: revocation comes
+ * from [com.kanetik.billing.PurchaseRevoked] events, not the local clock.
+ * Two things can invalidate a stale-but-hydrated Granted state for
  * a given key:
  *
  *  1. A [PurchaseRevoked] event whose `purchaseToken` matches the cached
@@ -181,8 +181,8 @@ import kotlinx.coroutines.sync.withLock
  *    particular snapshot for an unrelated reason).
  *  - [com.kanetik.billing.PurchaseRevoked]: when `event.purchaseToken`
  *    matches *any* cached snapshot's `purchaseToken`, that key transitions
- *    to [EntitlementState.Revoked] immediately (no grace; Play has explicitly
- *    revoked). Consumers wire `emitExternalRevocation` against their
+ *    to [EntitlementState.Revoked] immediately (no grace). Consumers wire
+ *    `emitExternalRevocation` against their
  *    RTDN→FCM pipeline.
  *
  * The remaining [FlowOutcome] variants ([FlowOutcome.Pending],
@@ -473,7 +473,7 @@ public class EntitlementCache<K : Any>(
      * Matches the revoked `purchaseToken` against every cached snapshot. At
      * most one key will match (Play guarantees tokens are unique per purchase).
      * If a match is found, that key transitions to Revoked immediately (no
-     * grace — Play has explicitly revoked).
+     * grace).
      */
     private fun handleRevoked(event: PurchaseRevoked): List<Pair<K, EntitlementSnapshot>> {
         // Two-pass: collect matching keys first, then mutate via
