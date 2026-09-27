@@ -28,6 +28,7 @@ untracked=$(git -C "$top" ls-files --others --exclude-standard -- "${inputs[@]}"
 hash=$( {
     git -C "$top" ls-files -s -- "${inputs[@]}"
     git -C "$top" diff HEAD -- "${inputs[@]}"
+    printf '%s\n' "$untracked"
     [ -n "$untracked" ] && printf '%s\n' "$untracked" | git -C "$top" hash-object --stdin-paths 2>/dev/null
 } | git hash-object --stdin)
 [ "$(cat "$stamp" 2>/dev/null)" = "$hash" ] && exit 0
@@ -43,6 +44,7 @@ if ! mkdir "$lock" 2>/dev/null; then
 fi
 
 (
+    echo $BASHPID > "$lock/pid"
     trap 'rm -rf "$lock"' EXIT
     cd "$top" || exit 1
     sha=$(git rev-parse --short HEAD)
@@ -55,4 +57,3 @@ fi
         echo "$(date -u +%FT%TZ) FAILED $branch@$sha$dirty from $top (see publish-local-last.log)" >> "$log"
     fi
 ) < /dev/null > /dev/null 2>&1 &
-echo $! > "$lock/pid"
