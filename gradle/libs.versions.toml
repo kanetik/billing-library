@@ -1,18 +1,17 @@
 [versions]
 # Kotlin compiler/runtime version. The library module itself doesn't apply
-# kotlin-android (AGP 9.2 supplies that implicitly), but the :sample module
+# kotlin-android (AGP supplies that implicitly), but the :sample module
 # uses `org.jetbrains.kotlin.plugin.compose` which requires its version to
-# match the project's Kotlin. AGP 9.2.0 bundles Kotlin 2.2.10 — keep this
-# pin in sync if AGP is bumped.
-androidGradlePlugin = "9.2.1"
-kotlin = "2.4.0"
+# match the project's Kotlin.
+androidGradlePlugin = "9.4.1"
+kotlin = "2.4.20"
 playBillingKtx = "9.1.0"
 kotlinxCoroutines = "1.11.0"
 lifecycle = "2.11.0"
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 # Sample-only deps. Compose UI/material versions are resolved through the BOM
 # so we don't pin them individually.
-composeBom = "2026.06.00"
+composeBom = "2026.09.00"
 activityCompose = "1.13.0"
 junit = "4.13.2"
 mockk = "1.14.11"
@@ -21,7 +20,7 @@ truth = "1.4.5"
 # AAR + sources + Javadoc JARs, POM metadata, and signing in one config block.
 # 0.30.0 had a Windows-specific bug constructing the local staging directory
 # URL — `file://C:\...` (mixed slashes) failed URI parsing. Fixed in 0.32+.
-vanniktechMavenPublish = "0.36.0"
+vanniktechMavenPublish = "0.37.0"
 # Dokka generates the -javadoc JAR for Maven Central. We pin explicitly
 # (rather than relying on vanniktech's deprecated boolean publishJavadocJar
 # convenience) so the Dokka task name is under our control. vanniktech 0.36+

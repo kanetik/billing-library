@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history so the workflow can derive a release-notes diff
           # if we add that step later. Cheap on a small repo.
@@ -52,13 +52,13 @@ jobs:
       - name: Set up JDK 17 (Gradle daemon)
         # Gradle 9.x requires JDK 17+ to run; the produced AAR still targets
         # JDK 11 via `jvmToolchain(11)` + foojay-resolver-convention.
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Publish to Maven Central staging
         # Vanniktech's plugin reads ORG_GRADLE_PROJECT_* env vars as Gradle
