@@ -470,7 +470,9 @@ public class EntitlementCache<K : Any>(
             }
 
             val toPersist: List<Pair<K, EntitlementSnapshot>> = when (event) {
-                is OwnedPurchases -> handleObservation(event.purchases)
+                is OwnedPurchases.Live -> handleObservation(event.purchases)
+                is OwnedPurchases.Recovered -> handleObservation(event.purchases)
+                is OwnedPurchases.Snapshot -> handleObservation(event.purchases)
                 is FlowOutcome.Failure -> handleFailure(event.exception)
                 is PurchaseRevoked -> handleRevoked(event)
                 is FlowOutcome.Pending,

@@ -136,6 +136,28 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `Snapshot with no matching purchase does NOT revoke a Granted snapshot`() = runTest {
+        val storage = FakeEntitlementStorage(
+            initial = mapOf(
+                TestKey.ONE to EntitlementSnapshot(
+                    isEntitled = true,
+                    confirmedAtMs = INITIAL_CLOCK - 1_000L,
+                    purchaseToken = "tok-prior",
+                ),
+            ),
+        )
+        val (cache, updates, _, _, job) = newCache(storage = storage)
+        runCurrent()
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
+        updates.emit(OwnedPurchases.Snapshot(emptyList()))
+        runCurrent()
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
     fun `PurchaseRevoked matching a key's cached token revokes only that key`() = runTest {
         val (cache, updates, _, _, job) = newCache()
         // Establish Granted on both keys.
