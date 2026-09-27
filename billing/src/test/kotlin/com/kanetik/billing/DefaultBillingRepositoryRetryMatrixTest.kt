@@ -17,8 +17,6 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
     private val code = codeNames.entries.single { it.value == codeName }.key
     private val transient = code in simpleRetryCodes || code in exponentialRetryCodes
 
-    private val openIssue: String? = null
-
     private val interactive = op == Op.QUERY_PRODUCT_DETAILS || op == Op.IS_FEATURE_SUPPORTED
 
     private val expectedCalls = when {
@@ -35,7 +33,6 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 
     @Test
     fun `makes the expected number of calls`() = runTest {
-        assumeTrue(openIssue ?: "", openIssue == null)
         val play = FakePlay().apply { script(op, code) }
 
         repositoryOver(play).let { repo -> runCatching { repo.perform(op) } }
@@ -45,7 +42,6 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 
     @Test
     fun `waits only between attempts`() = runTest {
-        assumeTrue(openIssue ?: "", openIssue == null)
         val play = FakePlay().apply { script(op, code) }
         val repo = repositoryOver(play)
 
@@ -56,7 +52,7 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 
     @Test
     fun `never requeries purchases`() = runTest {
-        assumeTrue(openIssue ?: "", openIssue == null && op != Op.QUERY_PURCHASES)
+        assumeTrue(op != Op.QUERY_PURCHASES)
         val play = FakePlay().apply { script(op, code) }
 
         repositoryOver(play).let { repo -> runCatching { repo.perform(op) } }
@@ -66,7 +62,6 @@ internal class DefaultBillingRepositoryRetryMatrixTest(
 
     @Test
     fun `surfaces the typed outcome`() = runTest {
-        assumeTrue(openIssue ?: "", openIssue == null)
         val play = FakePlay().apply { script(op, code) }
         val repo = repositoryOver(play)
 
