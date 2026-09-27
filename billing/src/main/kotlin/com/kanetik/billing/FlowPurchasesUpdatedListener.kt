@@ -10,10 +10,18 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 internal class FlowPurchasesUpdatedListener(
     private val updateSubject: MutableSharedFlow<PurchaseEvent>,
-    private val logger: BillingLogger = BillingLogger.Noop
+    private val logger: BillingLogger = BillingLogger.Noop,
+    private val launchFailureSuppression: LaunchFailureSuppression = LaunchFailureSuppression()
 ) : PurchasesUpdatedListener {
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
+        if (launchFailureSuppression.consume(result.responseCode)) {
+            logger.d(
+                "onPurchasesUpdated: suppressed echo of the synchronous launch failure - " +
+                    BillingLoggingUtils.createDetailedBillingContext(result, operationContext = "onPurchasesUpdated")
+            )
+            return
+        }
         val safePurchases = purchases.orEmpty()
         logger.d(
             "onPurchasesUpdated: " +

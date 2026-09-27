@@ -62,6 +62,7 @@ internal class FakePlay {
     val endedClients = mutableSetOf<BillingClient>()
     private val disconnectedClients = mutableSetOf<BillingClient>()
     val stateListeners = mutableListOf<BillingClientStateListener>()
+    val purchasesUpdatedListeners = mutableListOf<PurchasesUpdatedListener>()
     var startConnectionCount = 0
         private set
 
@@ -77,8 +78,10 @@ internal class FakePlay {
     fun calls(op: Op, client: BillingClient): Int = callLog.count { it.first == op && it.second === client }
 
     val clientFactory = object : BillingClientFactory {
-        override fun createBillingClient(context: Context, listener: PurchasesUpdatedListener): BillingClient =
-            newClient()
+        override fun createBillingClient(context: Context, listener: PurchasesUpdatedListener): BillingClient {
+            purchasesUpdatedListeners += listener
+            return newClient()
+        }
     }
 
     private fun respond(op: Op, client: BillingClient): BillingResult {
@@ -139,7 +142,8 @@ internal class FakePlay {
 internal fun TestScope.storageOver(
     play: FakePlay,
     policy: ConnectionRetryPolicy = ConnectionRetryPolicy(),
-    recoverPurchasesOnConnect: Boolean = false
+    recoverPurchasesOnConnect: Boolean = false,
+    clock: () -> Long = System::currentTimeMillis
 ): BillingClientStorage = BillingClientStorage(
     billingFactory = CoroutinesBillingConnectionFactory(
         context = mockk(relaxed = true),
@@ -150,14 +154,16 @@ internal fun TestScope.storageOver(
     logger = BillingLogger.Noop,
     connectionShareScope = backgroundScope,
     ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-    recoverPurchasesOnConnect = recoverPurchasesOnConnect
+    recoverPurchasesOnConnect = recoverPurchasesOnConnect,
+    clock = clock
 )
 
 internal fun TestScope.repositoryOver(
     play: FakePlay,
-    policy: ConnectionRetryPolicy = ConnectionRetryPolicy()
+    policy: ConnectionRetryPolicy = ConnectionRetryPolicy(),
+    clock: () -> Long = System::currentTimeMillis
 ): DefaultBillingRepository = DefaultBillingRepository(
-    billingClientStorage = storageOver(play, policy),
+    billingClientStorage = storageOver(play, policy, clock = clock),
     logger = BillingLogger.Noop,
     ioDispatcher = UnconfinedTestDispatcher(testScheduler),
     uiDispatcher = UnconfinedTestDispatcher(testScheduler)
