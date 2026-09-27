@@ -107,7 +107,7 @@
   <div class="breadcrumbs"><a href="../../../index.html">billing</a><span class="delimiter">/</span><a href="../index.html">com.kanetik.billing.exception</a><span class="delimiter">/</span><span class="current">BillingErrorCategory</span></div>
   <div class="cover ">
     <h1 class="cover"><span>Billing</span><wbr></wbr><span>Error</span><wbr></wbr><span><span>Category</span></span></h1>
-    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">enum </span><a href="index.html">BillingErrorCategory</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="index.html">BillingErrorCategory</a><span class="token operator">&gt; </span></div><p class="paragraph">UI-bucket classification for a <a href="../-billing-exception/index.html">BillingException</a>.</p><p class="paragraph">Collapses the 13 sealed <a href="../-billing-exception/index.html">BillingException</a> subtypes into seven categories that map cleanly to user-facing UX. Lets callers maintain a small string-resource map (one per category) instead of branching on every Play Billing response code.</p><p class="paragraph">Get one via <a href="../-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>. See the <a href="../-billing-exception/index.html">BillingException</a> class-level KDoc for the recommended usage pattern.</p><p class="paragraph">The library deliberately does <strong>not</strong> ship localized user-facing strings — tone, voice, and language coverage are app concerns.</p></div></div>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">enum </span><a href="index.html">BillingErrorCategory</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="index.html">BillingErrorCategory</a><span class="token operator">&gt; </span></div><p class="paragraph">UI-bucket classification for a <a href="../-billing-exception/index.html">BillingException</a>.</p><p class="paragraph">Collapses the 13 sealed <a href="../-billing-exception/index.html">BillingException</a> subtypes into eight categories that map cleanly to user-facing UX. Lets callers maintain a small string-resource map (one per category) instead of branching on every Play Billing response code.</p><p class="paragraph">Get one via <a href="../-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>. See the <a href="../-billing-exception/index.html">BillingException</a> class-level KDoc for the recommended usage pattern.</p><p class="paragraph">The library deliberately does <strong>not</strong> ship localized user-facing strings — tone, voice, and language coverage are app concerns.</p></div></div>
   </div>
   <div class="tabbedcontent">
     <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button><button class="section-tab" data-togglable="ENTRY">Entries</button></div>
@@ -139,7 +139,7 @@
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><a href="-network/index.html">Network</a></div></div><div class="brief "><p class="paragraph">Network or Play Store connectivity issue. Includes <a href="../-billing-exception/-network-error-exception/index.html">BillingException.NetworkErrorException</a>, <a href="../-billing-exception/-service-disconnected-exception/index.html">BillingException.ServiceDisconnectedException</a>, and <a href="../-billing-exception/-service-unavailable-exception/index.html">BillingException.ServiceUnavailableException</a>. Often transient — the library has already retried with backoff before throwing, so surface as &quot;connection problem, please try again.&quot;</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><a href="-network/index.html">Network</a></div></div><div class="brief "><p class="paragraph">Network or Play Store connectivity issue. Includes <a href="../-billing-exception/-network-error-exception/index.html">BillingException.NetworkErrorException</a>, <a href="../-billing-exception/-service-disconnected-exception/index.html">BillingException.ServiceDisconnectedException</a>, and <a href="../-billing-exception/-service-unavailable-exception/index.html">BillingException.ServiceUnavailableException</a>. Often transient — most calls have already retried with backoff before throwing (see <a href="../-billing-exception/index.html">BillingException</a>'s class-level KDoc for the calls that don't), so surface as &quot;connection problem, please try again.&quot;</p></div></div></div>
                 </div>
               </div>
             </div>
@@ -184,7 +184,22 @@
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><a href="-already-owned/index.html">AlreadyOwned</a></div></div><div class="brief "><p class="paragraph">Play and the local cache disagree on ownership state — usually a cross-session race or a stale local view. Includes:</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><a href="-already-owned/index.html">AlreadyOwned</a></div></div><div class="brief "><p class="paragraph">The user tried to buy a non-consumable they already own — <a href="../-billing-exception/-item-already-owned-exception/index.html">BillingException.ItemAlreadyOwnedException</a>. Usually a cross-session race or a stale local view. The right UX is typically to <strong>restore</strong> the entitlement silently (or with a &quot;you already own this, restoring...&quot; toast), not to show an error.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="564730276%2FClasslikes%2F-593106385" anchor-label="NotOwned" id="564730276%2FClasslikes%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-togglable="ENTRY" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-not-owned/index.html">NotOwned</a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="564730276%2FClasslikes%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><div class="block"><a href="-not-owned/index.html">NotOwned</a></div></div></div></div>
                 </div>
               </div>
             </div>

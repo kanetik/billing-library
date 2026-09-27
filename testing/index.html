@@ -1615,7 +1615,9 @@
 <span class="w">    </span><span class="p">))</span>
 <span class="w">    </span><span class="p">.</span><span class="na">build</span><span class="p">()</span>
 <span class="kd">val</span><span class="w"> </span><span class="nv">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">billing</span><span class="p">.</span><span class="na">queryProductDetails</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
-<span class="n">billing</span><span class="p">.</span><span class="na">launchFlow</span><span class="p">(</span><span class="n">activity</span><span class="p">,</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="na">first</span><span class="p">().</span><span class="na">toOneTimeFlowParams</span><span class="p">())</span>
+<span class="kd">val</span><span class="w"> </span><span class="nv">flowParams</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="na">first</span><span class="p">().</span><span class="na">toOneTimeFlowParams</span><span class="p">()</span>
+<span class="w">    </span><span class="o">?:</span><span class="w"> </span><span class="n">error</span><span class="p">(</span><span class="s">"android.test.purchased always carries an offer token"</span><span class="p">)</span>
+<span class="n">billing</span><span class="p">.</span><span class="na">launchFlow</span><span class="p">(</span><span class="n">activity</span><span class="p">,</span><span class="w"> </span><span class="n">flowParams</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="what-level-1-verifies">What Level 1 verifies<a class="headerlink" href="#what-level-1-verifies" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1699,9 +1701,9 @@
 <li>Dashboard → <strong>Response simulator → Manage</strong>.</li>
 <li>Add response codes you want simulated:<ul>
 <li><code>USER_CANCELED</code> → exercises your <code>FlowOutcome.Canceled</code> branch.</li>
-<li><code>BILLING_UNAVAILABLE</code> → triggers <code>BillingException.BillingUnavailableException</code> (<code>RetryType.NONE</code>).</li>
-<li><code>ITEM_ALREADY_OWNED</code> → triggers <code>BillingException.ItemAlreadyOwnedException</code> (<code>RetryType.REQUERY_PURCHASE_RETRY</code>) and your <code>FlowOutcome.ItemAlreadyOwned</code> branch.</li>
-<li><code>NETWORK_ERROR</code> → triggers <code>BillingException.NetworkErrorException</code> and the library's exponential-backoff retry loop (<code>RetryType.EXPONENTIAL_RETRY</code>).</li>
+<li><code>BILLING_UNAVAILABLE</code> → outside a purchase flow, triggers <code>BillingException.BillingUnavailableException</code> (<code>RetryType.NONE</code>); simulated on the purchase flow itself, surfaces as <code>FlowOutcome.UserBillingError</code> instead.</li>
+<li><code>ITEM_ALREADY_OWNED</code> → triggers <code>BillingException.ItemAlreadyOwnedException</code> (<code>RetryType.NONE</code>) and your <code>FlowOutcome.ItemAlreadyOwned</code> branch.</li>
+<li><code>NETWORK_ERROR</code> → triggers <code>BillingException.NetworkErrorException</code> and the library's retry loop (<code>RetryType.EXPONENTIAL_RETRY</code>).</li>
 <li><code>SERVICE_DISCONNECTED</code> → <code>BillingException.ServiceDisconnectedException</code> (<code>RetryType.SIMPLE_RETRY</code>).</li>
 <li><code>SERVICE_UNAVAILABLE</code> → <code>BillingException.ServiceUnavailableException</code> (<code>RetryType.EXPONENTIAL_RETRY</code>).</li>
 <li><code>DEVELOPER_ERROR</code> → <code>BillingException.DeveloperErrorException</code> (<code>RetryType.NONE</code>).</li>
@@ -1750,7 +1752,7 @@
 <p>v0.2.0 plans a published <code>com.kanetik.billing:billing-testing</code> artifact with:
 - <code>FakeBillingRepository</code> — in-memory billing repo with scriptable behavior
 - Test-control API: <code>setConnectionResult</code>, <code>emitPurchaseUpdate</code>, <code>setProducts</code>, <code>throwOnNext(BillingException)</code>, <code>simulateLaunchFlowResult</code>
-- Robolectric included so the four classes deferred from v0.1.0's test suite (PurchaseVerifier, toOneTimeFlowParams, DefaultBillingRepository orchestration, showInAppMessages) get coverage</p>
+- Robolectric included so the classes deferred from v0.1.0's test suite (PurchaseVerifier, DefaultBillingRepository orchestration, showInAppMessages) get coverage</p>
 <p>See the <a href="../roadmap/">Roadmap</a> for the full v0.2.0 plan.</p>
 <hr />
 <h2 id="quick-reference">Quick reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>

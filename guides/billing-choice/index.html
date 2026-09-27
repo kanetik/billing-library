@@ -1285,7 +1285,7 @@
 <li><strong><code>getBillingChoiceInfo(params)</code></strong> <em>does</em> throw a <a href="../error-handling/"><code>BillingException</code></a> subtype on a non-OK response — it's an explicit fetch, so a failure is a failure. Both <code>BillingChoiceDetails</code> fields are nullable; PBL may return either asset as absent.</li>
 <li><strong><code>showBillingProgramInformationDialog(activity, params)</code></strong> must run on the main thread and throws a <code>BillingException</code> subtype if Play rejects the call.</li>
 </ul>
-<p>All three reuse the wrapper's existing connection management and retry/backoff — same as every other <code>BillingActions</code> call.</p>
+<p>All three reuse the wrapper's existing connection management, but make a single attempt with no retry loop.</p>
 <h2 id="why-its-thin">Why it's thin<a class="headerlink" href="#why-its-thin" title="Permanent link">&para;</a></h2>
 <p>These methods mirror PBL's surface rather than bundling the two-step query→dialog flow into one call. Collapsing it presumes orchestration that hasn't been validated against a real, enrolled app yet — and a wrong abstraction is harder to walk back than a thin one. Shipping thin (behind the experimental marker) lets the higher-level shape emerge from dog-fooding, then promote it without breaking callers. This is the library's standard demand-driven approach (see <a href="../../roadmap/">Roadmap</a>).</p>
 <h2 id="learning-how-billing-choice-works">Learning how Billing Choice works<a class="headerlink" href="#learning-how-billing-choice-works" title="Permanent link">&para;</a></h2>

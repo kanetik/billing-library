@@ -1250,8 +1250,8 @@
 <p>If you haven't shipped a Play Billing integration before, these are the guides that matter most. The order builds context as you go:</p>
 <ol>
 <li><a href="guides/purchase-recovery/">Purchase recovery</a> — what <code>PurchaseEvent</code> is (two tiers), the three-day acknowledge cliff that catches almost everyone the first time, and the library's auto-sweep that recovers stranded purchases on every connection. The most important read.</li>
-<li><a href="guides/error-handling/">Error handling</a> — typed exceptions, the seven UI categories, and the retry loop the library runs for you.</li>
-<li><a href="guides/entitlement-cache/">EntitlementCache</a> — opt-in entitlement state machine with grace policy. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.</li>
+<li><a href="guides/error-handling/">Error handling</a> — typed exceptions, the eight UI categories, and the retry loop the library runs for you.</li>
+<li><a href="guides/entitlement-cache/">EntitlementCache</a> — opt-in entitlement state machine. Most apps end up wanting it. Covers signed/tamper-resistant storage and migration from unsigned snapshots.</li>
 <li><a href="guides/signature-verification/">Signature verification</a> — proving a <code>Purchase</code> actually came from Google.</li>
 <li><a href="guides/server-driven-revocation/">Server-driven revocation</a> — how refunds and chargebacks reach the app via <code>emitExternalRevocation</code>. Covers RTDN, FCM, and non-FCM triggers like authoritative-empty <code>queryPurchases</code>.</li>
 </ol>
@@ -1270,7 +1270,7 @@
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="reference/api-overview/">API overview</a> — top-level types and package layout. The full per-class KDoc is in the <a href="api/">Dokka API reference</a>.</li>
-<li><a href="reference/replay-semantics/">Replay semantics</a> — the three-channel structure of <code>observePurchaseUpdates()</code>, plus the connection grace window.</li>
+<li><a href="reference/replay-semantics/">Replay semantics</a> — the four-channel structure of <code>observePurchaseUpdates()</code>, plus the connection grace window.</li>
 <li><a href="reference/extensions/">Extensions</a> — the <code>com.kanetik.billing.ext</code> helpers (<code>validatePurchaseActivity</code>, <code>toOneTimeFlowParams</code>, <code>PurchaseFlowCoordinator</code>).</li>
 <li><a href="reference/limitations/">Limitations</a> — what's out of scope for the v0.1.x series.</li>
 </ul>

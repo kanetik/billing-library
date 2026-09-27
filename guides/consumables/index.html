@@ -1231,7 +1231,7 @@
 <h1 id="consumables-wallet-ledger-pattern">Consumables: wallet ledger pattern<a class="headerlink" href="#consumables-wallet-ledger-pattern" title="Permanent link">&para;</a></h1>
 <p>Consumable products are different from non-consumable unlocks in a way that matters for how you track them:</p>
 <ul>
-<li>A <strong>non-consumable unlock</strong> ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is <code>Granted | InGrace | Revoked</code> — exactly what <a href="../entitlement-cache/"><code>EntitlementCache</code></a> is built for.</li>
+<li>A <strong>non-consumable unlock</strong> ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is <code>Granted | Revoked</code> — exactly what <a href="../entitlement-cache/"><code>EntitlementCache</code></a> is built for.</li>
 <li>A <strong>consumable</strong> ("100 coins", "5 gallons of fuel") is a one-shot credit. Each successful purchase adds N units to a wallet; gameplay (or whatever) spends them down; when the wallet is empty, the user buys again — same SKU, fresh purchase, fresh token. There's no "is the user entitled?" state — there's only a running balance.</li>
 </ul>
 <p><code>EntitlementCache</code> deliberately does <strong>not</strong> track wallet balances. This page is the pattern for the cache-on-the-side that does.</p>
@@ -1283,8 +1283,7 @@
 <span class="w">        </span><span class="n">viewModelScope</span><span class="p">.</span><span class="na">launch</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="n">billing</span><span class="p">.</span><span class="na">observePurchaseUpdates</span><span class="p">().</span><span class="na">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">event</span><span class="w"> </span><span class="o">-&gt;</span>
 <span class="w">                </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Live</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">grantOrSkip</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
-<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">grantOrSkip</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">grantOrSkip</span><span class="p">(</span><span class="nb">it</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
 <span class="w">                    </span><span class="k">else</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* not our concern here */</span><span class="w"> </span><span class="p">}</span>
 <span class="w">                </span><span class="p">}</span>
 <span class="w">            </span><span class="p">}</span>
@@ -1315,8 +1314,8 @@
 <span class="w">                </span><span class="c1">// to your reconciliation logic; do not credit the wallet.</span>
 <span class="w">            </span><span class="p">}</span>
 <span class="w">            </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="c1">// Don't grant. The recovery sweep re-emits the unacknowledged</span>
-<span class="w">                </span><span class="c1">// purchase on the next connect for retry.</span>
+<span class="w">                </span><span class="c1">// Don't grant. The purchase comes back as</span>
+<span class="w">                </span><span class="c1">// OwnedPurchases.Recovered; handle it there to retry.</span>
 <span class="w">            </span><span class="p">}</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
@@ -1325,7 +1324,7 @@
 <p>Three things to call out about this shape:</p>
 <ul>
 <li><strong><code>purchase.quantity</code> matters.</strong> Read it on every grant. Defaults to <code>1</code> so single-unit code stays correct, but ignoring it on a multi-quantity purchase silently under-credits. See <a href="../multi-quantity/">Multi-quantity purchases</a>.</li>
-<li><strong>Only grant on <code>Success</code>.</strong> Crediting on <code>Failure</code> and "fixing it later" leaves you with phantom currency the user didn't really pay for; the <a href="../purchase-recovery/">Purchase recovery</a> sweep retries acked-less purchases on the next connect, so transient failures resolve themselves.</li>
+<li><strong>Only grant on <code>Success</code>.</strong> Crediting on <code>Failure</code> and "fixing it later" leaves you with phantom currency the user didn't really pay for; the library re-emits the unconsumed purchase as <code>OwnedPurchases.Recovered</code> (in-session at most three times in a row for the same purchase, then via the <a href="../purchase-recovery/">Purchase recovery</a> sweep on the next connect), so a collector that hands <code>Recovered</code> purchases to <code>handlePurchase</code> retries transient failures.</li>
 <li><strong>Idempotency.</strong> Each successful <code>consumeAsync</code> produces one <code>Success</code>. Multiple <code>Recovered</code> snapshots can carry the same purchase token before Play marks it acknowledged, but the library's internal acked-token filter (see <a href="../purchase-recovery/">Purchase recovery</a>) prevents re-delivery once the consume lands. If you want belt-and-suspenders, store the last-credited token in your wallet and skip duplicates explicitly.</li>
 </ul>
 <h2 id="mixing-wallets-with-entitlementcache">Mixing wallets with <code>EntitlementCache</code><a class="headerlink" href="#mixing-wallets-with-entitlementcache" title="Permanent link">&para;</a></h2>

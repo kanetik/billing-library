@@ -1166,6 +1166,7 @@
 <span class="p">)</span>
 </code></pre></div>
 <p>Default selector picks the first offer. If your app has only one offer per product, you can ignore the parameter.</p>
+<p><code>toOneTimeFlowParams</code> returns <code>null</code> — instead of building params without an offer token — when <code>oneTimePurchaseOfferDetailsList</code> is null/empty or <code>offerSelector</code> returns <code>null</code>. Handle that case rather than passing the result straight to <code>launchFlow</code>; <code>PurchaseFlowCoordinator.launch</code> does this for you, returning <code>PurchaseFlowResult.NoPurchasableOffer</code>.</p>
 <h2 id="pre-orders-use-ispreorder">Pre-orders: use <code>isPreorder</code><a class="headerlink" href="#pre-orders-use-ispreorder" title="Permanent link">&para;</a></h2>
 <p>PBL 8.1+ exposes pre-order metadata via <code>OneTimePurchaseOfferDetails.preorderDetails</code>. The library wraps that as a <code>Boolean</code> extension for ergonomic switching:</p>
 <div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nn">com.kanetik.billing.ext.isPreorder</span>

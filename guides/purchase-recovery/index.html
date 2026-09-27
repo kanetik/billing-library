@@ -592,6 +592,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#refreshing-on-demand-refreshpurchases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Refreshing on demand: refreshPurchases()
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#handling-recovered-events" class="md-nav__link">
     <span class="md-ellipsis">
       Handling Recovered events
@@ -1193,6 +1202,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#refreshing-on-demand-refreshpurchases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Refreshing on demand: refreshPurchases()
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#handling-recovered-events" class="md-nav__link">
     <span class="md-ellipsis">
       Handling Recovered events
@@ -1258,12 +1276,13 @@
 <p>Both arrive on the same listener with a <code>BillingResult</code> and a <code>List&lt;Purchase&gt;</code>. A naive integration treats them the same and writes the callback's purchase list to whatever entitlement state the app keeps. But a <code>USER_CANCELED</code> outcome carries an empty (or stale) purchase list, and writing that into a cache silently corrupts state. People have shipped real apps that revoke a paid entitlement when the user taps Back on the purchase dialog.</p>
 <p>The library splits the callback into two sealed roots so the type system can catch this at compile time:</p>
 <ul>
-<li><code>OwnedPurchases</code> — the user owns these. Acknowledge / consume / grant entitlement. Two variants:<ul>
+<li><code>OwnedPurchases</code> — the user owns these. Acknowledge / consume / grant entitlement. Three variants:<ul>
 <li><code>Live</code> — completed through the active purchase flow (or carried in an <code>OK</code> callback).</li>
-<li><code>Recovered</code> — found by the auto-sweep on connect (the rest of this guide is about these).</li>
+<li><code>Recovered</code> — found by the auto-sweep on connect (most of this guide is about these).</li>
+<li><code>Snapshot</code> — found by an explicit <code>refreshPurchases()</code> call (see below).</li>
 </ul>
 </li>
-<li><code>FlowOutcome</code> — describes what <em>happened</em> on a single launch attempt. Variants: <code>Pending</code> (deferred payment, e.g. cash or family approval), <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>Failure(BillingException)</code>, <code>UnknownResponse</code>. The <code>purchases</code> list on these is empty or transient. <strong>Never write it to your entitlement cache.</strong></li>
+<li><code>FlowOutcome</code> — describes what <em>happened</em> on a single launch attempt. Variants: <code>Pending</code> (deferred payment, e.g. cash or family approval), <code>Canceled</code>, <code>ItemAlreadyOwned</code>, <code>ItemUnavailable</code>, <code>UserBillingError</code>, <code>Failure(BillingException)</code>, <code>UnknownResponse</code>. The <code>purchases</code> list on these is empty or transient. <strong>Never write it to your entitlement cache.</strong></li>
 </ul>
 <p>There's also <code>PurchaseRevoked</code>, a third root sibling to the two above, for server-driven revocation events. See <a href="../server-driven-revocation/">Server-driven revocation</a> for that story.</p>
 <p>The <code>PurchaseEvent</code> marker interface doesn't expose <code>purchases</code> at all, so a <code>when</code> branch that wants to read purchases has to narrow to <code>OwnedPurchases</code> or <code>FlowOutcome</code> first. The wrong code fails to compile instead of silently corrupting state.</p>
@@ -1272,24 +1291,40 @@
 <p>A quick aside on "fresh connection": the library shares <code>connectToBilling()</code> via <code>WhileSubscribed(60s)</code>, so a brief background round-trip (a collapsed activity, a quick task switch) doesn't tear down and recreate the connection, which means the sweep doesn't re-run on resume. The sweep fires when the connection genuinely transitions from disconnected to OK. See <a href="../../reference/replay-semantics/">Replay semantics</a> for the timing details.</p>
 <p>This requires that <em>something</em> is driving the connection. The standard pattern uses <code>BillingConnectionLifecycleManager</code> (see <a href="../lifecycle/">Lifecycle integration</a>), which collects <code>connectToBilling()</code> while a <code>LifecycleOwner</code> is started and triggers the sweep automatically. Subscribing to <code>observePurchaseUpdates()</code> alone does <strong>not</strong> open the connection; pair it with the lifecycle manager (or your own <code>connectToBilling()</code> collector) so the sweep can fire.</p>
 <p>The recovery channel uses <code>replay = 1</code> internally, so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases. That's important: in many apps the collector is in a ViewModel that races the connection coming up.</p>
+<p>A failed sweep query, or a failed acknowledge / consume, is no longer only picked up "on the next connect": the library retries a failed sweep in-session with backoff, and after a failed acknowledge / consume it runs a fresh sweep that re-emits the purchase as <code>Recovered</code> (at most three times in a row for the same purchase). A long-lived subscriber under the 60-second <code>WhileSubscribed</code> grace window may never see a fresh connect in a given app session, so relying solely on the next connect left those two failure modes stuck until the process restarted.</p>
+<h2 id="refreshing-on-demand-refreshpurchases">Refreshing on demand: <code>refreshPurchases()</code><a class="headerlink" href="#refreshing-on-demand-refreshpurchases" title="Permanent link">&para;</a></h2>
+<p><code>BillingPurchaseUpdatesOwner.refreshPurchases()</code> queries every owned <code>PURCHASED</code> purchase — <code>INAPP</code> and, where supported, <code>SUBS</code> — <strong>acknowledged purchases included</strong>, and emits the result as <code>OwnedPurchases.Snapshot</code> on the same <code>observePurchaseUpdates()</code> stream. Handle it exactly like <code>Live</code> / <code>Recovered</code>: hand each purchase to <code>handlePurchase</code>. An already-acknowledged purchase short-circuits to <code>HandlePurchaseResult.AlreadyAcknowledged</code>, which is a grant signal.</p>
+<p>Like <code>queryPurchases</code> and the library's other query methods, it throws a typed <code>BillingException</code> if the query doesn't recover after retrying — see <a href="../error-handling/">Error handling</a>. Wrap the call from <code>onResume</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">billing</span><span class="p">.</span><span class="na">refreshPurchases</span><span class="p">()</span>
+<span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="p">:</span><span class="w"> </span><span class="n">BillingException</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">logger</span><span class="p">.</span><span class="na">w</span><span class="p">(</span><span class="s">"refreshPurchases failed"</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Call it from:</p>
+<ul>
+<li><code>onResume</code> (or the equivalent point in your navigation/lifecycle layer) — Play's own guidance for restoring ownership after the app was backgrounded during a purchase.</li>
+<li>Your <code>FlowOutcome.ItemAlreadyOwned</code> branch — restore entitlement for a purchase Play says you already own.</li>
+<li>Your <code>FlowOutcome.Failure</code> branch when <code>exception</code> is a <code>NetworkErrorException</code> or <code>FatalErrorException</code> — the purchase may have gone through even though the flow reported failure.</li>
+</ul>
+<p>The library does <strong>not</strong> call <code>refreshPurchases()</code> on your behalf in any of these situations; it's a consumer-triggered API, not an automatic one.</p>
 <h2 id="handling-recovered-events">Handling <code>Recovered</code> events<a class="headerlink" href="#handling-recovered-events" title="Permanent link">&para;</a></h2>
 <p>Same code path as <code>Live</code>. Hand each purchase to <code>handlePurchase</code>, the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.</p>
 <div class="highlight"><pre><span></span><code><span class="k">is</span><span class="w"> </span><span class="n">OwnedPurchases</span><span class="p">.</span><span class="na">Recovered</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">event</span><span class="p">.</span><span class="na">purchases</span><span class="p">.</span><span class="na">forEach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">purchase</span><span class="w"> </span><span class="o">-&gt;</span>
 <span class="w">    </span><span class="k">when</span><span class="w"> </span><span class="p">(</span><span class="n">billing</span><span class="p">.</span><span class="na">handlePurchase</span><span class="p">(</span><span class="n">purchase</span><span class="p">,</span><span class="w"> </span><span class="n">consume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// or true for consumables</span>
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Success</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span><span class="w">  </span><span class="c1">// recovery is the whole point — actually grant</span>
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">AlreadyAcknowledged</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="c1">// Not reachable from a Recovered snapshot in practice — the sweep</span>
-<span class="w">            </span><span class="c1">// pre-filters PURCHASED &amp;&amp; !isAcknowledged, so the local</span>
-<span class="w">            </span><span class="c1">// isAcknowledged flag is false and handlePurchase doesn't</span>
-<span class="w">            </span><span class="c1">// short-circuit. Listed for exhaustiveness; the arm fires from</span>
-<span class="w">            </span><span class="c1">// a manual queryPurchases reconciliation where you have a fresh</span>
-<span class="w">            </span><span class="c1">// Purchase with isAcknowledged=true.</span>
+<span class="w">            </span><span class="c1">// Fires when this repository already acknowledged the token in</span>
+<span class="w">            </span><span class="c1">// this process (for example, a second collector handling the</span>
+<span class="w">            </span><span class="c1">// same Recovered event), or from a manual queryPurchases</span>
+<span class="w">            </span><span class="c1">// reconciliation with a fresh Purchase where isAcknowledged=true.</span>
 <span class="w">            </span><span class="n">grantEntitlement</span><span class="p">(</span><span class="n">purchase</span><span class="p">)</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="c1">// Surface the error if you want, but DO NOT grant entitlement.</span>
-<span class="w">            </span><span class="c1">// The library doesn't mark the token as acknowledged on Failure,</span>
-<span class="w">            </span><span class="c1">// so the next sweep will surface this purchase again for retry.</span>
+<span class="w">            </span><span class="c1">// The library doesn't mark the token as acknowledged on Failure —</span>
+<span class="w">            </span><span class="c1">// it re-emits this purchase as Recovered (in-session, then on</span>
+<span class="w">            </span><span class="c1">// the next sweep), and handling that Recovered event retries it.</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span>
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
@@ -1336,6 +1371,7 @@
 <span class="p">)</span>
 </code></pre></div>
 <p>The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.</p>
+<p>This flag gates only the connect-time sweep. A failed <code>acknowledgePurchase</code> / <code>consumePurchase</code> still re-emits the purchase as <code>Recovered</code> in-session regardless of this setting (at most three times in a row for the same purchase), so keep a <code>Recovered</code> branch that calls <code>handlePurchase</code> — see <a href="../error-handling/#handling-handlepurchase-failures-correctly">Handling <code>handlePurchase</code> failures correctly</a>. Opting out means you're responsible for reconciliation beyond that, typically server-driven.</p>
 
 
 

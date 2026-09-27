@@ -1191,7 +1191,7 @@
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotPurchased</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// pending; wait</span>
 <span class="w">        </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">NotOwned</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="c1">// Play says not owned — defer to grace/revoke</span>
 <span class="w">        </span><span class="k">is</span><span class="w"> </span><span class="n">HandlePurchaseResult</span><span class="p">.</span><span class="na">Failure</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">showError</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">exception</span><span class="p">.</span><span class="na">userFacingCategory</span><span class="p">)</span>
-<span class="w">        </span><span class="c1">// never grant on Failure — recovery sweep retries on the next connection</span>
+<span class="w">        </span><span class="c1">// never grant on Failure — it comes back as OwnedPurchases.Recovered; handle it there</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>

@@ -1211,7 +1211,7 @@
 </tr>
 <tr>
 <td><code>BillingPurchaseUpdatesOwner</code></td>
-<td><code>observePurchaseUpdates(): Flow&lt;PurchaseEvent&gt;</code>. Hot internally; merges three channels — a no-replay live channel, a replay=1 recovery channel, and a replay=16 revocation channel (for <code>PurchaseRevoked</code> events pushed via <code>emitExternalRevocation</code>; sized for FCM-burst replay) — see <a href="../replay-semantics/">Replay semantics</a>.</td>
+<td><code>observePurchaseUpdates(): Flow&lt;PurchaseEvent&gt;</code>. Hot internally; merges four channels — a no-replay live channel, a replay=1 recovery channel, a replay=1 <code>refreshPurchases()</code> snapshot channel, and a replay=16 revocation channel (for <code>PurchaseRevoked</code> events pushed via <code>emitExternalRevocation</code>; sized for FCM-burst replay) — see <a href="../replay-semantics/">Replay semantics</a>. Also <code>suspend fun refreshPurchases()</code> — queries every owned purchase (acknowledged included) and emits an <code>OwnedPurchases.Snapshot</code>; call it from <code>onResume</code> and after <code>ItemAlreadyOwned</code> / a flow <code>Failure</code> where <code>exception</code> is <code>NetworkErrorException</code> or <code>FatalErrorException</code>.</td>
 </tr>
 <tr>
 <td><code>BillingException</code> (sealed)</td>
@@ -1271,7 +1271,7 @@
 </tr>
 <tr>
 <td><code>com.kanetik.billing.entitlement</code></td>
-<td><code>EntitlementCache</code>, <code>EntitlementState</code>, <code>GracePolicy</code>, <code>GraceReason</code>, <code>EntitlementSnapshot</code>, <code>EntitlementStorage</code></td>
+<td><code>EntitlementCache</code>, <code>EntitlementState</code>, <code>EntitlementSnapshot</code>, <code>EntitlementStorage</code></td>
 </tr>
 <tr>
 <td><code>com.kanetik.billing.entitlement.signed</code></td>

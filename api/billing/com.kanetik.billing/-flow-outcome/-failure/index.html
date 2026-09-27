@@ -107,24 +107,24 @@
   <div class="breadcrumbs"><a href="../../../../index.html">billing</a><span class="delimiter">/</span><a href="../../index.html">com.kanetik.billing</a><span class="delimiter">/</span><a href="../index.html">FlowOutcome</a><span class="delimiter">/</span><span class="current">Failure</span></div>
   <div class="cover ">
     <h1 class="cover"><span><span>Failure</span></span></h1>
-    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="index.html">Failure</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>exception<span class="token operator">: </span><a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="../index.html">FlowOutcome</a></div><p class="paragraph">A purchase-flow callback that surfaced a typed <a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtype Play Billing classifies as a failure (network errors, billing-unavailable, service unavailable, etc.). Carries the original exception so consumers can branch on subtype, <a href="../../../com.kanetik.billing.exception/-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>, or <a href="../../../com.kanetik.billing.exception/-billing-exception/retry-type.html">BillingException.retryType</a> without re-deriving from response codes.</p><p class="paragraph"><code class="lang-kotlin">purchases</code> is whatever Play returned in the failing callback — typically empty, but preserved here for symmetry with the other variants.</p><p class="paragraph">Library-internal entitlement helpers (e.g. <code class="lang-kotlin">EntitlementCache</code> in <a href="../../../com.kanetik.billing.entitlement/index.html">com.kanetik.billing.entitlement</a>) consume this variant to drive grace-window logic on transient outages. Most consumer code can treat Failure the same way it would treat <a href="../-unknown-response/index.html">UnknownResponse</a> — surface a &quot;couldn't reach Play, try again&quot; message from <a href="../../../com.kanetik.billing.exception/-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>.</p></div></div>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="index.html">Failure</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>exception<span class="token operator">: </span><a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span> : <a href="../index.html">FlowOutcome</a></div><p class="paragraph">A purchase-flow callback that surfaced a typed <a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a> subtype Play Billing classifies as a failure (network error, service unavailable, etc. — <code class="lang-kotlin">BILLING_UNAVAILABLE</code> routes to <a href="../-user-billing-error/index.html">UserBillingError</a> instead). Carries the original exception so consumers can branch on subtype, <a href="../../../com.kanetik.billing.exception/-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>, or <a href="../../../com.kanetik.billing.exception/-billing-exception/retry-type.html">BillingException.retryType</a> without re-deriving from response codes.</p><p class="paragraph"><code class="lang-kotlin">purchases</code> is whatever Play returned in the failing callback — typically empty, but preserved here for symmetry with the other variants.</p><p class="paragraph">Library-internal entitlement helpers (e.g. <code class="lang-kotlin">EntitlementCache</code> in <a href="../../../com.kanetik.billing.entitlement/index.html">com.kanetik.billing.entitlement</a>) treat this variant as a no-op — it carries no product id, so an existing grant can't be reliably attributed to the failing attempt. Most consumer code can treat Failure the same way it would treat <a href="../-unknown-response/index.html">UnknownResponse</a> — surface a &quot;couldn't reach Play, try again&quot; message from <a href="../../../com.kanetik.billing.exception/-billing-exception/user-facing-category.html">BillingException.userFacingCategory</a>.</p></div></div>
   </div>
   <div class="tabbedcontent">
     <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
     <div class="tabs-section-body">
       <div data-togglable="CONSTRUCTOR">
         <h2 class="tableheader">Constructors</h2>
-        <div class="table"><a data-name="320120758%2FConstructors%2F-593106385" anchor-label="Failure" id="320120758%2FConstructors%2F-593106385" data-filterable-set=":billing/release"></a>
+        <div class="table"><a data-name="1959037161%2FConstructors%2F-593106385" anchor-label="Failure" id="1959037161%2FConstructors%2F-593106385" data-filterable-set=":billing/release"></a>
           <div class="table-row table-row_content" data-togglable="CONSTRUCTOR" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-failure.html"><span><span>Failure</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="320120758%2FConstructors%2F-593106385"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1959037161%2FConstructors%2F-593106385"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">exception<span class="token operator">: </span><a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a><span class="token punctuation">, </span></span><span class="parameter ">purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">exception<span class="token operator">: </span><a href="../../../com.kanetik.billing.exception/-billing-exception/index.html">BillingException</a><span class="token punctuation">, </span></span><span class="parameter ">purchases<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">result<span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></span></span><span class="token punctuation">)</span></div></div></div>
                 </div>
               </div>
             </div>
@@ -159,6 +159,55 @@
               <div>
                 <div class="title">
                   <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">val </span><a href="purchases.html">purchases</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><span data-unresolved-link="com.android.billingclient.api/Purchase///PointingToDeclaration/">Purchase</span><span class="token operator">&gt;</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2035657781%2FProperties%2F-593106385" anchor-label="result" id="-2035657781%2FProperties%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="result.html"><span><span>result</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2035657781%2FProperties%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">val </span><a href="result.html">result</a><span class="token operator">: </span><span data-unresolved-link="com.android.billingclient.api/BillingResult///PointingToDeclaration/">BillingResult</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="-1996731911%2FFunctions%2F-593106385" anchor-label="equals" id="-1996731911%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="equals.html"><span><span>equals</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1996731911%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">operator override </span><span class="token keyword">fun </span><a href="equals.html"><span class="token function">equals</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">other<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1431507661%2FFunctions%2F-593106385" anchor-label="hashCode" id="1431507661%2FFunctions%2F-593106385" data-filterable-set=":billing/release"></a>
+          <div class="table-row table-row_content" data-filterable-current=":billing/release" data-filterable-set=":billing/release">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="hash-code.html"><span>hash</span><wbr></wbr><span><span>Code</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1431507661%2FFunctions%2F-593106385"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":billing/release"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="hash-code.html"><span class="token function">hashCode</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
                 </div>
               </div>
             </div>
