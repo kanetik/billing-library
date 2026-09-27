@@ -5,6 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PurchasesUpdatedListener
+import com.kanetik.billing.BillingLoggingUtils
 import com.kanetik.billing.ConnectionRetryPolicy
 import com.kanetik.billing.InternalConnectionState
 import com.kanetik.billing.RetryType
@@ -113,6 +114,7 @@ internal class CoroutinesBillingConnectionFactory(
             if (!retriesRemaining || !retryType.isTransientForConnection()) {
                 // Terminal: non-transient classification, or the retry budget
                 // is spent. Surface the error to the consumer.
+                BillingLoggingUtils.logBillingFailure(logger, result, operationContext = "Billing Connection")
                 close(exception)
                 return
             }

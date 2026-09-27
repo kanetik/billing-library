@@ -454,6 +454,7 @@ internal class DefaultBillingRepository(
                 .setResponseCode(BillingResponseCode.SERVICE_UNAVAILABLE)
                 .setDebugMessage("Billing connection didn't resolve within ${CONNECTION_TIMEOUT_MS}ms")
                 .build()
+            BillingLoggingUtils.logBillingFailure(logger, timeoutResult, operationContext = "Billing Connection")
             throw BillingException.fromResult(timeoutResult)
         }
         return when (state) {

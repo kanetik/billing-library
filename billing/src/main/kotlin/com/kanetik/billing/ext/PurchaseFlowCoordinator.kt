@@ -64,11 +64,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Doesn't decide entitlement-grant rules — that's app business logic.
  * - Doesn't track analytics events — wrap [launch] with your own analytics layer
  *   if needed.
- * - Doesn't log a [BillingException] it catches — logging is entirely up to
- *   whatever threw it. [com.kanetik.billing.DefaultBillingRepository] logs a
- *   `BillingException` coming from its retry/operation-result path, but not
- *   one from an earlier connection-establishment failure; a custom
- *   [BillingRepository] may log nothing at all.
+ * - Doesn't log a [BillingException] it catches — that's the throwing
+ *   [BillingRepository]'s job. A [BillingRepository] that doesn't log its
+ *   own failures means this failure produces no log line anywhere.
  *
  * @param billingRepository The active [BillingRepository] (typically from
  *   [com.kanetik.billing.BillingRepositoryCreator]).

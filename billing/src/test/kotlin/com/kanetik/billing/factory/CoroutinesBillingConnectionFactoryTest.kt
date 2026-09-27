@@ -109,6 +109,28 @@ class CoroutinesBillingConnectionFactoryTest {
     }
 
     @Test
+    fun `a terminal non-transient connection failure is logged exactly once`() = runTest {
+        val attempts = AtomicInteger()
+        val captor = CapturingLogger()
+        val client = mockk<BillingClient>(relaxed = true)
+        every { client.startConnection(any()) } answers {
+            attempts.incrementAndGet()
+            firstArg<BillingClientStateListener>().onBillingSetupFinished(result(BillingResponseCode.BILLING_UNAVAILABLE))
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = clientFactoryReturning(client),
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = captor
+        )
+
+        factory.createBillingConnectionFlow(noopListener()).first()
+
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
     fun `None policy surfaces the first transient failure immediately`() = runTest {
         val attempts = AtomicInteger()
         val factory = factoryFor(
@@ -251,4 +273,16 @@ class CoroutinesBillingConnectionFactoryTest {
 
     private fun result(responseCode: Int): BillingResult =
         BillingResult.newBuilder().setResponseCode(responseCode).build()
+
+    private class CapturingLogger : BillingLogger {
+        val warnings = mutableListOf<String>()
+        val errors = mutableListOf<String>()
+        override fun d(message: String, throwable: Throwable?) = Unit
+        override fun w(message: String, throwable: Throwable?) {
+            warnings += message
+        }
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message
+        }
+    }
 }
