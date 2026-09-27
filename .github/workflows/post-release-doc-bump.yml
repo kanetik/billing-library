@@ -4,7 +4,8 @@ name: Post-release doc bump
 #   - Bumps install pins in README.md, docs/installation.md (Kotlin DSL /
 #     Groovy / version catalog / Maven), and sample/README.md to the new
 #     version.
-#   - Stamps CHANGELOG.md: keeps the existing `## [Unreleased]` heading in
+#   - Stamps CHANGELOG.md: dates an existing `## [<VERSION>] - Unreleased`
+#     heading if there is one; otherwise keeps the `## [Unreleased]` heading in
 #     place (now empty) and inserts a new `## [<VERSION>] - <DATE>` section
 #     immediately below it. The release notes that were sitting under
 #     [Unreleased] visually fall under the new dated section as a result.
@@ -153,6 +154,7 @@ jobs:
           # metachar in play), but defensively escape so future format changes
           # don't introduce false matches.
           VER_ESC=$(printf '%s' "$VER" | sed 's/\./\\./g')
+          sed -i -E "s/^## \\[${VER_ESC}\\] - Unreleased\$/## [${VER}] - ${DATE}/" CHANGELOG.md
           if grep -qE "^## \\[${VER_ESC}\\] - " CHANGELOG.md; then
             echo "CHANGELOG already has a section for ${VER}; skipping stamp."
           else
@@ -261,7 +263,7 @@ jobs:
             - \`README.md\`
             - \`docs/installation.md\` (Kotlin DSL / Groovy / version catalog / Maven)
             - \`sample/README.md\`
-          - CHANGELOG: keep the existing \`## [Unreleased]\` heading (now empty) and insert a new \`## [${VER}] - ${DATE}\` section immediately below it. The entries that were sitting under \`[Unreleased]\` visually fall under the new dated section.
+          - CHANGELOG: date an existing \`## [${VER}] - Unreleased\` heading if there was one; otherwise keep the existing \`## [Unreleased]\` heading (now empty) and insert a new \`## [${VER}] - ${DATE}\` section immediately below it. The entries that were sitting under \`[Unreleased]\` visually fall under the new dated section.
 
           ## Merge checklist
 

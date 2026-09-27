@@ -74,17 +74,17 @@ class BillingExceptionTest {
     }
 
     @Test
-    fun `fromResult maps ITEM_ALREADY_OWNED to ItemAlreadyOwnedException with REQUERY_PURCHASE_RETRY`() {
+    fun `fromResult maps ITEM_ALREADY_OWNED to ItemAlreadyOwnedException with NONE`() {
         val ex = BillingException.fromResult(result(BillingResponseCode.ITEM_ALREADY_OWNED))
         assertThat(ex).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
-        assertThat(ex.retryType).isEqualTo(RetryType.REQUERY_PURCHASE_RETRY)
+        assertThat(ex.retryType).isEqualTo(RetryType.NONE)
     }
 
     @Test
-    fun `fromResult maps ITEM_NOT_OWNED to ItemNotOwnedException with REQUERY_PURCHASE_RETRY`() {
+    fun `fromResult maps ITEM_NOT_OWNED to ItemNotOwnedException with NONE`() {
         val ex = BillingException.fromResult(result(BillingResponseCode.ITEM_NOT_OWNED))
         assertThat(ex).isInstanceOf(BillingException.ItemNotOwnedException::class.java)
-        assertThat(ex.retryType).isEqualTo(RetryType.REQUERY_PURCHASE_RETRY)
+        assertThat(ex.retryType).isEqualTo(RetryType.NONE)
     }
 
     @Test
@@ -115,8 +115,8 @@ class BillingExceptionTest {
 
     @Test
     fun `bare BillingResult constructor yields a buildable message`() {
-        // BillingResult() (no-arg) is used in the connection-factory error fallback;
-        // debugMessage is null in that path. Verify our message-building survives it.
+        // BillingResult() (no-arg) leaves debugMessage null. Verify our
+        // message-building survives it.
         val ex = BillingException.UnknownException(BillingResult())
         // No throw is the assertion — accessing .message must succeed even when
         // PBL leaves debugMessage unset.
@@ -161,22 +161,20 @@ class BillingExceptionTest {
 
     @Test
     fun `userFacingCategory maps ProductUnavailable to ItemUnavailable only`() {
-        // ItemAlreadyOwnedException + ItemNotOwnedException have distinct UX
-        // (restore-silently / log-no-op) from ItemUnavailable (genuinely-not-for-sale)
-        // and now go in the AlreadyOwned bucket instead.
         assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_UNAVAILABLE)).userFacingCategory)
             .isEqualTo(BillingErrorCategory.ProductUnavailable)
     }
 
     @Test
-    fun `userFacingCategory maps AlreadyOwned bucket`() {
-        listOf(
-            BillingResponseCode.ITEM_ALREADY_OWNED,
-            BillingResponseCode.ITEM_NOT_OWNED
-        ).forEach { code ->
-            assertThat(BillingException.fromResult(result(code)).userFacingCategory)
-                .isEqualTo(BillingErrorCategory.AlreadyOwned)
-        }
+    fun `userFacingCategory maps ItemAlreadyOwned to AlreadyOwned bucket`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_ALREADY_OWNED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.AlreadyOwned)
+    }
+
+    @Test
+    fun `userFacingCategory maps ItemNotOwned to its own NotOwned bucket`() {
+        assertThat(BillingException.fromResult(result(BillingResponseCode.ITEM_NOT_OWNED)).userFacingCategory)
+            .isEqualTo(BillingErrorCategory.NotOwned)
     }
 
     @Test

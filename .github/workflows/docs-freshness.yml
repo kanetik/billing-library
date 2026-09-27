@@ -187,12 +187,12 @@ jobs:
           # Escape regex metacharacters in $PIN before interpolating into the
           # grep -E pattern (dots in X.Y.Z would otherwise act as wildcards).
           PIN_ESC=$(printf '%s' "$PIN" | sed 's/\./\\./g')
-          if grep -qE "^## \[${PIN_ESC}\] - " CHANGELOG.md; then
+          if grep -qE "^## \[${PIN_ESC}\] - [0-9]" CHANGELOG.md; then
             echo "CHANGELOG has section [${PIN}]. OK."
             exit 0
           fi
           echo "::error::CHANGELOG.md has no '## [${PIN}] - <date>' section."
           echo "Pins moved to $PIN without stamping CHANGELOG. Either:"
-          echo "  1. Rename '## [Unreleased]' → '## [${PIN}] - YYYY-MM-DD' and add a fresh '## [Unreleased]' above, or"
+          echo "  1. Replace 'Unreleased' in an existing '## [${PIN}] - Unreleased' heading with the date, or rename '## [Unreleased]' → '## [${PIN}] - YYYY-MM-DD' and add a fresh '## [Unreleased]' above, or"
           echo "  2. Run the 'Post-release doc bump' workflow which does both."
           exit 1

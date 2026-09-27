@@ -8,13 +8,14 @@ import kotlinx.coroutines.flow.Flow
  *
  * Collect this flow in your entitlement / wallet layer to react to every purchase
  * event. Branch on the [PurchaseEvent] sealed-interface roots:
- *  - [OwnedPurchases] (`Live`, `Recovered`) — owned-state events. Hand each
- *    purchase to [com.kanetik.billing.BillingActions.handlePurchase] and
- *    merge granted entitlement into your state. These are **incremental
- *    updates, not authoritative owned-state snapshots** (see [PurchaseEvent]
- *    KDoc and each variant's KDoc for the specific shape).
+ *  - [OwnedPurchases] (`Live`, `Recovered`, `Snapshot`) — owned-state events.
+ *    Hand each purchase to [com.kanetik.billing.BillingActions.handlePurchase]
+ *    and merge granted entitlement into your state. `Live` and `Recovered`
+ *    are **incremental updates, not authoritative owned-state snapshots**;
+ *    `Snapshot` (from [refreshPurchases]) is the full owned set (see
+ *    [PurchaseEvent] KDoc and each variant's KDoc for the specific shape).
  *  - [FlowOutcome] (`Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`,
- *    `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
+ *    `UserBillingError`, `UnknownResponse`) — purchase-flow attempt outcomes; do **not** treat
  *    their `purchases` list as owned-state.
  *  - [PurchaseRevoked] — external revocation signal pushed in via
  *    [BillingRepository.emitExternalRevocation]; revoke entitlement for the
@@ -24,15 +25,16 @@ import kotlinx.coroutines.flow.Flow
  * Both one-time and subscription updates flow through the same stream — see
  * [PurchaseEvent] for the full state-machine guidance.
  *
- * Internally hot and shared via three underlying SharedFlows (live PBL events with
- * `replay = 0`, recovery-sweep events with `replay = 1`, revocation events with
- * `replay = 16` — sized for the realistic FCM-burst case where multiple
- * revocations may pile up before any subscriber attaches). Each subscription to
- * this flow subscribes to all three channels: late subscribers see the most
- * recent recovery sweep plus up to 16 cached revocations plus all future
- * emissions; live events do **not** replay to re-attached subscribers
- * (configuration changes, `repeatOnLifecycle`, etc.), which avoids the
- * "confetti fires twice on rotation" bug.
+ * Internally hot and shared via four underlying SharedFlows (live PBL events with
+ * `replay = 0`, recovery-sweep events with `replay = 1`, [refreshPurchases]
+ * snapshots with `replay = 1`, and revocation events with `replay = 16` —
+ * sized for the realistic FCM-burst case where multiple revocations may pile
+ * up before any subscriber attaches). Each subscription to this flow
+ * subscribes to all four channels: late subscribers see the most recent
+ * recovery sweep, the most recent refresh snapshot, plus up to 16 cached
+ * revocations plus all future emissions; live events do **not** replay to
+ * re-attached subscribers (configuration changes, `repeatOnLifecycle`, etc.),
+ * which avoids the "confetti fires twice on rotation" bug.
  *
  * Returned as [Flow] (not [kotlinx.coroutines.flow.SharedFlow]) because the type
  * can't express "replay-on-subscribe for some emissions but not others" — the
@@ -54,4 +56,6 @@ import kotlinx.coroutines.flow.Flow
 public interface BillingPurchaseUpdatesOwner {
 
     public fun observePurchaseUpdates(): Flow<PurchaseEvent>
+
+    public suspend fun refreshPurchases()
 }

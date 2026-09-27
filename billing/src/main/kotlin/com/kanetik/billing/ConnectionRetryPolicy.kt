@@ -28,14 +28,8 @@ package com.kanetik.billing
  * out to be persistent — which is the point at which the error is actually
  * worth acting on.
  *
- * This mirrors the operation-level retry loop already applied to every
- * [BillingActions] call; connection setup was simply the one path that had no
- * retry layer of its own. The default backoff values match that loop.
- *
- * Failures classified [RetryType.REQUERY_PURCHASE_RETRY] or [RetryType.NONE]
- * are terminal at the connection layer (requerying owned purchases is
- * meaningless before a connection exists), so they surface immediately
- * regardless of this policy.
+ * Failures classified [RetryType.NONE] are terminal at the connection layer,
+ * so they surface immediately regardless of this policy.
  *
  * @property maxAttempts Total number of connection attempts, including the
  *   first. Must be `>= 1`. A value of `1` disables internal retry — the
@@ -75,7 +69,7 @@ public data class ConnectionRetryPolicy(
     }
 
     public companion object {
-        /** Default total connection attempts, including the first. Mirrors the operation-level retry loop. */
+        /** Default total connection attempts, including the first. */
         public const val DEFAULT_MAX_ATTEMPTS: Int = 4
 
         /** Default fixed delay for [RetryType.SIMPLE_RETRY] connection failures. */

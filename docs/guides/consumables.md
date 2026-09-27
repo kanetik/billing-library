@@ -2,7 +2,7 @@
 
 Consumable products are different from non-consumable unlocks in a way that matters for how you track them:
 
-- A **non-consumable unlock** ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is `Granted | InGrace | Revoked` — exactly what [`EntitlementCache`](entitlement-cache.md) is built for.
+- A **non-consumable unlock** ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is `Granted | Revoked` — exactly what [`EntitlementCache`](entitlement-cache.md) is built for.
 - A **consumable** ("100 coins", "5 gallons of fuel") is a one-shot credit. Each successful purchase adds N units to a wallet; gameplay (or whatever) spends them down; when the wallet is empty, the user buys again — same SKU, fresh purchase, fresh token. There's no "is the user entitled?" state — there's only a running balance.
 
 `EntitlementCache` deliberately does **not** track wallet balances. This page is the pattern for the cache-on-the-side that does.
@@ -60,8 +60,7 @@ class ShopViewModel(
         viewModelScope.launch {
             billing.observePurchaseUpdates().collect { event ->
                 when (event) {
-                    is OwnedPurchases.Live -> event.purchases.forEach { grantOrSkip(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { grantOrSkip(it) }
+                    is OwnedPurchases -> event.purchases.forEach { grantOrSkip(it) }
                     else -> { /* not our concern here */ }
                 }
             }
@@ -92,8 +91,8 @@ class ShopViewModel(
                 // to your reconciliation logic; do not credit the wallet.
             }
             is HandlePurchaseResult.Failure -> {
-                // Don't grant. The recovery sweep re-emits the unacknowledged
-                // purchase on the next connect for retry.
+                // Don't grant. The purchase comes back as
+                // OwnedPurchases.Recovered; handle it there to retry.
             }
         }
     }
@@ -103,7 +102,7 @@ class ShopViewModel(
 Three things to call out about this shape:
 
 - **`purchase.quantity` matters.** Read it on every grant. Defaults to `1` so single-unit code stays correct, but ignoring it on a multi-quantity purchase silently under-credits. See [Multi-quantity purchases](multi-quantity.md).
-- **Only grant on `Success`.** Crediting on `Failure` and "fixing it later" leaves you with phantom currency the user didn't really pay for; the [Purchase recovery](purchase-recovery.md) sweep retries acked-less purchases on the next connect, so transient failures resolve themselves.
+- **Only grant on `Success`.** Crediting on `Failure` and "fixing it later" leaves you with phantom currency the user didn't really pay for; the library re-emits the unconsumed purchase as `OwnedPurchases.Recovered` (in-session at most three times in a row for the same purchase, then via the [Purchase recovery](purchase-recovery.md) sweep on the next connect), so a collector that hands `Recovered` purchases to `handlePurchase` retries transient failures.
 - **Idempotency.** Each successful `consumeAsync` produces one `Success`. Multiple `Recovered` snapshots can carry the same purchase token before Play marks it acknowledged, but the library's internal acked-token filter (see [Purchase recovery](purchase-recovery.md)) prevents re-delivery once the consume lands. If you want belt-and-suspenders, store the last-credited token in your wallet and skip duplicates explicitly.
 
 ## Mixing wallets with `EntitlementCache`

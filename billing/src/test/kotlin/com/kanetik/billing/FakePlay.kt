@@ -60,6 +60,7 @@ internal class FakePlay {
     val connectCodes = ArrayDeque<Int?>()
     val clients = mutableListOf<BillingClient>()
     val endedClients = mutableSetOf<BillingClient>()
+    private val disconnectedClients = mutableSetOf<BillingClient>()
     val stateListeners = mutableListOf<BillingClientStateListener>()
     var startConnectionCount = 0
         private set
@@ -82,6 +83,7 @@ internal class FakePlay {
 
     private fun respond(op: Op, client: BillingClient): BillingResult {
         callLog += op to client
+        disconnectedClients -= client
         if (client in endedClients) return billingResult(BillingResponseCode.SERVICE_DISCONNECTED)
         val queue = scripts[op] ?: return billingResult(BillingResponseCode.OK)
         return billingResult(if (queue.size > 1) queue.removeFirst() else queue.first())
@@ -93,12 +95,22 @@ internal class FakePlay {
         every { client.startConnection(any()) } answers {
             startConnectionCount++
             val listener = firstArg<BillingClientStateListener>()
-            stateListeners += listener
+            stateListeners += object : BillingClientStateListener {
+                override fun onBillingSetupFinished(result: BillingResult) {
+                    if (result.responseCode == BillingResponseCode.OK) disconnectedClients -= client
+                    listener.onBillingSetupFinished(result)
+                }
+
+                override fun onBillingServiceDisconnected() {
+                    disconnectedClients += client
+                    listener.onBillingServiceDisconnected()
+                }
+            }
             val code = if (connectCodes.isEmpty()) BillingResponseCode.OK else connectCodes.removeFirst()
-            if (code != null) listener.onBillingSetupFinished(billingResult(code))
+            if (code != null) stateListeners.last().onBillingSetupFinished(billingResult(code))
         }
         every { client.endConnection() } answers { endedClients += client }
-        every { client.isReady } answers { client !in endedClients }
+        every { client.isReady } answers { client !in endedClients && client !in disconnectedClients }
         every { client.queryPurchasesAsync(any<QueryPurchasesParams>(), any()) } answers {
             secondArg<PurchasesResponseListener>()
                 .onQueryPurchasesResponse(respond(Op.QUERY_PURCHASES, client), emptyList())
@@ -126,7 +138,8 @@ internal class FakePlay {
 
 internal fun TestScope.storageOver(
     play: FakePlay,
-    policy: ConnectionRetryPolicy = ConnectionRetryPolicy()
+    policy: ConnectionRetryPolicy = ConnectionRetryPolicy(),
+    recoverPurchasesOnConnect: Boolean = false
 ): BillingClientStorage = BillingClientStorage(
     billingFactory = CoroutinesBillingConnectionFactory(
         context = mockk(relaxed = true),
@@ -137,7 +150,7 @@ internal fun TestScope.storageOver(
     logger = BillingLogger.Noop,
     connectionShareScope = backgroundScope,
     ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-    recoverPurchasesOnConnect = false
+    recoverPurchasesOnConnect = recoverPurchasesOnConnect
 )
 
 internal fun TestScope.repositoryOver(

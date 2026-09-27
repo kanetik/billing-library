@@ -13,6 +13,8 @@ val params = productDetails.toOneTimeFlowParams(
 
 Default selector picks the first offer. If your app has only one offer per product, you can ignore the parameter.
 
+`toOneTimeFlowParams` returns `null` — instead of building params without an offer token — when `oneTimePurchaseOfferDetailsList` is null/empty or `offerSelector` returns `null`. Handle that case rather than passing the result straight to `launchFlow`; `PurchaseFlowCoordinator.launch` does this for you, returning `PurchaseFlowResult.NoPurchasableOffer`.
+
 ## Pre-orders: use `isPreorder`
 
 PBL 8.1+ exposes pre-order metadata via `OneTimePurchaseOfferDetails.preorderDetails`. The library wraps that as a `Boolean` extension for ergonomic switching:

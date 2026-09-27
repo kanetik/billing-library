@@ -3,7 +3,7 @@ package com.kanetik.billing.exception
 /**
  * UI-bucket classification for a [BillingException].
  *
- * Collapses the 13 sealed [BillingException] subtypes into seven categories
+ * Collapses the 13 sealed [BillingException] subtypes into eight categories
  * that map cleanly to user-facing UX. Lets callers maintain a small
  * string-resource map (one per category) instead of branching on every
  * Play Billing response code.
@@ -27,7 +27,8 @@ public enum class BillingErrorCategory {
      * Network or Play Store connectivity issue. Includes
      * [BillingException.NetworkErrorException], [BillingException.ServiceDisconnectedException],
      * and [BillingException.ServiceUnavailableException]. Often transient
-     * — the library has already retried with backoff before throwing, so
+     * — most calls have already retried with backoff before throwing (see
+     * [BillingException]'s class-level KDoc for the calls that don't), so
      * surface as "connection problem, please try again."
      */
     Network,
@@ -35,9 +36,10 @@ public enum class BillingErrorCategory {
     /**
      * Billing isn't available on this device, account, or for the specific
      * feature the call requested. Includes:
-     *  - [BillingException.BillingUnavailableException] — billing API itself
-     *    isn't available (Play Services disabled, non-Play distribution
-     *    such as some Huawei devices, account not eligible for purchases).
+     *  - [BillingException.BillingUnavailableException] — billing itself
+     *    isn't usable for this call (see its own KDoc for the documented
+     *    causes: declined payment, outdated Play Store, unsupported
+     *    country, admin-disabled purchases, or an OEM-blocked Play Store).
      *  - [BillingException.FeatureNotSupportedException] — the specific
      *    feature isn't supported on this Play Store install (older Play
      *    versions, regional rollout limitations, device capability gaps —
@@ -63,26 +65,22 @@ public enum class BillingErrorCategory {
     ProductUnavailable,
 
     /**
-     * Play and the local cache disagree on ownership state — usually a
-     * cross-session race or a stale local view. Includes:
-     *  - [BillingException.ItemAlreadyOwnedException] — the user tried to
-     *    buy a non-consumable they already own. The right UX is typically
-     *    to **restore** the entitlement silently (or with a "you already
-     *    own this, restoring..." toast), not to show an error.
-     *  - [BillingException.ItemNotOwnedException] — a consume call hit a
-     *    purchase Play has no record of (already consumed in another
-     *    session, etc.). Typically a no-op for UX; log and move on.
+     * The user tried to buy a non-consumable they already own —
+     * [BillingException.ItemAlreadyOwnedException]. Usually a cross-session
+     * race or a stale local view. The right UX is typically to **restore**
+     * the entitlement silently (or with a "you already own this,
+     * restoring..." toast), not to show an error.
      *
-     * Both warrant a re-query of owned purchases (the library's retry loop
-     * already does this via [com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY])
-     * to refresh local state. If that retry's resolution still surfaces
-     * the exception, the caller has out-of-band state to reconcile.
+     * Terminal — the caller has out-of-band state to reconcile,
+     * typically by re-querying owned purchases.
      *
      * Bucketed separately from [ProductUnavailable] because the UX is
      * fundamentally different: "you already own this" → restore, "this
      * product isn't for sale" → hide / fallback.
      */
     AlreadyOwned,
+
+    NotOwned,
 
     /**
      * The library or app called Play Billing with malformed arguments

@@ -21,7 +21,6 @@ import com.kanetik.billing.entitlement.EntitlementCache
 import com.kanetik.billing.entitlement.EntitlementSnapshot
 import com.kanetik.billing.entitlement.EntitlementState
 import com.kanetik.billing.entitlement.EntitlementStorage
-import com.kanetik.billing.entitlement.GracePolicy
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.ext.toOneTimeFlowParams
 import com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager
@@ -31,7 +30,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 class SampleViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -53,13 +51,6 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
     private val entitlementCache = EntitlementCache(
         purchasesUpdates = billing.observePurchaseUpdates(),
         storage = entitlementStorage,
-        gracePolicy = GracePolicy(
-            // Long enough to span typical "lost wifi" outages without yanking
-            // entitlement. Real apps tune these to their own retention vs.
-            // freeloader-protection priorities.
-            billingUnavailableMs = TimeUnit.HOURS.toMillis(72),
-            transientFailureMs = TimeUnit.HOURS.toMillis(6),
-        ),
         productKeySelector = { purchase ->
             // For multi-entitlement apps, branch on `purchase.products` and
             // return the corresponding K. Return null for purchases that
@@ -99,11 +90,11 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
                 _state.update { it.copy(lastEvent = event) }
                 appendLog("purchase event: ${event::class.simpleName}")
                 when (event) {
-                    is OwnedPurchases.Live -> event.purchases.forEach { handlePurchaseAndLog(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { handlePurchaseAndLog(it) }
+                    is OwnedPurchases -> event.purchases.forEach { handlePurchaseAndLog(it) }
                     is FlowOutcome -> {
                         // Pending / Canceled / ItemAlreadyOwned / ItemUnavailable /
-                        // UnknownResponse — sample just logs the variant name above.
+                        // UserBillingError / UnknownResponse — sample just logs the
+                        // variant name above.
                         // Real apps should branch per sub-variant. Critically: do NOT
                         // write event.purchases to an entitlement cache from this branch
                         // — see PurchaseEvent KDoc. The library tracks acknowledged
@@ -205,8 +196,13 @@ class SampleViewModel(application: Application) : AndroidViewModel(application) 
 
     fun buy(activity: Activity, productDetails: ProductDetails) {
         viewModelScope.launch {
+            val flowParams = productDetails.toOneTimeFlowParams()
+            if (flowParams == null) {
+                appendLog("launchFlow SKIPPED: no purchasable offer")
+                return@launch
+            }
             try {
-                billing.launchFlow(activity, productDetails.toOneTimeFlowParams())
+                billing.launchFlow(activity, flowParams)
             } catch (e: BillingException) {
                 appendLog("launchFlow FAILED: ${e::class.simpleName} (${e.retryType})")
             }

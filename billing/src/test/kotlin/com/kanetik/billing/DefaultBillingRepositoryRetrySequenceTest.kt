@@ -14,7 +14,9 @@ internal class DefaultBillingRepositoryRetrySequenceTest(
     private val transientName: String
 ) {
     private val transient = codeNames.entries.single { it.value == transientName }.key
-    private val backoffMs = if (transient in simpleRetryCodes) 500L else 2000L
+    private val interactive = op == Op.QUERY_PRODUCT_DETAILS
+    private val backoffMs = if (interactive) 500L else 2000L
+    private val maxAttempts = if (interactive) 3 else 5
 
     @Test
     fun `transient then OK makes exactly two calls and succeeds after one backoff`() = runTest {
@@ -42,13 +44,14 @@ internal class DefaultBillingRepositoryRetrySequenceTest(
 
     @Test
     fun `transient then OK on the final attempt succeeds`() = runTest {
-        val play = FakePlay().apply { script(op, transient, transient, transient, BillingResponseCode.OK) }
+        val codes = List(maxAttempts - 1) { transient } + BillingResponseCode.OK
+        val play = FakePlay().apply { script(op, *codes.toIntArray()) }
         val repo = repositoryOver(play)
 
         val outcome = timed { repo.perform(op) }
 
         assertThat(outcome.result.exceptionOrNull()).isNull()
-        assertThat(play.calls(op)).isEqualTo(4)
+        assertThat(play.calls(op)).isEqualTo(maxAttempts)
     }
 
     companion object {

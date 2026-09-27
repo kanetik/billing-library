@@ -19,7 +19,7 @@ import com.kanetik.billing.exception.BillingException
  *     HandlePurchaseResult.NotPurchased -> {}                     // pending — wait for terminal state
  *     HandlePurchaseResult.NotOwned -> {}                          // stale snapshot — defer to grace/revoke
  *     is HandlePurchaseResult.Failure -> {
- *         // do NOT grant — auto-recovery sweep retries on next connect
+ *         // do NOT grant — it comes back as OwnedPurchases.Recovered; handle it there
  *         showError(r.exception.userFacingCategory)
  *     }
  * }
@@ -28,7 +28,7 @@ import com.kanetik.billing.exception.BillingException
  * The five variants:
  *  - [Success] — the acknowledge / consume call landed. Safe to grant.
  *  - [AlreadyAcknowledged] — for `consume = false`, the library detected
- *    [Purchase.isAcknowledged] was already `true` and short-circuited
+ *    the purchase was already acknowledged and short-circuited
  *    before reaching out to Play. Safe to grant; useful to distinguish
  *    from [Success] for logging / telemetry (no PBL call was made).
  *  - [NotPurchased] — the purchase wasn't in
@@ -46,23 +46,14 @@ import com.kanetik.billing.exception.BillingException
  *    inspects [Purchase.isAcknowledged] before reaching out to PBL), and
  *    the previous overlap with `Failure(ItemNotOwnedException)` for
  *    ownership-mismatch cases is gone — that case now surfaces as
- *    [NotOwned] instead. The
- *    stale-snapshot case is the one remaining caveat: a `Purchase`
- *    cached locally with `isAcknowledged = false` whose Play-side state
- *    has flipped to `true` (e.g., a `Recovered` snapshot that was already
- *    acked successfully but is being replayed) will still surface as
- *    `Failure(DeveloperErrorException)` on re-handle. The recovery sweep
- *    won't re-emit such a purchase as a fresh acknowledged object — it
- *    filters `PURCHASED && !isAcknowledged`, so once Play marks the
- *    purchase acknowledged it drops out of the sweep entirely. The stale
- *    snapshot persists in the recovery channel's replay slot until a
- *    later sweep emits a different result, or until the consumer queries
- *    fresh purchases via [com.android.billingclient.api.BillingClient.queryPurchasesAsync].
- *    `BillingClientStorage`'s acknowledged-token filter narrows this to the
- *    rare case where the cached `Purchase` was passed back into
- *    `handlePurchase` from the consumer's own state rather than via
- *    `Recovered` (the recovery delivery already filters replayed snapshots
- *    against handled tokens before emitting).
+ *    [NotOwned] instead. The repository from
+ *    [com.kanetik.billing.BillingRepositoryCreator.create] also returns
+ *    [AlreadyAcknowledged] for a token it has itself acknowledged or
+ *    consumed in this process, even from a stale `Purchase` copy with
+ *    `isAcknowledged = false`. The one remaining caveat is a stale copy of
+ *    a purchase acknowledged outside that repository instance (another
+ *    repository instance, another process, or a server): re-handling it
+ *    still surfaces `Failure(DeveloperErrorException)`.
  *
  * Lower-level [com.kanetik.billing.BillingActions.consumePurchase] and
  * [com.kanetik.billing.BillingActions.acknowledgePurchase] still throw
@@ -81,9 +72,11 @@ public sealed class HandlePurchaseResult {
 
     /**
      * The purchase was already in the requested terminal state — no Play
-     * Billing call was made. The library detected
-     * [Purchase.isAcknowledged] was already `true` (for `consume = false`)
-     * before reaching out to PBL.
+     * Billing call was made. For `consume = false`, the library detected
+     * before reaching out to PBL that [Purchase.isAcknowledged] was already
+     * `true`, or that the repository from
+     * [com.kanetik.billing.BillingRepositoryCreator.create] had already
+     * acknowledged or consumed this token in this process.
      *
      * Treat this as a grant signal, identical to [Success] for entitlement
      * purposes. The variant exists separately so consumers can distinguish
@@ -125,10 +118,8 @@ public sealed class HandlePurchaseResult {
     /**
      * Play reported the purchase isn't owned anymore — the underlying
      * acknowledge / consume call returned
-     * [com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED]
-     * after the library's internal
-     * [RetryType.REQUERY_PURCHASE_RETRY][com.kanetik.billing.RetryType.REQUERY_PURCHASE_RETRY]
-     * budget was exhausted. **Do not grant entitlement.**
+     * [com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_NOT_OWNED],
+     * which the library treats as terminal (no retry). **Do not grant entitlement.**
      *
      * Typical cause: the consumer passed in a stale [Purchase] from a
      * cached [com.android.billingclient.api.BillingClient.queryPurchasesAsync]
@@ -145,8 +136,10 @@ public sealed class HandlePurchaseResult {
      *    purchase doesn't exist anymore").
      *  - [Failure] covers transient or terminal failures of the **ack
      *    call itself** (network, service disconnected, etc.) — ownership
-     *    state is unchanged and the auto-recovery sweep on next connect
-     *    will retry the ack. [NotOwned] is the opposite: the ack didn't
+     *    state is unchanged and the library re-emits the purchase as
+     *    [com.kanetik.billing.OwnedPurchases.Recovered] so it can be
+     *    handled again. [NotOwned] is
+     *    the opposite: the ack didn't
      *    fail, ownership did. Re-trying the ack against a non-owned
      *    purchase will keep returning [NotOwned].
      *
@@ -167,11 +160,9 @@ public sealed class HandlePurchaseResult {
      * objects** — consumers can safely untrack-on-Failure for retry on
      * the next recovery sweep without worrying that an already-acked
      * purchase will be re-tried forever via a
-     * [BillingException.DeveloperErrorException]. The stale-snapshot
-     * caveat above still applies: a locally-cached `Purchase` whose
-     * Play-side `isAcknowledged` has flipped will still surface as
-     * `Failure(DeveloperErrorException)` until the next sweep replaces
-     * the snapshot.
+     * [BillingException.DeveloperErrorException]. The stale-copy caveat
+     * above still applies to a purchase acknowledged outside this
+     * repository instance.
      *
      * As of the [NotOwned] variant being added, [Failure] also no longer
      * carries [BillingException.ItemNotOwnedException] — that case
@@ -181,17 +172,25 @@ public sealed class HandlePurchaseResult {
      * state is unchanged and retry is the right call. Ownership-mismatch
      * — where retry can't help — has its own variant.
      *
-     * Recovery path depends on whether `recoverPurchasesOnConnect` is left
-     * at its default (`true`):
-     *  - **Default (`true`)**: the unacknowledged purchase is picked up by
-     *    the auto-recovery sweep on the next successful Play Billing
+     * The library runs one extra recovery sweep shortly after a `Failure`
+     * here, at most three times in a row for the same purchase, regardless
+     * of `recoverPurchasesOnConnect`, and that sweep
+     * re-emits the still-unacknowledged purchase as
+     * [com.kanetik.billing.OwnedPurchases.Recovered]. The library does not
+     * re-issue the acknowledge / consume itself: re-call `handlePurchase`
+     * from your `Recovered` branch to retry. Recovery beyond that depends on
+     * whether `recoverPurchasesOnConnect` is left at its default (`true`):
+     *  - **Default (`true`)**: the unacknowledged purchase is also picked
+     *    up by the auto-recovery sweep on every successful Play Billing
      *    connection (see [com.kanetik.billing.OwnedPurchases.Recovered])
      *    and re-emitted to your collector. Re-call `handlePurchase` from
      *    your `Recovered` branch to retry.
      *  - **Opt-out (`recoverPurchasesOnConnect = false` on
-     *    [com.kanetik.billing.BillingRepositoryCreator.create])**: the
-     *    library will *not* re-emit the purchase. You're responsible for
-     *    your own retry / reconciliation path — typically server-driven
+     *    [com.kanetik.billing.BillingRepositoryCreator.create])**: only the
+     *    in-session re-emission applies (at most three times in a row for
+     *    the same purchase), so you still need a `Recovered` branch; the library will *not* re-emit the purchase on a fresh
+     *    connect. You're responsible for your own
+     *    retry / reconciliation path beyond that — typically server-driven
      *    (validate against your backend; reconcile entitlement out of band).
      *
      * For UI: branch on `exception.userFacingCategory` to pick a localized

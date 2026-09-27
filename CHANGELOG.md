@@ -7,7 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased items at this time.
+## [0.1.6] - Unreleased
+
+### Breaking
+
+- **`isFeatureSupported` now throws for any non-OK response other than `FEATURE_NOT_SUPPORTED`, instead of returning `false`.** The four transient codes (`SERVICE_DISCONNECTED`, `SERVICE_UNAVAILABLE`, `ERROR`, `NETWORK_ERROR`) get `INTERACTIVE` retries first; every other non-OK code — `BILLING_UNAVAILABLE`, `DEVELOPER_ERROR`, `USER_CANCELED`, the `ITEM_*` codes, and any unrecognized code — now throws its typed `BillingException` on the first attempt rather than returning `false`. `false` is reserved for a real `FEATURE_NOT_SUPPORTED`. Callers that treated the old `false` as a catch-all "not supported for any reason" need to add exception handling. (#62)
+- **`ProductDetails.toOneTimeFlowParams` now returns `BillingFlowParams?`.**
+  Previously it always returned a non-null `BillingFlowParams`, even when no
+  offer token could be resolved (an absent or empty
+  `oneTimePurchaseOfferDetailsList`, or `offerSelector` returning `null`) —
+  that case built params with no `offerToken` and deferred the failure to an
+  opaque `DEVELOPER_ERROR` from `launchBillingFlow`.
+
+  - **Kotlin callers**: source-incompatible wherever the result is passed
+    straight into a non-null parameter, e.g.
+    `BillingActions.launchFlow(activity, params)`; the compiler now requires
+    a null check.
+  - **Java callers**: source-compatible — the nullable Kotlin return type
+    surfaces to Java as a plain `BillingFlowParams` with a `@Nullable` hint,
+    which javac does not enforce. Code that doesn't null-check compiles and
+    now risks an NPE at the point of use instead of at the call site.
+  - **Existing compiled callers, without a rebuild**: binary-compatible (the
+    method descriptor is unchanged), but one that previously never received
+    `null` now can — surfacing as a runtime `NullPointerException`, typically
+    at `launchFlow`'s own non-null parameter check, rather than at the call
+    site that produced it.
+
+  ```kotlin
+  // Before:
+  val params = product.toOneTimeFlowParams()
+  billing.launchFlow(activity, params)
+
+  // After:
+  val params = product.toOneTimeFlowParams()
+      ?: return showError("No purchasable offer")
+  billing.launchFlow(activity, params)
+  ```
+
+  `PurchaseFlowCoordinator.launch` handles the null case for you — see
+  `NoPurchasableOffer` below.
+
+- **`FlowOutcome` variants now carry the originating `BillingResult`.** `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure` and `UnknownResponse` gained a required `result: BillingResult` constructor parameter. Source-breaking for any code constructing these directly (tests, fakes, custom listeners) — pass the `BillingResult` you already have at each call site.
+- **New `FlowOutcome.UserBillingError` sealed variant.** Source-breaking for any exhaustive `when` over `FlowOutcome`; add a `UserBillingError` arm. Callers with an `else` arm keep compiling but now route flow-time `BILLING_UNAVAILABLE` there instead of to `Failure` — see Fixed below.
+
+  ```kotlin
+  // Before:
+  is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
+
+  // After:
+  is FlowOutcome.UserBillingError -> showBillingIssue() // was Failure(BillingUnavailableException) for flow-time code 3
+  is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
+  ```
+
+- **`GracePolicy`, `GraceReason`, and `EntitlementState.InGrace` removed.** `FlowOutcome.Failure` no longer applies grace to existing grants, so `EntitlementCache` never transitioned any key into `InGrace` — the types and the constructor parameters that only served them are gone rather than deprecated.
+
+  - `EntitlementCache`'s `gracePolicy` and `graceTickIntervalMs` constructor parameters are removed; drop both arguments from any `EntitlementCache(...)` call.
+  - Drop any `is EntitlementState.InGrace` arm from an exhaustive `when` over `EntitlementState`.
+
+  ```kotlin
+  // Before:
+  val cache = EntitlementCache(
+      purchasesUpdates = billing.observePurchaseUpdates(),
+      storage = storage,
+      gracePolicy = GracePolicy.None,
+      productKeySelector = { ... },
+      graceTickIntervalMs = 60_000L,
+  )
+
+  // After:
+  val cache = EntitlementCache(
+      purchasesUpdates = billing.observePurchaseUpdates(),
+      storage = storage,
+      productKeySelector = { ... },
+  )
+  ```
+
+- `BillingPurchaseUpdatesOwner` gained a new abstract member, `refreshPurchases()` — source-breaking for any direct implementer of the interface (the vast majority of consumers obtain it from `BillingRepositoryCreator.create` and are unaffected).
+- `OwnedPurchases` gained a new sealed subtype, `Snapshot` — an exhaustive `when` over `OwnedPurchases` without an `else` branch no longer compiles until the new branch is handled.
+
+### Added
+
+- `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
+- `PurchaseFlowCoordinator.launch` accepts an `offerSelector` parameter (forwarded to `toOneTimeFlowParams`), defaulting to today's `firstOrNull()` behavior, so callers can pick among multiple offers.
+- `BillingPurchaseUpdatesOwner.refreshPurchases()` — a suspend function that queries every owned `PURCHASED` purchase (`INAPP` and, where supported, `SUBS`), acknowledged purchases included, using the `BACKGROUND` retry profile, and emits the result as a new `OwnedPurchases.Snapshot` on the existing `observePurchaseUpdates()` stream. Call it from `onResume` and after a `FlowOutcome.ItemAlreadyOwned` or a flow `Failure` carrying `NetworkErrorException` / `FatalErrorException`; the library never calls it automatically.
+- A failed recovery sweep now retries in-session with backoff, and a failed `acknowledgePurchase` / `consumePurchase` triggers an extra sweep that re-emits the purchase as `OwnedPurchases.Recovered`, instead of both only being picked up on the next Play Billing connection. The extra sweep runs regardless of `recoverPurchasesOnConnect`, at most three times in a row for the same purchase, and not after `ITEM_NOT_OWNED`; re-call `handlePurchase` from your `Recovered` branch to retry the acknowledge / consume.
+- The repository's `handlePurchase(purchase, consume = false)` now returns `AlreadyAcknowledged` without calling Play for a token it has already acknowledged or consumed in this process, even when the `Purchase` object is a stale copy with `isAcknowledged = false` (for example from a replayed `OwnedPurchases.Snapshot`).
+- `observePurchaseUpdates()` now logs a warning when a live purchase event is emitted with no active collector attached, since `replay = 0` means that event can never reach a later subscriber.
+
+### Changed
+
+- `BillingErrorCategory` — `ITEM_NOT_OWNED` now maps to its own `NotOwned` bucket (matching `HandlePurchaseResult.NotOwned`) instead of being lumped into `AlreadyOwned`, whose recommended `restoreEntitlement()` pattern was wrong for a not-owned result. Source-breaking for any exhaustive `when` over `BillingErrorCategory`; add a `NotOwned` arm. Callers with an `else` arm will now route `ITEM_NOT_OWNED` there instead of to `AlreadyOwned`.
+- **`RetryType.REQUERY_PURCHASE_RETRY` removed.** `ItemAlreadyOwnedException` and `ItemNotOwnedException` are now `RetryType.NONE` — the requery prerequisite behind them discarded its results and could recurse without a depth limit when `queryPurchasesAsync` itself returned one of these codes. Neither code can change on retry, so the retry loop now surfaces both immediately. Source-breaking for any exhaustive `when` over `RetryType`. Purchase-recovery for an already-owned item is tracked separately (#56).
+- Billing calls now retry according to context. `queryProductDetails` / `queryProductDetailsWithUnfetched` retry a transient failure up to 3 attempts, 500 ms apart (about 1 s at most, down from about 14 s). `queryPurchases`, `acknowledgePurchase` and `consumePurchase` back off exponentially over 5 attempts (2 s, 4 s, 8 s, 16 s), and `SERVICE_DISCONNECTED` now gets that same backoff instead of three 500 ms retries.
+- Purchase-flow log severity now matches what happened, for consumers who forward `w`/`e` to Crashlytics: for a call that throws a typed `BillingException` (`queryPurchases`, `acknowledgePurchase`, `consumePurchase`, `queryProductDetails`, `isFeatureSupported`, `launchFlow`'s own synchronous attempt), user cancellation logs at debug, billing unavailable / service disconnected / network / item already owned/unavailable/not owned log at warn without a throwable attached, and error is reserved for developer errors and invariant breaks. Removed a double-log where a purchase-flow launch failure was logged once by the retry/failure path and again (at the wrong severity) by `PurchaseFlowCoordinator.launch`. `FlowPurchasesUpdatedListener.onPurchasesUpdated` now logs every async purchase-flow result — including a mid-flow decline (`FlowOutcome.UserBillingError`, PBL's own `BILLING_UNAVAILABLE` response mid-flow) — exactly once, at debug, with response code / sub-response code / debug message — purchase tokens and order IDs are never logged. The same double-log is removed from the purchase-recovery sweep: a retry-exhausted `queryPurchasesAsync` failure is now logged once, by the retry path, instead of also being re-logged by `BillingClientStorage.queryUnacknowledgedSafely`.
+
+### Fixed
+
+- A Play Billing connection whose `startConnection` never calls back no longer hangs every later operation: setup now times out after 30 s, the client is ended, and the attempt is retried on a fresh client per `ConnectionRetryPolicy`. Once the retries run out, `connectToBilling()` emits a `BillingConnectionResult.Error` (`ServiceUnavailableException`).
+- `onBillingServiceDisconnected` arriving before setup finishes is now treated as a transient `SERVICE_DISCONNECTED` setup failure and retried, instead of being ignored.
+- A terminal connection failure (e.g. `BILLING_UNAVAILABLE` while the Play Store is updating) no longer sticks for as long as something collects `connectToBilling()`. The next operation or new `connectToBilling()` subscriber starts a fresh connection. (#53)
+- A `BillingException` from a failed connection attempt — connection setup exhausting its retries, or a connection wait timing out — is now logged once, at the severity matching what happened, before it reaches the caller. Previously neither `CoroutinesBillingConnectionFactory` nor `DefaultBillingRepository.connectToClientAndCall` logged it. (#78)
+- `showInAppMessages`, `getBillingChoiceInfo` and `showBillingProgramInformationDialog` now log a non-OK response the same way `queryPurchases`, `acknowledgePurchase`, `consumePurchase`, `queryProductDetails`, `isFeatureSupported` and `launchFlow` already did — previously a failure from any of these three threw a correctly-typed `BillingException` with no log line anywhere in the library.
+- Operations no longer run on a `BillingClient` that the 60s idle stop has ended, including on a retry after it ended mid-operation; they get a fresh connection. After the idle stop, `connectToBilling()` no longer replays the previous result. (#53)
+- `queryBillingAvailability()` no longer returns `AVAILABLE` from a stale cached connection. A live connection still returns `AVAILABLE` right away. (#47)
+- The purchase-recovery sweep now retries a transient `queryPurchasesAsync` failure with exponential backoff. Before, it gave up until the next connect.
+- Flow-time `BILLING_UNAVAILABLE` (code 3) from `onPurchasesUpdated` — Play's own guidance treats this as a user-facing billing problem it has already surfaced feedback for during the purchase attempt (declined payment, outdated Play Store, unsupported country, admin-disabled purchases, or an OEM-blocked Play Store), not a "billing unavailable on this device" condition — no longer surfaces as `FlowOutcome.Failure(BillingUnavailableException)`. It now emits `FlowOutcome.UserBillingError(purchases, result)`, keeping it out of `BillingErrorCategory.BillingUnavailable`'s "hide billing" UX. `result.onPurchasesUpdatedSubResponseCode` still carries the specific decline reason (`PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS`, `USER_INELIGIBLE`) where PBL provides one. Connect-time and launch-time `BILLING_UNAVAILABLE` are unaffected.
+- Removed `BillingLoggingUtils.logBillingFlowFailure`'s insufficient-funds hint: `launchFlow`'s synchronous failure branch never carries a sub-response code, and the async purchase-flow path does not call this function (`FlowPurchasesUpdatedListener.onPurchasesUpdated`'s new per-event debug log already carries the sub-response code — see above), so the hint was unreachable from every caller.
+- Removed two KDoc claims that a flow-outcome's `BillingException` had already been retried with backoff before reaching the consumer — nothing retries a purchase-flow attempt today (`BillingErrorCategory.Network` and `BillingException.NetworkErrorException`).
+- `EntitlementCache` no longer revokes long-held entitlements when a purchase-flow attempt fails. `FlowOutcome.Failure` used to be treated as evidence against every `Granted`/`InGrace` key, with grace anchored to the original (never-refreshed) `confirmedAtMs` — so a declined card or a transient network error on one purchase attempt could instantly revoke, and persist as revoked, a subscriber's unrelated month-old entitlement. `FlowOutcome.Failure` carries no product id, so the in-flight purchase's key can't be identified reliably; it is now a no-op for existing grants.
+- `isFeatureSupported` now retries transient `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` / `ERROR` / `NETWORK_ERROR` responses via the `INTERACTIVE` retry profile, instead of returning `false` on the first failure. See **Breaking** above for the return-value change. (#62)
+- `BillingUnavailableException`'s own KDoc and `BillingErrorCategory.BillingUnavailable`'s KDoc listed an unsourced cause list ("non-Play distribution such as some Huawei devices", "account not eligible") for `BILLING_UNAVAILABLE`. Both now name the five causes Play documents: declined payment, outdated Play Store, unsupported country, admin-disabled purchases, OEM-blocked Play Store.
 
 ## [0.1.5] - 2026-06-26
 
