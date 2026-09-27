@@ -39,8 +39,7 @@ class CheckoutActivity : ComponentActivity() {
         lifecycleScope.launch {
             billing.observePurchaseUpdates().collect { event ->
                 when (event) {
-                    is OwnedPurchases.Live -> event.purchases.forEach { handle(it) }
-                    is OwnedPurchases.Recovered -> event.purchases.forEach { handle(it) }
+                    is OwnedPurchases -> event.purchases.forEach { handle(it) }
                     is FlowOutcome.Pending -> showPendingNotice() // do NOT grant entitlement yet
                     is FlowOutcome.Canceled -> {}
                     is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
@@ -79,7 +78,7 @@ class CheckoutActivity : ComponentActivity() {
             HandlePurchaseResult.NotPurchased -> {} // pending — wait for terminal state
             HandlePurchaseResult.NotOwned -> {} // Play says not owned — defer to grace/revoke logic
             is HandlePurchaseResult.Failure -> showError(r.exception.userFacingCategory)
-            // do NOT grant on Failure — recovery sweep retries on the next connection
+            // do NOT grant on Failure — the library retries automatically (in-session, then on next connect)
         }
     }
 }

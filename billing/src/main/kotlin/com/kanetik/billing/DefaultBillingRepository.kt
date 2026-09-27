@@ -107,9 +107,9 @@ internal class DefaultBillingRepository(
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions
         // aren't tied to subscriber attachment; the Flow returned here merges
-        // the three channels (live PBL events, recovery sweeps, and external
-        // revocations) — see BillingClientStorage's channel-architecture
-        // comment for why the split exists.
+        // the four channels (live PBL events, recovery sweeps, refreshPurchases()
+        // snapshots, and external revocations) — see BillingClientStorage's
+        // channel-architecture comment for why the split exists.
         return billingClientStorage.purchasesUpdateFlow
     }
 
@@ -191,7 +191,14 @@ internal class DefaultBillingRepository(
         // a result back the consume succeeded, and PBL guarantees the token is set
         // on success. The !! guards against an unexpected PBL contract violation
         // by failing loudly rather than returning a phantom null.
-        val token = executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.consumePurchase(params) }).purchaseToken!!
+        val token = try {
+            executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.consumePurchase(params) }).purchaseToken!!
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: BillingException) {
+            billingClientStorage.scheduleFailedAcknowledgeRetry()
+            throw e
+        }
         // Record the token so the recovery sweep filters this purchase out of
         // future Recovered emissions (Play treats consume as implicit
         // acknowledgement for consumables; subsequent sweeps still see the
@@ -202,11 +209,23 @@ internal class DefaultBillingRepository(
 
     @AnyThread
     override suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams) {
-        executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.acknowledgePurchase(params) })
+        try {
+            executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.acknowledgePurchase(params) })
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: BillingException) {
+            billingClientStorage.scheduleFailedAcknowledgeRetry()
+            throw e
+        }
         // Record the token only after a successful acknowledge. A failure
         // throws above; suppressing the next sweep on a failed ack would
         // orphan the purchase.
         billingClientStorage.markAcknowledged(params.purchaseToken)
+    }
+
+    @AnyThread
+    override suspend fun refreshPurchases() {
+        connectToClientAndCall { client -> billingClientStorage.refreshOwnedPurchases(client) }
     }
 
     @UiThread

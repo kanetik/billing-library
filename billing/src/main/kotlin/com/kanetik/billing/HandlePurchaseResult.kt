@@ -19,7 +19,7 @@ import com.kanetik.billing.exception.BillingException
  *     HandlePurchaseResult.NotPurchased -> {}                     // pending — wait for terminal state
  *     HandlePurchaseResult.NotOwned -> {}                          // stale snapshot — defer to grace/revoke
  *     is HandlePurchaseResult.Failure -> {
- *         // do NOT grant — auto-recovery sweep retries on next connect
+ *         // do NOT grant — the library retries automatically (in-session, then on next connect)
  *         showError(r.exception.userFacingCategory)
  *     }
  * }
@@ -143,8 +143,9 @@ public sealed class HandlePurchaseResult {
      *    purchase doesn't exist anymore").
      *  - [Failure] covers transient or terminal failures of the **ack
      *    call itself** (network, service disconnected, etc.) — ownership
-     *    state is unchanged and the auto-recovery sweep on next connect
-     *    will retry the ack. [NotOwned] is the opposite: the ack didn't
+     *    state is unchanged and the library retries the ack automatically
+     *    (in-session with backoff, and on the next connect). [NotOwned] is
+     *    the opposite: the ack didn't
      *    fail, ownership did. Re-trying the ack against a non-owned
      *    purchase will keep returning [NotOwned].
      *
@@ -179,17 +180,21 @@ public sealed class HandlePurchaseResult {
      * state is unchanged and retry is the right call. Ownership-mismatch
      * — where retry can't help — has its own variant.
      *
-     * Recovery path depends on whether `recoverPurchasesOnConnect` is left
-     * at its default (`true`):
-     *  - **Default (`true`)**: the unacknowledged purchase is picked up by
-     *    the auto-recovery sweep on the next successful Play Billing
+     * The library schedules its own in-session retry (with backoff) of the
+     * recovery sweep after a `Failure` here, regardless of
+     * `recoverPurchasesOnConnect` — it doesn't wait for a fresh connect.
+     * Recovery beyond that depends on whether `recoverPurchasesOnConnect`
+     * is left at its default (`true`):
+     *  - **Default (`true`)**: the unacknowledged purchase is also picked
+     *    up by the auto-recovery sweep on every successful Play Billing
      *    connection (see [com.kanetik.billing.OwnedPurchases.Recovered])
      *    and re-emitted to your collector. Re-call `handlePurchase` from
      *    your `Recovered` branch to retry.
      *  - **Opt-out (`recoverPurchasesOnConnect = false` on
-     *    [com.kanetik.billing.BillingRepositoryCreator.create])**: the
-     *    library will *not* re-emit the purchase. You're responsible for
-     *    your own retry / reconciliation path — typically server-driven
+     *    [com.kanetik.billing.BillingRepositoryCreator.create])**: only the
+     *    in-session retry applies; the library will *not* re-emit the
+     *    purchase on a fresh connect. You're responsible for your own
+     *    retry / reconciliation path beyond that — typically server-driven
      *    (validate against your backend; reconcile entitlement out of band).
      *
      * For UI: branch on `exception.userFacingCategory` to pick a localized

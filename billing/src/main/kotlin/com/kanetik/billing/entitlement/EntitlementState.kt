@@ -25,6 +25,8 @@ public sealed interface EntitlementState {
      *    that this cache's `productKeySelector` maps to this key.
      *  - A [com.kanetik.billing.OwnedPurchases.Recovered] containing a
      *    matching purchase (the recovery sweep on connect).
+     *  - A [com.kanetik.billing.OwnedPurchases.Snapshot] containing a
+     *    matching purchase (an explicit `refreshPurchases()` call).
      *  - A persisted [EntitlementSnapshot] read at start with `isEntitled = true`.
      */
     public data object Granted : EntitlementState
@@ -40,13 +42,14 @@ public sealed interface EntitlementState {
      *  - The implicit default for any key absent from the state map (no
      *    prior snapshot, nothing has arrived yet).
      *
-     * Notably **not** reached on a non-matching `OwnedPurchases.Recovered`
-     * (or `Live`) event. Recovered only emits the unacknowledged subset of
-     * Play-side owned purchases, so an empty Recovered for an entitled user
-     * with an already-acknowledged purchase doesn't mean Play revoked
-     * anything — it just means there's nothing left to acknowledge. The
-     * cache treats Recovered/Live as grant-only signals to avoid that
-     * false-revocation footgun.
+     * Notably **not** reached on a non-matching `OwnedPurchases.Recovered`,
+     * `Live`, or `Snapshot` event. Recovered only emits the unacknowledged
+     * subset of Play-side owned purchases, so an empty Recovered for an
+     * entitled user with an already-acknowledged purchase doesn't mean Play
+     * revoked anything — it just means there's nothing left to acknowledge.
+     * An absent key in a `Snapshot` means "not currently owned," not
+     * "revoked," for the same reason. The cache treats every `OwnedPurchases`
+     * variant as a grant-only signal to avoid that false-revocation footgun.
      */
     public data object Revoked : EntitlementState
 }

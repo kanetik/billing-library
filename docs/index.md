@@ -32,7 +32,7 @@ If you haven't shipped a Play Billing integration before, these are the guides t
 ## Reference
 
 - [API overview](reference/api-overview.md) — top-level types and package layout. The full per-class KDoc is in the [Dokka API reference](api/index.html).
-- [Replay semantics](reference/replay-semantics.md) — the three-channel structure of `observePurchaseUpdates()`, plus the connection grace window.
+- [Replay semantics](reference/replay-semantics.md) — the four-channel structure of `observePurchaseUpdates()`, plus the connection grace window.
 - [Extensions](reference/extensions.md) — the `com.kanetik.billing.ext` helpers (`validatePurchaseActivity`, `toOneTimeFlowParams`, `PurchaseFlowCoordinator`).
 - [Limitations](reference/limitations.md) — what's out of scope for the v0.1.x series.
 

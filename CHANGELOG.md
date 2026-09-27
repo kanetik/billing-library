@@ -82,10 +82,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   )
   ```
 
+- `BillingPurchaseUpdatesOwner` gained a new abstract member, `refreshPurchases()` — source-breaking for any direct implementer of the interface (the vast majority of consumers obtain it from `BillingRepositoryCreator.create` and are unaffected).
+- `OwnedPurchases` gained a new sealed subtype, `Snapshot` — an exhaustive `when` over `OwnedPurchases` without an `else` branch no longer compiles until the new branch is handled.
+
 ### Added
 
 - `PurchaseFlowResult.NoPurchasableOffer` — returned by `PurchaseFlowCoordinator.launch` instead of launching when no offer token is available for the product.
 - `PurchaseFlowCoordinator.launch` accepts an `offerSelector` parameter (forwarded to `toOneTimeFlowParams`), defaulting to today's `firstOrNull()` behavior, so callers can pick among multiple offers.
+- `BillingPurchaseUpdatesOwner.refreshPurchases()` — a suspend function that queries every owned `PURCHASED` purchase (`INAPP` and, where supported, `SUBS`), acknowledged purchases included, using the `BACKGROUND` retry profile, and emits the result as a new `OwnedPurchases.Snapshot` on the existing `observePurchaseUpdates()` stream. Call it from `onResume` and after a `FlowOutcome.ItemAlreadyOwned` or a flow `Failure` carrying `NetworkErrorException` / `FatalErrorException`; the library never calls it automatically.
+- A failed recovery sweep, or a failed `acknowledgePurchase` / `consumePurchase`, now retries automatically in-session with backoff instead of only being picked up on the next Play Billing connection.
+- `observePurchaseUpdates()` now logs a warning when a live purchase event is emitted with no active collector attached, since `replay = 0` means that event can never reach a later subscriber.
 
 ### Changed
 

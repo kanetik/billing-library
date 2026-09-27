@@ -18,8 +18,8 @@ import com.kanetik.billing.exception.BillingException
  * entitlement code:
  *
  *  - **[OwnedPurchases]** — owned-state updates. Variants ([OwnedPurchases.Live],
- *    [OwnedPurchases.Recovered]) report purchases the user owns that need
- *    acknowledgement / consume / entitlement grant. Hand each to
+ *    [OwnedPurchases.Recovered], [OwnedPurchases.Snapshot]) report purchases
+ *    the user owns that need acknowledgement / consume / entitlement grant. Hand each to
  *    [com.kanetik.billing.BillingActions.handlePurchase] and merge into your
  *    own entitlement state — these events are **incremental updates, not
  *    authoritative owned-state snapshots** (see each variant's KDoc for the
@@ -53,6 +53,7 @@ import com.kanetik.billing.exception.BillingException
  *     when (event) {
  *         is OwnedPurchases.Live -> event.purchases.forEach { handleAndGrant(it) }
  *         is OwnedPurchases.Recovered -> event.purchases.forEach { handleAndGrant(it) }
+ *         is OwnedPurchases.Snapshot -> event.purchases.forEach { handleAndGrant(it) }
  *         is FlowOutcome.Pending -> showPendingNotice() // do NOT grant
  *         is FlowOutcome.Canceled -> {}
  *         is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
@@ -118,14 +119,17 @@ public sealed interface PurchaseEvent
  * Owned-state events: purchases the user owns that need acknowledgement /
  * consume / entitlement grant.
  *
- * **These are incremental updates, not authoritative owned-state snapshots.**
- * Specifically:
+ * **These are incremental updates, not authoritative owned-state snapshots,
+ * except [Snapshot].** Specifically:
  *  - [Live] carries the `PURCHASED`-or-`UNSPECIFIED_STATE` subset of an `OK`
  *    callback (see [Live]'s KDoc); it is not "everything the user owns
- *    right now." Both [Live] and [Recovered] are filtered to non-empty
+ *    right now." [Live] and [Recovered] are filtered to non-empty
  *    before delivery.
  *  - [Recovered] carries only the `PURCHASED && !isAcknowledged` subset
  *    discovered by the auto-sweep — it is not the full owned set either.
+ *  - [Snapshot] carries every `PURCHASED` purchase (acknowledged or not) as
+ *    of a [com.kanetik.billing.BillingPurchaseUpdatesOwner.refreshPurchases]
+ *    call — the one variant that is a full owned-state snapshot.
  *
  * **Cache pattern: merge, do not replace.** Hand each event's purchases to
  * [com.kanetik.billing.BillingActions.handlePurchase] and merge granted
@@ -137,10 +141,13 @@ public sealed interface PurchaseEvent
  * [com.kanetik.billing.entitlement.EntitlementCache], which handles the
  * merge logic internally.
  *
- * Two variants, semantically identical for handling, distinct for UX:
+ * Three variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"
  *    UX from this branch.
  *  - [Recovered] — discovered by the library's auto-sweep on connect.
+ *    Background reconciliation; do not fire user-initiated UX.
+ *  - [Snapshot] — the result of a consumer-triggered
+ *    [com.kanetik.billing.BillingPurchaseUpdatesOwner.refreshPurchases] call.
  *    Background reconciliation; do not fire user-initiated UX.
  *
  * For each `PURCHASED`-state purchase: hand it to
@@ -255,6 +262,8 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * `recoverPurchasesOnConnect = false` parameter (default is `true`).
      */
     public data class Recovered(override val purchases: List<Purchase>) : OwnedPurchases()
+
+    public data class Snapshot(override val purchases: List<Purchase>) : OwnedPurchases()
 }
 
 /**

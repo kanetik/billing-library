@@ -48,12 +48,39 @@ internal class RecoverySweepRetryTest {
     }
 
     @Test
-    fun `sweep gives up after five attempts on a persistent transient failure`() = runTest {
+    fun `sweep retries the whole sweep once more, for ten attempts total, on a persistent transient failure`() = runTest {
         val play = sweepOver(BillingResponseCode.SERVICE_UNAVAILABLE)
 
         advanceTimeBy(ONE_HOUR_MS)
 
-        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(5)
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(10)
+    }
+
+    @Test
+    fun `sweep succeeds on the outer retry after the first round's five attempts exhaust`() = runTest {
+        val play = sweepOver(
+            BillingResponseCode.SERVICE_UNAVAILABLE,
+            BillingResponseCode.SERVICE_UNAVAILABLE,
+            BillingResponseCode.SERVICE_UNAVAILABLE,
+            BillingResponseCode.SERVICE_UNAVAILABLE,
+            BillingResponseCode.SERVICE_UNAVAILABLE,
+            BillingResponseCode.OK
+        )
+
+        advanceTimeBy(35_000L)
+
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(6)
+    }
+
+    @Test
+    fun `sweep does not attempt a third round after the outer retry also fails`() = runTest {
+        val play = sweepOver(BillingResponseCode.SERVICE_UNAVAILABLE)
+
+        advanceTimeBy(ONE_HOUR_MS)
+        val callsAfterOneHour = play.calls(Op.QUERY_PURCHASES)
+        advanceTimeBy(ONE_HOUR_MS)
+
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(callsAfterOneHour)
     }
 
     @Test

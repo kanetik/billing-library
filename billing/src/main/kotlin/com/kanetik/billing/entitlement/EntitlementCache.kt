@@ -59,8 +59,8 @@ import kotlinx.coroutines.sync.withLock
  *
  *  - Hydrates from a consumer-provided [EntitlementStorage] (one snapshot per
  *    key) so gated UI can render before the first network round-trip lands.
- *  - Treats [OwnedPurchases.Live] and [OwnedPurchases.Recovered] as grant-only
- *    signals: for each [Purchase] in `purchaseState == PURCHASED`, applies
+ *  - Treats every [OwnedPurchases] event as a grant-only
+ *    signal: for each [Purchase] in `purchaseState == PURCHASED`, applies
  *    [productKeySelector]; a non-null result transitions that key to
  *    [EntitlementState.Granted]. A non-match does **not** revoke (Live can
  *    carry empty/UNSPECIFIED_STATE callbacks; Recovered emits only the unacked
@@ -167,17 +167,18 @@ import kotlinx.coroutines.sync.withLock
  *
  * The cache reacts to two event paths that change state; everything else is
  * a no-op:
- *  - [OwnedPurchases.Live] / [OwnedPurchases.Recovered]: **grant-only**.
- *    For each PURCHASED-state purchase, [productKeySelector] is applied; a
- *    non-null result transitions that key to [EntitlementState.Granted] and
- *    persists. A non-match (selector returns null) does **not** revoke —
- *    `Live` can carry `UNSPECIFIED_STATE` entries or products unrelated to
- *    any tracked entitlement, and `Recovered` only emits the
- *    `PURCHASED && !isAcknowledged` subset filtered against the library's
- *    acknowledgedTokens set, so an already-acked entitling purchase will
- *    never appear there. Treating either as authoritative for revocation
- *    would falsely revoke users whose entitling purchase has already been
- *    acknowledged.
+ *  - Any [OwnedPurchases] variant (`Live`, `Recovered`, `Snapshot`):
+ *    **grant-only**. For each PURCHASED-state purchase, [productKeySelector]
+ *    is applied; a non-null result transitions that key to
+ *    [EntitlementState.Granted] and persists. A non-match (selector returns
+ *    null) does **not** revoke — `Live` can carry `UNSPECIFIED_STATE`
+ *    entries or products unrelated to any tracked entitlement, `Recovered`
+ *    only emits the `PURCHASED && !isAcknowledged` subset filtered against
+ *    the library's acknowledgedTokens set, and an absent key in `Snapshot`
+ *    means "not currently owned," not "revoked." Treating any of these as
+ *    authoritative for revocation would falsely revoke users whose
+ *    entitling purchase has already been acknowledged (or isn't in this
+ *    particular snapshot for an unrelated reason).
  *  - [com.kanetik.billing.PurchaseRevoked]: when `event.purchaseToken`
  *    matches *any* cached snapshot's `purchaseToken`, that key transitions
  *    to [EntitlementState.Revoked] immediately (no grace; Play has explicitly
@@ -393,6 +394,7 @@ public class EntitlementCache<K : Any>(
             val toPersist: List<Pair<K, EntitlementSnapshot>> = when (event) {
                 is OwnedPurchases.Live -> handleObservation(event.purchases)
                 is OwnedPurchases.Recovered -> handleObservation(event.purchases)
+                is OwnedPurchases.Snapshot -> handleObservation(event.purchases)
                 is PurchaseRevoked -> handleRevoked(event)
                 is FlowOutcome.Pending,
                 is FlowOutcome.Canceled,

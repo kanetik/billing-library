@@ -76,6 +76,19 @@ class EntitlementCacheTest {
     }
 
     @Test
+    fun `Snapshot with matching purchase transitions that key to Granted and persists snapshot`() = runTest {
+        val (cache, updates, storage, _, job) = newCache()
+
+        updates.emit(OwnedPurchases.Snapshot(listOf(fakePurchase(productId = productIdOne, purchaseToken = "tok-snap"))))
+        runCurrent()
+
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+        assertThat(storage.lastWritten(TestKey.ONE)?.purchaseToken).isEqualTo("tok-snap")
+
+        job.cancelAndJoin()
+    }
+
+    @Test
     fun `Live containing multiple matching purchases grants all matching keys`() = runTest {
         val (cache, updates, storage, _, job) = newCache()
 
@@ -117,6 +130,28 @@ class EntitlementCacheTest {
         assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
         updates.emit(OwnedPurchases.Recovered(listOf(fakePurchase(productId = "different-product"))))
+        runCurrent()
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `Snapshot with no matching purchase does NOT revoke a Granted snapshot`() = runTest {
+        val storage = FakeEntitlementStorage(
+            initial = mapOf(
+                TestKey.ONE to EntitlementSnapshot(
+                    isEntitled = true,
+                    confirmedAtMs = INITIAL_CLOCK - 1_000L,
+                    purchaseToken = "tok-prior",
+                ),
+            ),
+        )
+        val (cache, updates, _, _, job) = newCache(storage = storage)
+        runCurrent()
+        assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
+
+        updates.emit(OwnedPurchases.Snapshot(emptyList()))
         runCurrent()
         assertThat(cache.state.value[TestKey.ONE]).isEqualTo(EntitlementState.Granted)
 
