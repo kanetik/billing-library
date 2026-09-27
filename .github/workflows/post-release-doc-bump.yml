@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout main (PR base)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -219,7 +219,7 @@ jobs:
           git commit -m "chore: post-release doc bump for ${VER}"
           # Plain `--force` (not `--force-with-lease`) because:
           #   1. The auto-branch is 100% automation-owned — no human pushes here.
-          #   2. `actions/checkout@v4 with ref: main` only fetches `main`, so
+          #   2. `actions/checkout@v7 with ref: main` only fetches `main`, so
           #      `refs/remotes/origin/$BRANCH` isn't present locally and
           #      `--force-with-lease` can't form a meaningful "expected" ref,
           #      which on some git versions causes a stale-info rejection.

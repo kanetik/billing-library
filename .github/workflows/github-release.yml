@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Need full history so the dispatch path can check out the tagged
           # commit. Tag pushes already check out the tag, so this is mainly
