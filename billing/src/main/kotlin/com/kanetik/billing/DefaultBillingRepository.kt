@@ -214,7 +214,7 @@ internal class DefaultBillingRepository(
         try {
             // Check that activity is still valid before launching billing flow
             if (activity.isFinishing || activity.isDestroyed) {
-                logger.w("Cannot launch billing flow - activity is no longer valid")
+                logger.e("Cannot launch billing flow - activity is no longer valid")
                 val billingResult = BillingResult.newBuilder()
                     .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
                     .setDebugMessage("Attempted to launch billing flow with an invalid activity")
@@ -286,6 +286,7 @@ internal class DefaultBillingRepository(
                     }
                 }
                 if (billingResult.responseCode != BillingResponseCode.OK) {
+                    BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "In-App Messages")
                     cont.resumeWith(
                         Result.failure(BillingException.fromResult(billingResult))
                     )
@@ -351,6 +352,7 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(mapBillingChoiceDetails(info))
                         } else {
+                            BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "Billing Choice Info")
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -379,6 +381,11 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(Unit)
                         } else {
+                            BillingLoggingUtils.logBillingFailure(
+                                logger,
+                                billingResult,
+                                operationContext = "Billing Program Information Dialog"
+                            )
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -454,6 +461,7 @@ internal class DefaultBillingRepository(
                 .setResponseCode(BillingResponseCode.SERVICE_UNAVAILABLE)
                 .setDebugMessage("Billing connection didn't resolve within ${CONNECTION_TIMEOUT_MS}ms")
                 .build()
+            BillingLoggingUtils.logBillingFailure(logger, timeoutResult, operationContext = "Billing Connection")
             throw BillingException.fromResult(timeoutResult)
         }
         return when (state) {

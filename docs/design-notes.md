@@ -160,7 +160,7 @@ These were considered during the architectural review and PBL research; document
 | `PurchaseFlowCoordinatorTest` | 8 | State machine (Success/InvalidActivityState/AlreadyInProgress/BillingUnavailable/Error/Cancellation/markComplete/Watchdog) |
 | `BillingConnectionLifecycleManagerTest` | 3 | onStart/onStop/onDestroy job discipline |
 
-The test suite caught a real production bug — `BillingLoggingUtils.createDetailedBillingContext` was NPEing on null `debugMessage` (which `BillingResult()`'s no-arg constructor produces, used in the connection-factory error fallback). Fixed before any publish.
+The test suite caught a real production bug — `BillingLoggingUtils.createDetailedBillingContext` was NPEing on null `debugMessage`, which `BillingResult()`'s no-arg constructor produces. Fixed before any publish.
 
 ### Deferred to v0.2.0's `:billing-testing` artifact
 

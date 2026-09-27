@@ -64,6 +64,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Doesn't decide entitlement-grant rules — that's app business logic.
  * - Doesn't track analytics events — wrap [launch] with your own analytics layer
  *   if needed.
+ * - Doesn't log a [BillingException] it catches — that's the throwing
+ *   [BillingRepository]'s job. A [BillingRepository] that doesn't log its
+ *   own failures means this failure produces no log line anywhere.
  *
  * @param billingRepository The active [BillingRepository] (typically from
  *   [com.kanetik.billing.BillingRepositoryCreator]).
@@ -167,8 +170,10 @@ public class PurchaseFlowCoordinator(
             throw ce
         } catch (e: BillingException.BillingUnavailableException) {
             isPurchaseFlowInProgress.set(false)
-            logger.w("PurchaseFlow[$correlationId]: billing unavailable", e)
             PurchaseFlowResult.BillingUnavailable
+        } catch (e: BillingException) {
+            isPurchaseFlowInProgress.set(false)
+            PurchaseFlowResult.Error(e)
         } catch (t: Throwable) {
             isPurchaseFlowInProgress.set(false)
             logger.e("PurchaseFlow[$correlationId]: launch failed", t)

@@ -159,7 +159,7 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
-    fun `BILLING_UNAVAILABLE with insufficient-funds sub-response logs the hint`() {
+    fun `BILLING_UNAVAILABLE with insufficient-funds sub-response is logged once at debug, not warn`() {
         val captor = CapturingLogger()
         val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
         val r = result(
@@ -169,7 +169,41 @@ class FlowPurchasesUpdatedListenerTest {
 
         listener.onPurchasesUpdated(r, emptyList())
 
-        assertThat(captor.warnings.any { it.contains("insufficient funds") }).isTrue()
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.debugs).hasSize(1)
+        assertThat(captor.debugs.single()).contains("Insufficient funds")
+    }
+
+    @Test
+    fun `onPurchasesUpdated logs the result exactly once at debug with code, sub-response and debug message`() {
+        val captor = CapturingLogger()
+        val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
+        val r = result(
+            BillingResponseCode.NETWORK_ERROR,
+            subResponseCode = OnPurchasesUpdatedSubResponseCode.NO_APPLICABLE_SUB_RESPONSE_CODE
+        )
+
+        listener.onPurchasesUpdated(r, emptyList())
+
+        assertThat(captor.debugs).hasSize(1)
+        val logged = captor.debugs.single()
+        assertThat(logged).contains("Network Error")
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `onPurchasesUpdated never logs a purchase token`() {
+        val captor = CapturingLogger()
+        val listener = FlowPurchasesUpdatedListener(MutableSharedFlow(replay = 10, extraBufferCapacity = 32), captor)
+        val token = "secret-purchase-token-should-never-be-logged"
+        val purchase = fakePurchase(purchaseToken = token, purchaseState = Purchase.PurchaseState.PURCHASED)
+
+        listener.onPurchasesUpdated(okResult(), listOf(purchase))
+
+        assertThat(captor.debugs.any { it.contains(token) }).isFalse()
+        assertThat(captor.warnings.any { it.contains(token) }).isFalse()
+        assertThat(captor.errors.any { it.contains(token) }).isFalse()
     }
 
     @Test
@@ -215,11 +249,17 @@ class FlowPurchasesUpdatedListenerTest {
             .build()
 
     private class CapturingLogger : BillingLogger {
+        val debugs = mutableListOf<String>()
         val warnings = mutableListOf<String>()
-        override fun d(message: String, throwable: Throwable?) {}
+        val errors = mutableListOf<String>()
+        override fun d(message: String, throwable: Throwable?) {
+            debugs += message
+        }
         override fun w(message: String, throwable: Throwable?) {
             warnings += message
         }
-        override fun e(message: String, throwable: Throwable?) {}
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message
+        }
     }
 }

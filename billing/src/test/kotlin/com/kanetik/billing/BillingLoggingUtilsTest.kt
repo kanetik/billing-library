@@ -29,8 +29,8 @@ class BillingLoggingUtilsTest {
 
     @Test
     fun `createDetailedBillingContext survives null debug message`() {
-        // BillingResult() (no-arg) leaves debugMessage null — exercised by the
-        // CoroutinesBillingConnectionFactory error-fallback path.
+        // BillingResult() (no-arg) leaves debugMessage null despite the
+        // Kotlin-side platform type looking @NonNull.
         val ctx = BillingLoggingUtils.createDetailedBillingContext(
             billingResult = BillingResult()
         )
@@ -86,6 +86,40 @@ class BillingLoggingUtilsTest {
     }
 
     @Test
+    fun `logBillingFailure routes USER_CANCELED to logger d, not w`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.USER_CANCELED)
+        )
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.debugs).hasSize(1)
+        assertThat(captor.debugs.single().first).startsWith("Billing failure - ")
+    }
+
+    @Test
+    fun `logBillingFailure routes DEVELOPER_ERROR to logger e, not w`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.DEVELOPER_ERROR)
+        )
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).hasSize(1)
+    }
+
+    @Test
+    fun `logBillingFailure routes ITEM_ALREADY_OWNED to logger w without a throwable`() {
+        val captor = CapturingLogger()
+        BillingLoggingUtils.logBillingFailure(
+            logger = captor,
+            billingResult = result(BillingResponseCode.ITEM_ALREADY_OWNED)
+        )
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.warnings.single().second).isNull()
+    }
+
+    @Test
     fun `logBillingFailure filters null additionalContext entries`() {
         val captor = CapturingLogger()
         BillingLoggingUtils.logBillingFailure(
@@ -110,27 +144,13 @@ class BillingLoggingUtilsTest {
     }
 
     @Test
-    fun `logBillingFlowFailure emits the insufficient-funds hint for that sub-response code`() {
+    fun `logBillingFlowFailure emits exactly one warning regardless of sub-response code`() {
         val captor = CapturingLogger()
         BillingLoggingUtils.logBillingFlowFailure(
             logger = captor,
             billingResult = result(
                 BillingResponseCode.BILLING_UNAVAILABLE,
                 subResponseCode = OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS
-            )
-        )
-        assertThat(captor.warnings).hasSize(2)
-        assertThat(captor.warnings[1].first).contains("insufficient funds")
-    }
-
-    @Test
-    fun `logBillingFlowFailure does not emit the hint for USER_INELIGIBLE`() {
-        val captor = CapturingLogger()
-        BillingLoggingUtils.logBillingFlowFailure(
-            logger = captor,
-            billingResult = result(
-                BillingResponseCode.BILLING_UNAVAILABLE,
-                subResponseCode = OnPurchasesUpdatedSubResponseCode.USER_INELIGIBLE
             )
         )
         assertThat(captor.warnings).hasSize(1)

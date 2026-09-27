@@ -13,14 +13,9 @@ import android.util.Log
  *    chatter useful during development.
  *  - [w] (warn): unexpected protocol responses that the library recovers
  *    from (retry fall-through, fallback paths).
- *  - [e] (error): rare events the library can't propagate as a typed
- *    [com.kanetik.billing.exception.BillingException] (e.g. internal
- *    invariant violations, dropped purchase updates).
- *
- * Most error conditions surface as a typed [com.kanetik.billing.exception.BillingException]
- * rather than going through this logger — consumers handle those by catching
- * and deciding what to log/report. The logger covers the gaps where typed
- * propagation isn't possible.
+ *  - [e] (error): developer errors, and rare events the library can't
+ *    propagate as a typed [com.kanetik.billing.exception.BillingException]
+ *    at all (e.g. internal invariant violations, dropped purchase updates).
  *
  * ## Routing to Timber, Crashlytics, etc.
  *

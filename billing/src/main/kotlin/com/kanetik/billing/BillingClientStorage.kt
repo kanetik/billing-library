@@ -4,6 +4,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.queryPurchasesAsync
+import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.BillingConnectionFactory
 import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CancellationException
@@ -464,8 +465,10 @@ internal class BillingClientStorage(
         Result.success(queryUnacknowledged(client, productType))
     } catch (ce: CancellationException) {
         throw ce
+    } catch (e: BillingException) {
+        Result.failure(e)
     } catch (e: Exception) {
-        logger.w("Recovery sweep: $productType query failed", e)
+        logger.e("Recovery sweep: $productType query failed", e)
         Result.failure(e)
     }
 
