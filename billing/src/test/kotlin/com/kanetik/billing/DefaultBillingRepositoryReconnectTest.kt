@@ -177,10 +177,115 @@ class DefaultBillingRepositoryReconnectTest {
         backgroundScope.launch { repo.connectToBilling().collect { } }
         runCurrent()
 
-        val result = repo.connectToBilling().first { it is BillingConnectionResult.Success }
+        val result = repo.connectToBilling().first()
 
         assertThat(result).isEqualTo(BillingConnectionResult.Success)
         assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a live connectToBilling collector receives the terminal Error`() = runTest {
+        val play = FakePlay().apply {
+            connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE)
+            connectCodes.addLast(null)
+        }
+        val repo = repositoryOver(play)
+        val seen = mutableListOf<BillingConnectionResult>()
+        backgroundScope.launch { repo.connectToBilling().collect { seen += it } }
+        runCurrent()
+
+        assertThat(seen.single()).isInstanceOf(BillingConnectionResult.Error::class.java)
+    }
+
+    @Test
+    fun `a late subscriber never observes the stale Error while another collector holds the share`() = runTest {
+        val play = FakePlay().apply {
+            connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE)
+            connectCodes.addLast(null)
+        }
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+        val seen = mutableListOf<BillingConnectionResult>()
+        backgroundScope.launch { repo.connectToBilling().collect { seen += it } }
+        runCurrent()
+        val seenBeforeReconnectReported = seen.toList()
+
+        play.stateListeners.last().onBillingSetupFinished(billingResult(BillingResponseCode.OK))
+        runCurrent()
+
+        assertThat(seenBeforeReconnectReported).isEmpty()
+        assertThat(seen).containsExactly(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a late subscriber inside the stop window never observes the stale Error`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        val failed = repo.connectToBilling().first()
+        advanceTimeBy(30_000)
+        runCurrent()
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(failed).isInstanceOf(BillingConnectionResult.Error::class.java)
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a late subscriber 90s after a failure never observes the stale Error`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(90_000)
+        runCurrent()
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a connectToBilling subscriber after a failed operation never observes its Error`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE) }
+        val repo = repositoryOver(play)
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `a late subscriber gets the replayed Success without a reconnect while another collector holds the share`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        backgroundScope.launch { repo.connectToBilling().collect { } }
+        runCurrent()
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a late subscriber inside the stop window gets the replayed Success without a reconnect`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(30_000)
+        runCurrent()
+        play.connectCodes.addLast(null)
+
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isEqualTo(BillingConnectionResult.Success)
+        assertThat(play.startConnectionCount).isEqualTo(1)
     }
 
     @Test
@@ -219,15 +324,48 @@ class DefaultBillingRepositoryReconnectTest {
     }
 
     @Test
+    fun `the connection outlives the last connectToBilling collector by just under 60s`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(59_999)
+        runCurrent()
+
+        repo.perform(Op.QUERY_PURCHASES)
+
+        assertThat(play.startConnectionCount).isEqualTo(1)
+        assertThat(play.endedClients).isEmpty()
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.single())).isEqualTo(1)
+    }
+
+    @Test
+    fun `the connection stops just past 60s after the last connectToBilling collector leaves`() = runTest {
+        val play = FakePlay()
+        val repo = repositoryOver(play)
+        repo.connectToBilling().first()
+        advanceTimeBy(60_001)
+        runCurrent()
+
+        repo.perform(Op.QUERY_PURCHASES)
+
+        assertThat(play.startConnectionCount).isEqualTo(2)
+        assertThat(play.endedClients).contains(play.clients.first())
+        assertThat(play.calls(Op.QUERY_PURCHASES, play.clients.last())).isEqualTo(1)
+    }
+
+    @Test
     fun `connectToBilling replays nothing after the idle stop`() = runTest {
         val play = FakePlay()
         val repo = repositoryOver(play)
         repo.connectToBilling().first()
-
         advanceTimeBy(120_001)
         runCurrent()
+        play.connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE)
 
-        assertThat(repo.connectToBilling().replayCache).isEmpty()
+        val result = repo.connectToBilling().first()
+
+        assertThat(result).isInstanceOf(BillingConnectionResult.Error::class.java)
+        assertThat(play.startConnectionCount).isEqualTo(2)
     }
 
     @Test

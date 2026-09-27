@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -307,21 +308,25 @@ internal class BillingClientStorage(
     /**
      * Public-facing connection state for [BillingConnector.connectToBilling]. Mapped from
      * [connectionFlow] so the live [com.android.billingclient.api.BillingClient] doesn't
-     * leak into the consumer-facing API. Re-shared so it carries proper SharedFlow
-     * semantics (replay/buffering) independent of [connectionFlow]'s upstream.
+     * leak into the consumer-facing API.
      */
-    val connectionResultFlow: SharedFlow<BillingConnectionResult> = connectionFlow
-        .mapNotNull { state ->
-            when (state) {
-                is InternalConnectionState.Connected -> BillingConnectionResult.Success
-                is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
-                null -> null
-            }
-        }
-        .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
-        .onSubscription {
-            (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
-        }
+    val connectionResultFlow: Flow<BillingConnectionResult> = flow {
+        val stale = connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed
+        emitAll(
+            connectionFlow
+                .onSubscription {
+                    if (stale != null && connectionFlow.replayCache.lastOrNull() === stale) requestReconnect(stale)
+                }
+                .filter { it !== stale }
+                .mapNotNull { state ->
+                    when (state) {
+                        is InternalConnectionState.Connected -> BillingConnectionResult.Success
+                        is InternalConnectionState.Failed -> BillingConnectionResult.Error(state.exception)
+                        null -> null
+                    }
+                }
+        )
+    }
 
     fun isLive(client: BillingClient): Boolean = liveClient.get() === client
 

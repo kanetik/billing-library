@@ -1,6 +1,6 @@
 package com.kanetik.billing
 
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Owner of the underlying Play Billing connection.
@@ -11,15 +11,14 @@ import kotlinx.coroutines.flow.SharedFlow
  * [com.kanetik.billing.lifecycle.BillingConnectionLifecycleManager]), or surfacing
  * connection-level errors to the UI layer.
  *
- * Returned as [SharedFlow] to communicate that this is a hot, shared stream — multiple
- * collectors share one underlying connection. Successful connection emits
+ * Multiple collectors share one underlying connection. Successful connection emits
  * [BillingConnectionResult.Success]; transient or fatal connection errors emit
  * [BillingConnectionResult.Error] with a typed
  * [com.kanetik.billing.exception.BillingException].
  */
 public interface BillingConnector {
 
-    public fun connectToBilling(): SharedFlow<BillingConnectionResult>
+    public fun connectToBilling(): Flow<BillingConnectionResult>
 
     /**
      * Deterministic verdict on whether Play Billing can be used on this device,
