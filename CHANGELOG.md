@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `BillingPurchaseUpdatesOwner` gained a new abstract member, `refreshPurchases()` — source-breaking for any direct implementer of the interface (the vast majority of consumers obtain it from `BillingRepositoryCreator.create` and are unaffected).
 - `OwnedPurchases` gained a new sealed subtype, `Snapshot` — an exhaustive `when` over `OwnedPurchases` without an `else` branch no longer compiles until the new branch is handled.
+- **`BillingConnector.connectToBilling()` now returns `Flow<BillingConnectionResult>` instead of `SharedFlow`.** A new subscriber no longer gets a replayed terminal `Error` from an earlier failed connection. It gets the result of the fresh connection attempt its subscription starts, so a plain `connectToBilling().first()` reflects the current state. Collectors that are already subscribed still receive the `Error`, and a current `Success` still arrives immediately without reconnecting. `replayCache` is no longer available on the returned flow. (#85)
 
 ### Added
 
