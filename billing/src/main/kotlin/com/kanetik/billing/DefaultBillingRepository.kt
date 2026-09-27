@@ -245,17 +245,19 @@ internal class DefaultBillingRepository(
 
     @UiThread
     override suspend fun launchFlow(activity: Activity, params: BillingFlowParams) {
-        try {
-            // Check that activity is still valid before launching billing flow
-            if (activity.isFinishing || activity.isDestroyed) {
-                logger.e("Cannot launch billing flow - activity is no longer valid")
-                val billingResult = BillingResult.newBuilder()
-                    .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
-                    .setDebugMessage("Attempted to launch billing flow with an invalid activity")
-                    .build()
-                throw BillingException.fromResult(billingResult)
-            }
+        billingClientStorage.cancelLaunchFailureSuppression()
 
+        // Check that activity is still valid before launching billing flow
+        if (activity.isFinishing || activity.isDestroyed) {
+            logger.e("Cannot launch billing flow - activity is no longer valid")
+            val billingResult = BillingResult.newBuilder()
+                .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
+                .setDebugMessage("Attempted to launch billing flow with an invalid activity")
+                .build()
+            throw BillingException.fromResult(billingResult)
+        }
+
+        try {
             // launchFlow is a UI-initiated action; silently retrying the billing sheet
             // behind the user's back risks surprise pop-ups after they've moved on.
             // Single attempt — the user can tap Buy again if it didn't take.
@@ -272,7 +274,7 @@ internal class DefaultBillingRepository(
             throw ce
         } catch (e: Exception) {
             // Re-throw the exception if it's already a BillingException, otherwise wrap it
-            if (e !is BillingException) {
+            val billingException = if (e !is BillingException) {
                 val responseCode = if (e is NullPointerException) {
                     // This specifically addresses the ProxyBillingActivity crash with null PendingIntent
                     BillingResponseCode.SERVICE_UNAVAILABLE
@@ -295,10 +297,12 @@ internal class DefaultBillingRepository(
                     )
                 )
 
-                throw BillingException.fromResult(billingResult)
+                BillingException.fromResult(billingResult)
             } else {
-                throw e
+                e
             }
+            billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode) }
+            throw billingException
         }
     }
 

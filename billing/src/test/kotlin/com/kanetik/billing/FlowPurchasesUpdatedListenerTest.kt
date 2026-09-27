@@ -244,6 +244,60 @@ class FlowPurchasesUpdatedListenerTest {
         assertThat(event.result).isSameInstanceAs(r)
     }
 
+    @Test
+    fun `onPurchasesUpdated drops a matching echo inside the suppression window and logs it at debug`() {
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        val captor = CapturingLogger()
+        var now = 0L
+        val suppression = LaunchFailureSuppression { now }
+        val listener = FlowPurchasesUpdatedListener(sink, captor, suppression)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        now += 12
+
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), null)
+
+        assertThat(sink.replayCache).isEmpty()
+        assertThat(captor.debugs.single()).contains("suppressed echo")
+    }
+
+    @Test
+    fun `onPurchasesUpdated emits normally when no launch failure is armed`() {
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        val listener = FlowPurchasesUpdatedListener(sink, BillingLogger.Noop, LaunchFailureSuppression { 0L })
+
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
+
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.UserBillingError::class.java)
+    }
+
+    @Test
+    fun `onPurchasesUpdated emits normally when the armed code does not match`() {
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        var now = 0L
+        val suppression = LaunchFailureSuppression { now }
+        val listener = FlowPurchasesUpdatedListener(sink, BillingLogger.Noop, suppression)
+        suppression.arm(BillingResponseCode.ITEM_ALREADY_OWNED)
+        now += 12
+
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
+
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.UserBillingError::class.java)
+    }
+
+    @Test
+    fun `onPurchasesUpdated emits normally once the suppression window has elapsed`() {
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        var now = 0L
+        val suppression = LaunchFailureSuppression { now }
+        val listener = FlowPurchasesUpdatedListener(sink, BillingLogger.Noop, suppression)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        now += 501
+
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
+
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.UserBillingError::class.java)
+    }
+
     // Note: testing the "drop logs to error" path is tricky because
     // MutableSharedFlow.tryEmit only returns false when there's an active
     // subscriber AND the buffer overflows — both conditions need a more
