@@ -66,6 +66,19 @@ class LaunchFailureSuppressionTest {
     }
 
     @Test
+    fun `consume for a non-matching code inside the window leaves the arm intact for a later matching echo`() {
+        var now = 1_000L
+        val suppression = LaunchFailureSuppression { now }
+
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        now += 12
+        assertThat(suppression.consume(BillingResponseCode.ITEM_ALREADY_OWNED)).isFalse()
+
+        now += 12
+        assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
+    }
+
+    @Test
     fun `cancel clears a pending arm before it is ever consumed`() {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }

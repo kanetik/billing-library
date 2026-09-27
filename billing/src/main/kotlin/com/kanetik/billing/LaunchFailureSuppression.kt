@@ -18,8 +18,12 @@ internal class LaunchFailureSuppression(
 
     fun consume(responseCode: Int): Boolean {
         val pending = armed ?: return false
-        armed = null
-        return pending.responseCode == responseCode && clock() - pending.armedAtMs <= WINDOW_MS
+        val withinWindow = clock() - pending.armedAtMs <= WINDOW_MS
+        val matches = withinWindow && pending.responseCode == responseCode
+        if (matches || !withinWindow) {
+            armed = null
+        }
+        return matches
     }
 
     private companion object {

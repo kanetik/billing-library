@@ -285,6 +285,25 @@ class FlowPurchasesUpdatedListenerTest {
     }
 
     @Test
+    fun `onPurchasesUpdated emits an unrelated code inside the window and still suppresses the matching echo that follows`() {
+        val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
+        val captor = CapturingLogger()
+        var now = 0L
+        val suppression = LaunchFailureSuppression { now }
+        val listener = FlowPurchasesUpdatedListener(sink, captor, suppression)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        now += 12
+
+        listener.onPurchasesUpdated(result(BillingResponseCode.ITEM_ALREADY_OWNED), emptyList())
+        now += 12
+        listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), null)
+
+        assertThat(sink.replayCache).hasSize(1)
+        assertThat(sink.replayCache.single()).isInstanceOf(FlowOutcome.ItemAlreadyOwned::class.java)
+        assertThat(captor.debugs.any { it.contains("suppressed echo") }).isTrue()
+    }
+
+    @Test
     fun `onPurchasesUpdated emits normally once the suppression window has elapsed`() {
         val sink = MutableSharedFlow<PurchaseEvent>(replay = 10, extraBufferCapacity = 32)
         var now = 0L
