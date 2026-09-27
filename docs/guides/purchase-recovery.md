@@ -144,3 +144,5 @@ val billing = BillingRepositoryCreator.create(
 ```
 
 The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.
+
+This flag gates only the connect-time sweep. A failed `acknowledgePurchase` / `consumePurchase` still schedules its own in-session retry regardless of this setting — see [Handling `handlePurchase` failures correctly](error-handling.md#handling-handlepurchase-failures-correctly). Opting out means you're responsible for reconciliation beyond that in-session retry, typically server-driven.

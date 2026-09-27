@@ -76,6 +76,10 @@ public object BillingRepositoryCreator {
      *   that drives acknowledgement out-of-band. The default exists because
      *   Play auto-refunds purchases not acknowledged within 3 days, and an app
      *   crash mid-acknowledge will otherwise lose the purchase silently.
+     *
+     *   This flag gates only the connect-time sweep: a failed
+     *   `acknowledgePurchase` / `consumePurchase` schedules its own in-session
+     *   retry regardless of this setting — see [HandlePurchaseResult.Failure].
      * @param connectionRetryPolicy Bounded retry applied to transient
      *   `startConnection` failures (`SERVICE_DISCONNECTED`,
      *   `SERVICE_UNAVAILABLE`, etc.) before a connection
