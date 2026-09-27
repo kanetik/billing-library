@@ -31,7 +31,8 @@ import androidx.lifecycle.LifecycleOwner
  * if (!validatePurchaseActivity(activity)) {
  *     return  // user dismissed; nothing to do
  * }
- * billing.launchFlow(activity, productDetails.toOneTimeFlowParams())
+ * val params = productDetails.toOneTimeFlowParams() ?: return
+ * billing.launchFlow(activity, params)
  * ```
  */
 public fun validatePurchaseActivity(activity: Activity): Boolean {

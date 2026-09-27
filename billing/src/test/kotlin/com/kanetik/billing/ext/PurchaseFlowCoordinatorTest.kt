@@ -3,13 +3,18 @@ package com.kanetik.billing.ext
 import android.app.Activity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.BillingRepository
+import com.kanetik.billing.DefaultBillingRepository
+import com.kanetik.billing.FakePlay
+import com.kanetik.billing.Op
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
+import com.kanetik.billing.storageOver
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -135,6 +141,54 @@ class PurchaseFlowCoordinatorTest {
     }
 
     @Test
+    fun `launch returns NoPurchasableOffer and clears the in-flight flag when there is no offer token`() = runTest {
+        val billing = mockk<BillingRepository>(relaxed = true)
+        val product = productDetails()
+        every { product.toOneTimeFlowParams(any(), any(), any()) } returns null
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        val result = coordinator.launch(activityResumed(), product)
+        assertThat(result).isEqualTo(PurchaseFlowResult.NoPurchasableOffer)
+        coVerify(exactly = 0) { billing.launchFlow(any(), any()) }
+
+        // Flag must be cleared, same as the other non-launching outcomes.
+        every { product.toOneTimeFlowParams(any(), any(), any()) } returns mockk(relaxed = true)
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val second = coordinator.launch(activityResumed(), product)
+        assertThat(second).isEqualTo(PurchaseFlowResult.Success)
+    }
+
+    @Test
+    fun `launch forwards a custom offerSelector to toOneTimeFlowParams`() = runTest {
+        val billing = mockk<BillingRepository>()
+        coEvery { billing.launchFlow(any(), any()) } returns Unit
+        val product = productDetails()
+        val customSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? =
+            { offers -> offers.lastOrNull() }
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = BillingLogger.Noop
+        )
+
+        coordinator.launch(activityResumed(), product, offerSelector = customSelector)
+
+        io.mockk.verify(exactly = 1) {
+            product.toOneTimeFlowParams(
+                obfuscatedAccountId = null,
+                obfuscatedProfileId = null,
+                offerSelector = customSelector
+            )
+        }
+    }
+
+    @Test
     fun `launch on finishing activity returns InvalidActivityState`() = runTest {
         val billing = mockk<BillingRepository>(relaxed = true)
         val coordinator = PurchaseFlowCoordinator(
@@ -196,6 +250,150 @@ class PurchaseFlowCoordinatorTest {
         coEvery { billing.launchFlow(any(), any()) } returns Unit
         val second = coordinator.launch(activityResumed(), productDetails())
         assertThat(second).isEqualTo(PurchaseFlowResult.Success)
+    }
+
+    @Test
+    fun `BillingUnavailableException is not logged by the coordinator`() = runTest {
+        // executeBillingOperation already logs the failure at the severity
+        // matching its classification — logging it again here would double-log
+        // the same outcome.
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val unavailableException = BillingException.BillingUnavailableException(
+            BillingResult.newBuilder()
+                .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.BILLING_UNAVAILABLE)
+                .build()
+        )
+        coEvery { billing.launchFlow(any(), any()) } throws unavailableException
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+        assertThat(result).isEqualTo(PurchaseFlowResult.BillingUnavailable)
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `a BillingException other than BillingUnavailable is not logged by the coordinator`() = runTest {
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val alreadyOwned = BillingException.ItemAlreadyOwnedException(
+            BillingResult.newBuilder()
+                .setResponseCode(com.android.billingclient.api.BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED)
+                .build()
+        )
+        coEvery { billing.launchFlow(any(), any()) } throws alreadyOwned
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat((result as PurchaseFlowResult.Error).cause).isInstanceOf(BillingException.ItemAlreadyOwnedException::class.java)
+        assertThat(captor.warnings).isEmpty()
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, BILLING_UNAVAILABLE is logged exactly once`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.BILLING_UNAVAILABLE)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isEqualTo(PurchaseFlowResult.BillingUnavailable)
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, ITEM_ALREADY_OWNED is logged exactly once`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.ITEM_ALREADY_OWNED)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `end-to-end through the real DefaultBillingRepository, DEVELOPER_ERROR is logged exactly once at error`() = runTest {
+        val play = FakePlay()
+        play.script(Op.LAUNCH_FLOW, BillingResponseCode.DEVELOPER_ERROR)
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = repo,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        val result = coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(result).isInstanceOf(PurchaseFlowResult.Error::class.java)
+        assertThat(captor.errors).hasSize(1)
+        assertThat(captor.warnings).isEmpty()
+    }
+
+    @Test
+    fun `a non-BillingException throwable is logged once at error with the throwable attached`() = runTest {
+        val captor = CapturingLogger()
+        val billing = mockk<BillingRepository>()
+        val crash = IllegalStateException("unexpected")
+        coEvery { billing.launchFlow(any(), any()) } throws crash
+
+        val coordinator = PurchaseFlowCoordinator(
+            billingRepository = billing,
+            scope = backgroundScope,
+            logger = captor
+        )
+
+        coordinator.launch(activityResumed(), productDetails())
+
+        assertThat(captor.errors).hasSize(1)
+        val loggedThrowable = captor.errors.single().second
+        assertThat(loggedThrowable).isInstanceOf(IllegalStateException::class.java)
+        assertThat(loggedThrowable?.message).isEqualTo("unexpected")
+        assertThat(captor.warnings).isEmpty()
     }
 
     @Test
@@ -309,4 +507,19 @@ class PurchaseFlowCoordinatorTest {
     }
 
     abstract class ActivityLifecycle : Activity(), LifecycleOwner
+
+    private class CapturingLogger : BillingLogger {
+        val debugs = mutableListOf<Pair<String, Throwable?>>()
+        val warnings = mutableListOf<Pair<String, Throwable?>>()
+        val errors = mutableListOf<Pair<String, Throwable?>>()
+        override fun d(message: String, throwable: Throwable?) {
+            debugs += message to throwable
+        }
+        override fun w(message: String, throwable: Throwable?) {
+            warnings += message to throwable
+        }
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message to throwable
+        }
+    }
 }

@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *         PurchaseFlowResult.AlreadyInProgress -> { /* user double-tapped */ }
  *         PurchaseFlowResult.InvalidActivityState -> { /* activity gone */ }
  *         PurchaseFlowResult.BillingUnavailable -> { /* show fallback UI */ }
+ *         PurchaseFlowResult.NoPurchasableOffer -> { /* product has no offer token */ }
  *         is PurchaseFlowResult.Error -> { /* report result.cause */ }
  *     }
  * }
@@ -63,6 +64,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Doesn't decide entitlement-grant rules — that's app business logic.
  * - Doesn't track analytics events — wrap [launch] with your own analytics layer
  *   if needed.
+ * - Doesn't log a [BillingException] it catches — that's the throwing
+ *   [BillingRepository]'s job. A [BillingRepository] that doesn't log its
+ *   own failures means this failure produces no log line anywhere.
  *
  * @param billingRepository The active [BillingRepository] (typically from
  *   [com.kanetik.billing.BillingRepositoryCreator]).
@@ -117,7 +121,8 @@ public class PurchaseFlowCoordinator(
         activity: Activity,
         productDetails: ProductDetails,
         obfuscatedAccountId: String? = null,
-        obfuscatedProfileId: String? = null
+        obfuscatedProfileId: String? = null,
+        offerSelector: (List<ProductDetails.OneTimePurchaseOfferDetails>) -> ProductDetails.OneTimePurchaseOfferDetails? = { it.firstOrNull() }
     ): PurchaseFlowResult {
         val correlationId = UUID.randomUUID().toString()
         logger.d("PurchaseFlow[$correlationId]: attempt")
@@ -136,8 +141,14 @@ public class PurchaseFlowCoordinator(
         return try {
             val flowParams = productDetails.toOneTimeFlowParams(
                 obfuscatedAccountId = obfuscatedAccountId,
-                obfuscatedProfileId = obfuscatedProfileId
+                obfuscatedProfileId = obfuscatedProfileId,
+                offerSelector = offerSelector
             )
+            if (flowParams == null) {
+                isPurchaseFlowInProgress.set(false)
+                logger.w("PurchaseFlow[$correlationId]: no purchasable offer")
+                return PurchaseFlowResult.NoPurchasableOffer
+            }
             // Defensive Main hop. The default DefaultBillingRepository.launchFlow
             // already does its own withContext(uiDispatcher) internally, so this
             // is redundant for that impl. But PurchaseFlowCoordinator is public
@@ -159,8 +170,10 @@ public class PurchaseFlowCoordinator(
             throw ce
         } catch (e: BillingException.BillingUnavailableException) {
             isPurchaseFlowInProgress.set(false)
-            logger.w("PurchaseFlow[$correlationId]: billing unavailable", e)
             PurchaseFlowResult.BillingUnavailable
+        } catch (e: BillingException) {
+            isPurchaseFlowInProgress.set(false)
+            PurchaseFlowResult.Error(e)
         } catch (t: Throwable) {
             isPurchaseFlowInProgress.set(false)
             logger.e("PurchaseFlow[$correlationId]: launch failed", t)
@@ -208,5 +221,6 @@ public sealed class PurchaseFlowResult {
     public data object AlreadyInProgress : PurchaseFlowResult()
     public data object InvalidActivityState : PurchaseFlowResult()
     public data object BillingUnavailable : PurchaseFlowResult()
+    public data object NoPurchasableOffer : PurchaseFlowResult()
     public data class Error(val cause: Throwable) : PurchaseFlowResult()
 }

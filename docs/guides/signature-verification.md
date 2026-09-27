@@ -9,9 +9,10 @@ The recommended integration:
 ```kotlin
 val verifier = PurchaseVerifier(base64PublicKey = BuildConfig.PLAY_BILLING_PUBLIC_KEY)
 
-// Sweep up OwnedPurchases (Live AND Recovered) — both carry purchases that
-// need verifying and acknowledging. Filtering only Live would skip recovered
-// purchases from a prior session, defeating the auto-recovery feature.
+// Sweep up any OwnedPurchases variant (Live, Recovered, Snapshot) — all three
+// carry purchases that need verifying and acknowledging. Filtering only Live
+// would skip recovered/refreshed purchases from a prior session, defeating
+// the auto-recovery feature and refreshPurchases().
 // FlowOutcome is excluded by design: those events describe attempt outcomes,
 // not owned state — never grant from their `purchases` list.
 billing.observePurchaseUpdates()
@@ -35,7 +36,8 @@ billing.observePurchaseUpdates()
                     logger.w(TAG, "handlePurchase NotOwned for ${purchase.products}")
                 }
                 is HandlePurchaseResult.Failure -> {
-                    // Don't grant — recovery sweep retries on the next clean connect.
+                    // Don't grant — the purchase comes back as
+                    // OwnedPurchases.Recovered; handle it there to retry.
                     logger.e(TAG, "handlePurchase failed: ${r.exception.userFacingCategory}")
                 }
             }

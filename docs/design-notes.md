@@ -51,7 +51,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 
 ### Purchase updates
 
-`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `Flow<PurchaseEvent>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchaseEvent` is a marker interface with two sealed roots — `OwnedPurchases` (variants `Live`, `Recovered`) for owned-state updates and `FlowOutcome` (variants `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure`, `UnknownResponse`) for purchase-flow attempt outcomes — plus a standalone `PurchaseRevoked` event for server-driven revocation. `FlowOutcome.Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single `PurchasesUpdate` sealed class with flat variants `Success`/`Pending`/`Canceled`/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)
+`BillingPurchaseUpdatesOwner.observePurchaseUpdates()` returns `Flow<PurchaseEvent>`. Returns the underlying flow directly (no `flatMapConcat`-induced re-subscription window). `PurchaseEvent` is a marker interface with two sealed roots — `OwnedPurchases` (variants `Live`, `Recovered`, `Snapshot`) for owned-state updates and `FlowOutcome` (variants `Pending`, `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `Failure`, `UnknownResponse`) for purchase-flow attempt outcomes — plus a standalone `PurchaseRevoked` event for server-driven revocation. `FlowOutcome.Pending` carries a cardinal-rule KDoc warning against entitlement grants on pending purchases. (Originally shipped in v0.1.0/v0.1.1 as a single `PurchasesUpdate` sealed class with flat variants `Success`/`Pending`/`Canceled`/...; split post-v0.1.1 to make the cache-write rule type-checked at branch sites.)
 
 ### Actions
 
@@ -88,7 +88,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 These behaviors should be preserved through any refactor — they each fix a specific class of bug or design concern:
 
 - `connectToClientAndCall` wraps `connectionFlow.first()` in `withTimeout(30_000)` — guards against scope-cancellation paths that skip the upstream `.catch` handler. Timeout surfaces as `ServiceUnavailableException`.
-- `launchFlow` passes `maxAttempts = 1` to `executeBillingOperation` — UI-initiated flows shouldn't silently retry behind the user's back. Single attempt; user can tap Buy again if it failed.
+- `launchFlow` passes `RetryProfile.SINGLE_ATTEMPT` to `executeBillingOperation` — UI-initiated flows shouldn't silently retry behind the user's back. Single attempt; user can tap Buy again if it failed.
 - Dispatcher split: `ioDispatcher` (default `Dispatchers.IO`) for queries / consume / acknowledge / retry loop; `uiDispatcher` (default `Dispatchers.Main`) only for `launchFlow` and `showInAppMessages`. Consumers can override either independently.
 - `BillingClientStorage.connectionFlow` and `connectionResultFlow` both use `WhileSubscribed(60_000)` grace — avoids reconnection churn while letting the connection eventually release. Documented in README so consumers know it's deliberate.
 - `PurchaseFlowCoordinator` watchdog uses `compareAndSet(true, false)` — atomic check-and-clear.
@@ -160,14 +160,13 @@ These were considered during the architectural review and PBL research; document
 | `PurchaseFlowCoordinatorTest` | 8 | State machine (Success/InvalidActivityState/AlreadyInProgress/BillingUnavailable/Error/Cancellation/markComplete/Watchdog) |
 | `BillingConnectionLifecycleManagerTest` | 3 | onStart/onStop/onDestroy job discipline |
 
-The test suite caught a real production bug — `BillingLoggingUtils.createDetailedBillingContext` was NPEing on null `debugMessage` (which `BillingResult()`'s no-arg constructor produces, used in the connection-factory error fallback). Fixed before any publish.
+The test suite caught a real production bug — `BillingLoggingUtils.createDetailedBillingContext` was NPEing on null `debugMessage`, which `BillingResult()`'s no-arg constructor produces. Fixed before any publish.
 
 ### Deferred to v0.2.0's `:billing-testing` artifact
 
 These need Robolectric (or instrumented tests) and are better served once that artifact lands:
 
 - `PurchaseVerifier` — uses `android.util.Base64`, requires Robolectric for JVM unit tests.
-- `ProductDetails.toOneTimeFlowParams` — PBL's `BillingFlowParams.ProductDetailsParams.build()` does strict internal validation that conflicts with partial mockk-relaxed `ProductDetails`; selector logic is small + covered by `:sample` integration use until the artifact lands.
 - `DefaultBillingRepository` orchestration tests — `launchFlow` error wrapping, `queryProductDetailsWithUnfetched` mapping. Robolectric in v0.2.0 lets these run against real PBL builders + dispatchers.
 - `showInAppMessages` — `InAppMessageResult` is final + has no easily-buildable test fixture. Cover via `:sample` integration use until the artifact arrives.
 

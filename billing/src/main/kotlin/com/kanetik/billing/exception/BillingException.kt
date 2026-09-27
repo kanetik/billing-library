@@ -31,9 +31,15 @@ import com.kanetik.billing.RetryType
  * UX: show a "no connection, try again" toast for [NetworkErrorException], a
  * "this purchase is already yours" message for [ItemAlreadyOwnedException], etc.
  *
- * The library applies [retryType] internally inside its retry loop; you'll only
- * see an exception thrown when the retry budget is exhausted or the error is
- * terminal.
+ * Most methods apply [retryType] internally inside a retry loop before
+ * throwing; [com.kanetik.billing.BillingActions.launchFlow],
+ * [com.kanetik.billing.BillingActions.showInAppMessages],
+ * `getBillingChoiceInfo`, and `showBillingProgramInformationDialog` throw on
+ * the first non-OK response instead — see
+ * [com.kanetik.billing.BillingActions]'s class-level KDoc.
+ * The exception carried by a purchase flow's `FlowOutcome.Failure` is thrown
+ * on the first attempt too — nothing retries a purchase-flow attempt today —
+ * so [retryType] there is informational only.
  *
  * ## ⚠️ Never display [message] to end users
  *
@@ -43,7 +49,7 @@ import com.kanetik.billing.RetryType
  * `BILLING_RESPONSE_CODE_3`, internal Play debug strings into your UI).
  *
  * For UI: branch on the subtype directly, or call [userFacingCategory] to
- * collapse the 13 subtypes into [BillingErrorCategory]'s 7 buckets and
+ * collapse the 13 subtypes into [BillingErrorCategory]'s 8 buckets and
  * localize per bucket from your own string resources. Example:
  *
  * ```
@@ -51,6 +57,7 @@ import com.kanetik.billing.RetryType
  *     when (e.userFacingCategory) {
  *         BillingErrorCategory.UserCanceled -> return  // not really an error
  *         BillingErrorCategory.AlreadyOwned -> restoreEntitlement()  // restore, don't error
+ *         BillingErrorCategory.NotOwned -> {}  // no-op; nothing to grant or restore
  *         BillingErrorCategory.Network -> showError(getString(R.string.purchase_error_network))
  *         BillingErrorCategory.BillingUnavailable -> showError(getString(R.string.purchase_error_billing_unavailable))
  *         BillingErrorCategory.ProductUnavailable -> showError(getString(R.string.purchase_error_product_unavailable))
@@ -83,7 +90,7 @@ public sealed class BillingException(
 
     /**
      * UI bucket for this exception. Collapses the 13 sealed subtypes into
-     * [BillingErrorCategory]'s 7 user-facing categories so callers can
+     * [BillingErrorCategory]'s 8 user-facing categories so callers can
      * localize from a small string-resource map instead of branching on
      * every PBL response code. See the class-level KDoc for the recommended
      * pattern.
@@ -97,8 +104,8 @@ public sealed class BillingException(
             is BillingUnavailableException,
             is FeatureNotSupportedException -> BillingErrorCategory.BillingUnavailable
             is ItemUnavailableException -> BillingErrorCategory.ProductUnavailable
-            is ItemAlreadyOwnedException,
-            is ItemNotOwnedException -> BillingErrorCategory.AlreadyOwned
+            is ItemAlreadyOwnedException -> BillingErrorCategory.AlreadyOwned
+            is ItemNotOwnedException -> BillingErrorCategory.NotOwned
             is DeveloperErrorException -> BillingErrorCategory.DeveloperError
             is FatalErrorException,
             is UnknownException,
@@ -144,9 +151,8 @@ public sealed class BillingException(
     }
 
     /**
-     * Network connectivity issue talking to Play Store. Transient — the library
-     * retries with exponential backoff. After the retry budget is spent, surface
-     * to the user as "no connection".
+     * Network connectivity issue talking to Play Store. Transient. Surface to
+     * the user as "no connection".
      *
      * Retry strategy: [RetryType.EXPONENTIAL_RETRY].
      */
@@ -166,9 +172,7 @@ public sealed class BillingException(
      *
      * Since PBL 8's
      * [com.android.billingclient.api.BillingClient.Builder.enableAutoServiceReconnection]
-     * is on, the underlying client reconnects in the background; a short fixed
-     * delay gives it time to do so before the library surfaces the error to the
-     * caller.
+     * is on, the underlying client reconnects in the background.
      *
      * Retry strategy: [RetryType.SIMPLE_RETRY].
      */
@@ -199,11 +203,11 @@ public sealed class BillingException(
      * install **and** for transient states (Play Store mid-update, account still
      * syncing right after install), so it is ambiguous.
      *
-     * Common causes:
-     *  - The user is on a non-Play distribution (e.g. some Huawei devices).
-     *  - The Play Store has been disabled or never installed.
-     *  - The user's account isn't eligible for purchases.
-     *  - A transient hiccup that will clear on its own.
+     * Common causes (per Play's own error guide): declined payment, outdated
+     * Play Store, unsupported country, admin-disabled purchases, or an
+     * OEM-blocked Play Store — plus a transient hiccup that clears on its
+     * own (Play Store mid-update, account still syncing right after
+     * install).
      *
      * Retry strategy: [RetryType.NONE] — not retried at the connection layer
      * because an in-loop retry won't flip it. **Do not** treat it as terminal for
@@ -248,17 +252,16 @@ public sealed class BillingException(
     public class FatalErrorException(result: BillingResult) : BillingException(result, RetryType.EXPONENTIAL_RETRY)
 
     /**
-     * Tried to purchase a non-consumable product the user already owns. Often
-     * caused by stale local state — the library re-queries owned purchases and
-     * retries, which usually surfaces the existing purchase rather than failing.
+     * Tried to purchase a non-consumable product the user already owns. Terminal —
+     * retrying the same call can't change Play's ownership record.
      *
-     * Retry strategy: [RetryType.REQUERY_PURCHASE_RETRY].
+     * Retry strategy: [RetryType.NONE].
      */
-    public class ItemAlreadyOwnedException(result: BillingResult) : BillingException(result, RetryType.REQUERY_PURCHASE_RETRY)
+    public class ItemAlreadyOwnedException(result: BillingResult) : BillingException(result)
 
     /**
      * Tried to consume a purchase the user doesn't own. Mirror of
-     * [ItemAlreadyOwnedException]; same recovery strategy.
+     * [ItemAlreadyOwnedException]; same terminal strategy.
      *
      * The lower-level [com.kanetik.billing.BillingActions.consumePurchase] /
      * [com.kanetik.billing.BillingActions.acknowledgePurchase] callers see
@@ -267,9 +270,9 @@ public sealed class BillingException(
      * rather than surfaced as `Failure(ItemNotOwnedException)`; pattern-match
      * the variant rather than the exception subclass at that layer.
      *
-     * Retry strategy: [RetryType.REQUERY_PURCHASE_RETRY].
+     * Retry strategy: [RetryType.NONE].
      */
-    public class ItemNotOwnedException(result: BillingResult) : BillingException(result, RetryType.REQUERY_PURCHASE_RETRY)
+    public class ItemNotOwnedException(result: BillingResult) : BillingException(result)
 
     /**
      * Response code that PBL doesn't document. Should be vanishingly rare; the

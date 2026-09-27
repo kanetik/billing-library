@@ -15,10 +15,11 @@ Both arrive on the same listener with a `BillingResult` and a `List<Purchase>`. 
 
 The library splits the callback into two sealed roots so the type system can catch this at compile time:
 
-- `OwnedPurchases` — the user owns these. Acknowledge / consume / grant entitlement. Two variants:
+- `OwnedPurchases` — the user owns these. Acknowledge / consume / grant entitlement. Three variants:
     - `Live` — completed through the active purchase flow (or carried in an `OK` callback).
-    - `Recovered` — found by the auto-sweep on connect (the rest of this guide is about these).
-- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
+    - `Recovered` — found by the auto-sweep on connect (most of this guide is about these).
+    - `Snapshot` — found by an explicit `refreshPurchases()` call (see below).
+- `FlowOutcome` — describes what *happened* on a single launch attempt. Variants: `Pending` (deferred payment, e.g. cash or family approval), `Canceled`, `ItemAlreadyOwned`, `ItemUnavailable`, `UserBillingError`, `Failure(BillingException)`, `UnknownResponse`. The `purchases` list on these is empty or transient. **Never write it to your entitlement cache.**
 
 There's also `PurchaseRevoked`, a third root sibling to the two above, for server-driven revocation events. See [Server-driven revocation](server-driven-revocation.md) for that story.
 
@@ -34,6 +35,30 @@ This requires that *something* is driving the connection. The standard pattern u
 
 The recovery channel uses `replay = 1` internally, so a subscriber that attaches a moment after the sweep still receives the most recent recovered purchases. That's important: in many apps the collector is in a ViewModel that races the connection coming up.
 
+A failed sweep query, or a failed acknowledge / consume, is no longer only picked up "on the next connect": the library retries a failed sweep in-session with backoff, and after a failed acknowledge / consume it runs a fresh sweep that re-emits the purchase as `Recovered` (at most three times in a row for the same purchase). A long-lived subscriber under the 60-second `WhileSubscribed` grace window may never see a fresh connect in a given app session, so relying solely on the next connect left those two failure modes stuck until the process restarted.
+
+## Refreshing on demand: `refreshPurchases()`
+
+`BillingPurchaseUpdatesOwner.refreshPurchases()` queries every owned `PURCHASED` purchase — `INAPP` and, where supported, `SUBS` — **acknowledged purchases included**, and emits the result as `OwnedPurchases.Snapshot` on the same `observePurchaseUpdates()` stream. Handle it exactly like `Live` / `Recovered`: hand each purchase to `handlePurchase`. An already-acknowledged purchase short-circuits to `HandlePurchaseResult.AlreadyAcknowledged`, which is a grant signal.
+
+Like `queryPurchases` and the library's other query methods, it throws a typed `BillingException` if the query doesn't recover after retrying — see [Error handling](error-handling.md). Wrap the call from `onResume`:
+
+```kotlin
+try {
+    billing.refreshPurchases()
+} catch (e: BillingException) {
+    logger.w("refreshPurchases failed", e)
+}
+```
+
+Call it from:
+
+- `onResume` (or the equivalent point in your navigation/lifecycle layer) — Play's own guidance for restoring ownership after the app was backgrounded during a purchase.
+- Your `FlowOutcome.ItemAlreadyOwned` branch — restore entitlement for a purchase Play says you already own.
+- Your `FlowOutcome.Failure` branch when `exception` is a `NetworkErrorException` or `FatalErrorException` — the purchase may have gone through even though the flow reported failure.
+
+The library does **not** call `refreshPurchases()` on your behalf in any of these situations; it's a consumer-triggered API, not an automatic one.
+
 ## Handling `Recovered` events
 
 Same code path as `Live`. Hand each purchase to `handlePurchase`, the helper that performs the acknowledge or consume against Play and short-circuits if the purchase is already acknowledged.
@@ -43,18 +68,17 @@ is OwnedPurchases.Recovered -> event.purchases.forEach { purchase ->
     when (billing.handlePurchase(purchase, consume = false)) {  // or true for consumables
         HandlePurchaseResult.Success -> grantEntitlement(purchase)  // recovery is the whole point — actually grant
         HandlePurchaseResult.AlreadyAcknowledged -> {
-            // Not reachable from a Recovered snapshot in practice — the sweep
-            // pre-filters PURCHASED && !isAcknowledged, so the local
-            // isAcknowledged flag is false and handlePurchase doesn't
-            // short-circuit. Listed for exhaustiveness; the arm fires from
-            // a manual queryPurchases reconciliation where you have a fresh
-            // Purchase with isAcknowledged=true.
+            // Fires when this repository already acknowledged the token in
+            // this process (for example, a second collector handling the
+            // same Recovered event), or from a manual queryPurchases
+            // reconciliation with a fresh Purchase where isAcknowledged=true.
             grantEntitlement(purchase)
         }
         is HandlePurchaseResult.Failure -> {
             // Surface the error if you want, but DO NOT grant entitlement.
-            // The library doesn't mark the token as acknowledged on Failure,
-            // so the next sweep will surface this purchase again for retry.
+            // The library doesn't mark the token as acknowledged on Failure —
+            // it re-emits this purchase as Recovered (in-session, then on
+            // the next sweep), and handling that Recovered event retries it.
         }
         HandlePurchaseResult.NotPurchased -> {}
         HandlePurchaseResult.NotOwned -> {
@@ -118,3 +142,5 @@ val billing = BillingRepositoryCreator.create(
 ```
 
 The default is on. Skipping recovery without a server-side replacement quietly costs paid users their entitlement, so it's not the kind of thing to disable casually.
+
+This flag gates only the connect-time sweep. A failed `acknowledgePurchase` / `consumePurchase` still re-emits the purchase as `Recovered` in-session regardless of this setting (at most three times in a row for the same purchase), so keep a `Recovered` branch that calls `handlePurchase` — see [Handling `handlePurchase` failures correctly](error-handling.md#handling-handlepurchase-failures-correctly). Opting out means you're responsible for reconciliation beyond that, typically server-driven.

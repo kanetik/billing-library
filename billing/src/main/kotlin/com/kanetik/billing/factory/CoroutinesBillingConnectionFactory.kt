@@ -5,6 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PurchasesUpdatedListener
+import com.kanetik.billing.BillingLoggingUtils
 import com.kanetik.billing.ConnectionRetryPolicy
 import com.kanetik.billing.InternalConnectionState
 import com.kanetik.billing.RetryType
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -52,10 +54,12 @@ internal class CoroutinesBillingConnectionFactory(
         listener: PurchasesUpdatedListener
     ): Flow<InternalConnectionState> {
         return callbackFlow<InternalConnectionState> {
-            val billingClient = billingClientFactory.createBillingClient(context, listener)
+            var billingClient: BillingClient? = null
 
             try {
-                connectWithRetry(billingClient)
+                connectWithRetry {
+                    billingClientFactory.createBillingClient(context, listener).also { billingClient = it }
+                }
                 // Keep the producer alive after a Connected emit (or after the
                 // channel was closed with a terminal exception) until the
                 // collector cancels. Cleanup lives in the finally below so it
@@ -69,11 +73,7 @@ internal class CoroutinesBillingConnectionFactory(
                 // isReady would leak it. BillingClient.endConnection() is safe
                 // to call in any state; guard defensively against an unexpected
                 // PBL throw during teardown (best-effort cleanup).
-                try {
-                    billingClient.endConnection()
-                } catch (e: Exception) {
-                    logger.d("Ignoring error while ending billing connection during teardown", e)
-                }
+                billingClient?.endQuietly()
             }
         }.catch { error ->
             emit(convertExceptionIntoErrorResult(error))
@@ -87,17 +87,23 @@ internal class CoroutinesBillingConnectionFactory(
      * is non-transient or the retry budget in [retryPolicy] is exhausted.
      */
     private suspend fun ProducerScope<InternalConnectionState>.connectWithRetry(
-        billingClient: BillingClient
+        newBillingClient: () -> BillingClient
     ) {
         var attempt = 0
         var exponentialDelay = retryPolicy.exponentialBaseBackoffMillis
+        var billingClient: BillingClient? = null
 
         while (isActive) {
             attempt++
-            val result = billingClient.awaitSetupResult()
+            val client = billingClient ?: newBillingClient().also { billingClient = it }
+            val result = withTimeoutOrNull(SETUP_TIMEOUT_MS) { client.awaitSetupResult() }
+                ?: setupTimeoutResult.also {
+                    client.endQuietly()
+                    billingClient = null
+                }
 
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                trySend(InternalConnectionState.Connected(billingClient))
+                trySend(InternalConnectionState.Connected(client))
                 return
             }
 
@@ -107,7 +113,9 @@ internal class CoroutinesBillingConnectionFactory(
 
             if (!retriesRemaining || !retryType.isTransientForConnection()) {
                 // Terminal: non-transient classification, or the retry budget
-                // is spent. Surface the error to the consumer.
+                // is spent. Surface the error to the consumer. Not logged
+                // here -- convertExceptionIntoErrorResult logs it once,
+                // centrally, for every source of a Failed connection state.
                 close(exception)
                 return
             }
@@ -146,10 +154,9 @@ internal class CoroutinesBillingConnectionFactory(
         suspendCancellableCoroutine { cont ->
             startConnection(object : BillingClientStateListener {
                 override fun onBillingServiceDisconnected() {
-                    // With PBL 8+ automatic service reconnection the client
-                    // re-establishes the IPC connection in the background; a
-                    // setup *failure* arrives via onBillingSetupFinished, which
-                    // is what resumes the continuation. Nothing to do here.
+                    if (cont.isActive) {
+                        cont.resume(serviceDisconnectedResult)
+                    }
                 }
 
                 override fun onBillingSetupFinished(result: BillingResult) {
@@ -164,14 +171,21 @@ internal class CoroutinesBillingConnectionFactory(
 
     /**
      * Whether a [RetryType] warrants an internal *connection* retry.
-     * [RetryType.REQUERY_PURCHASE_RETRY] is meaningless before a connection
-     * exists, and [RetryType.NONE] is terminal — both surface immediately.
+     * [RetryType.NONE] is terminal and surfaces immediately.
      */
     private fun RetryType.isTransientForConnection(): Boolean =
         this == RetryType.SIMPLE_RETRY || this == RetryType.EXPONENTIAL_RETRY
 
-    private fun convertExceptionIntoErrorResult(error: Throwable) = InternalConnectionState.Failed(
-        exception = when (error) {
+    private fun BillingClient.endQuietly() {
+        try {
+            endConnection()
+        } catch (e: Exception) {
+            logger.d("Ignoring error while ending billing connection", e)
+        }
+    }
+
+    private fun convertExceptionIntoErrorResult(error: Throwable): InternalConnectionState.Failed {
+        val exception = when (error) {
             is BillingException -> error
             // A non-PBL throwable reached the connection flow (e.g. a custom
             // BillingClientFactory threw, or PBL surfaced a non-billing error).
@@ -181,5 +195,26 @@ internal class CoroutinesBillingConnectionFactory(
             // failures misleading in logs / Crashlytics.
             else -> BillingException.WrappedException(error)
         }
-    )
+        val classifiedResult = exception.result
+        if (classifiedResult != null) {
+            BillingLoggingUtils.logBillingFailure(logger, classifiedResult, operationContext = "Billing Connection")
+        } else {
+            logger.e("Billing connection failed with an unexpected error", error)
+        }
+        return InternalConnectionState.Failed(exception = exception)
+    }
+
+    private companion object {
+        const val SETUP_TIMEOUT_MS: Long = 30_000L
+
+        val setupTimeoutResult: BillingResult = BillingResult.newBuilder()
+            .setResponseCode(BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE)
+            .setDebugMessage("Billing setup didn't finish within ${SETUP_TIMEOUT_MS}ms")
+            .build()
+
+        val serviceDisconnectedResult: BillingResult = BillingResult.newBuilder()
+            .setResponseCode(BillingClient.BillingResponseCode.SERVICE_DISCONNECTED)
+            .setDebugMessage("Billing service disconnected before setup finished")
+            .build()
+    }
 }

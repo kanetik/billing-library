@@ -39,7 +39,9 @@ val params = QueryProductDetailsParams.newBuilder()
     ))
     .build()
 val products = billing.queryProductDetails(params)
-billing.launchFlow(activity, products.first().toOneTimeFlowParams())
+val flowParams = products.first().toOneTimeFlowParams()
+    ?: error("android.test.purchased always carries an offer token")
+billing.launchFlow(activity, flowParams)
 ```
 
 ### What Level 1 verifies
@@ -129,9 +131,9 @@ The most useful Lab feature for library validation. Force any response code on a
 1. Dashboard → **Response simulator → Manage**.
 2. Add response codes you want simulated:
     - `USER_CANCELED` → exercises your `FlowOutcome.Canceled` branch.
-    - `BILLING_UNAVAILABLE` → triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`).
-    - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.REQUERY_PURCHASE_RETRY`) and your `FlowOutcome.ItemAlreadyOwned` branch.
-    - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's exponential-backoff retry loop (`RetryType.EXPONENTIAL_RETRY`).
+    - `BILLING_UNAVAILABLE` → outside a purchase flow, triggers `BillingException.BillingUnavailableException` (`RetryType.NONE`); simulated on the purchase flow itself, surfaces as `FlowOutcome.UserBillingError` instead.
+    - `ITEM_ALREADY_OWNED` → triggers `BillingException.ItemAlreadyOwnedException` (`RetryType.NONE`) and your `FlowOutcome.ItemAlreadyOwned` branch.
+    - `NETWORK_ERROR` → triggers `BillingException.NetworkErrorException` and the library's retry loop (`RetryType.EXPONENTIAL_RETRY`).
     - `SERVICE_DISCONNECTED` → `BillingException.ServiceDisconnectedException` (`RetryType.SIMPLE_RETRY`).
     - `SERVICE_UNAVAILABLE` → `BillingException.ServiceUnavailableException` (`RetryType.EXPONENTIAL_RETRY`).
     - `DEVELOPER_ERROR` → `BillingException.DeveloperErrorException` (`RetryType.NONE`).
@@ -201,7 +203,7 @@ The library's own test suite (`billing/src/test/kotlin/com/kanetik/billing/`) us
 v0.2.0 plans a published `com.kanetik.billing:billing-testing` artifact with:
 - `FakeBillingRepository` — in-memory billing repo with scriptable behavior
 - Test-control API: `setConnectionResult`, `emitPurchaseUpdate`, `setProducts`, `throwOnNext(BillingException)`, `simulateLaunchFlowResult`
-- Robolectric included so the four classes deferred from v0.1.0's test suite (PurchaseVerifier, toOneTimeFlowParams, DefaultBillingRepository orchestration, showInAppMessages) get coverage
+- Robolectric included so the classes deferred from v0.1.0's test suite (PurchaseVerifier, DefaultBillingRepository orchestration, showInAppMessages) get coverage
 
 See the [Roadmap](roadmap.md) for the full v0.2.0 plan.
 

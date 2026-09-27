@@ -37,10 +37,9 @@ import com.kanetik.billing.logging.BillingLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -85,11 +84,11 @@ internal class DefaultBillingRepository(
         // swallowed here — it propagates, so a caller wrapping this in its own
         // withTimeout keeps control of its deadline/cancellation contract.
         val result = withTimeoutOrNull(AVAILABILITY_CONNECT_TIMEOUT_MS) {
-            connectToBilling().first()
+            awaitConnection()
         }
         return when (result) {
-            is BillingConnectionResult.Success -> BillingAvailability.AVAILABLE
-            is BillingConnectionResult.Error -> {
+            is InternalConnectionState.Connected -> BillingAvailability.AVAILABLE
+            is InternalConnectionState.Failed -> {
                 logger.d(
                     "queryBillingAvailability: Play Store present but connection failed " +
                         "(${result.exception::class.simpleName}) -> UNKNOWN"
@@ -108,9 +107,9 @@ internal class DefaultBillingRepository(
         // regardless of whether anyone's collecting our connection flow. The
         // backing flows in BillingClientStorage are SharedFlows so emissions
         // aren't tied to subscriber attachment; the Flow returned here merges
-        // the three channels (live PBL events, recovery sweeps, and external
-        // revocations) — see BillingClientStorage's channel-architecture
-        // comment for why the split exists.
+        // the four channels (live PBL events, recovery sweeps, refreshPurchases()
+        // snapshots, and external revocations) — see BillingClientStorage's
+        // channel-architecture comment for why the split exists.
         return billingClientStorage.purchasesUpdateFlow
     }
 
@@ -124,14 +123,17 @@ internal class DefaultBillingRepository(
 
     @AnyThread
     override suspend fun isFeatureSupported(@FeatureType feature: String): Boolean {
-        return connectToClientAndCall {
-            getResultStatus(it.isFeatureSupported(feature).responseCode) == ResultStatus.SUCCESS
+        return try {
+            executeBillingOperation(RetryProfile.INTERACTIVE, { client -> client.isFeatureSupported(feature) })
+            true
+        } catch (e: BillingException.FeatureNotSupportedException) {
+            false
         }
     }
 
     @AnyThread
     override suspend fun queryPurchases(params: QueryPurchasesParams): List<Purchase> {
-        return executeBillingOperation({ client -> client.queryPurchasesAsync(params) }).purchasesList
+        return executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.queryPurchasesAsync(params) }).purchasesList
     }
 
     @AnyThread
@@ -148,8 +150,7 @@ internal class DefaultBillingRepository(
     ): ProductDetailsQuery {
         // Wraps the callback-based queryProductDetailsAsync directly because the
         // billing-ktx 9.x suspend extension returns the legacy ProductDetailsResult,
-        // which omits the unfetched list. Handed through executeBillingOperation so it
-        // gets the same retry/backoff treatment as every other call.
+        // which omits the unfetched list.
         //
         // Resume behavior:
         //   * The cancellation-resume race is handled natively — CancellableContinuation
@@ -161,7 +162,7 @@ internal class DefaultBillingRepository(
         //     cheap to defend against. Narrow try/catch here rather than opting into
         //     @InternalCoroutinesApi (tryResume/completeResume) keeps us off the
         //     internal-API treadmill.
-        val raw = executeBillingOperation({ client ->
+        val raw = executeBillingOperation(RetryProfile.INTERACTIVE, { client ->
             suspendCancellableCoroutine { cont ->
                 client.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
                     try {
@@ -190,7 +191,16 @@ internal class DefaultBillingRepository(
         // a result back the consume succeeded, and PBL guarantees the token is set
         // on success. The !! guards against an unexpected PBL contract violation
         // by failing loudly rather than returning a phantom null.
-        val token = executeBillingOperation({ client -> client.consumePurchase(params) }).purchaseToken!!
+        val token = try {
+            executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.consumePurchase(params) }).purchaseToken!!
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: BillingException) {
+            if (e !is BillingException.ItemNotOwnedException) {
+                billingClientStorage.scheduleFailedAcknowledgeRetry(params.purchaseToken)
+            }
+            throw e
+        }
         // Record the token so the recovery sweep filters this purchase out of
         // future Recovered emissions (Play treats consume as implicit
         // acknowledgement for consumables; subsequent sweeps still see the
@@ -201,11 +211,36 @@ internal class DefaultBillingRepository(
 
     @AnyThread
     override suspend fun acknowledgePurchase(params: AcknowledgePurchaseParams) {
-        executeBillingOperation({ client -> client.acknowledgePurchase(params) })
+        try {
+            executeBillingOperation(RetryProfile.BACKGROUND, { client -> client.acknowledgePurchase(params) })
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: BillingException) {
+            if (e !is BillingException.ItemNotOwnedException) {
+                billingClientStorage.scheduleFailedAcknowledgeRetry(params.purchaseToken)
+            }
+            throw e
+        }
         // Record the token only after a successful acknowledge. A failure
         // throws above; suppressing the next sweep on a failed ack would
         // orphan the purchase.
         billingClientStorage.markAcknowledged(params.purchaseToken)
+    }
+
+    @AnyThread
+    override suspend fun handlePurchase(purchase: Purchase, consume: Boolean): HandlePurchaseResult {
+        if (!consume &&
+            purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
+            billingClientStorage.isMarkedAcknowledged(purchase.purchaseToken)
+        ) {
+            return HandlePurchaseResult.AlreadyAcknowledged
+        }
+        return super.handlePurchase(purchase, consume)
+    }
+
+    @AnyThread
+    override suspend fun refreshPurchases() {
+        connectToClientAndCall { client -> billingClientStorage.refreshOwnedPurchases(client) }
     }
 
     @UiThread
@@ -213,7 +248,7 @@ internal class DefaultBillingRepository(
         try {
             // Check that activity is still valid before launching billing flow
             if (activity.isFinishing || activity.isDestroyed) {
-                logger.w("Cannot launch billing flow - activity is no longer valid")
+                logger.e("Cannot launch billing flow - activity is no longer valid")
                 val billingResult = BillingResult.newBuilder()
                     .setResponseCode(BillingResponseCode.DEVELOPER_ERROR)
                     .setDebugMessage("Attempted to launch billing flow with an invalid activity")
@@ -225,9 +260,9 @@ internal class DefaultBillingRepository(
             // behind the user's back risks surprise pop-ups after they've moved on.
             // Single attempt — the user can tap Buy again if it didn't take.
             executeBillingOperation(
+                profile = RetryProfile.SINGLE_ATTEMPT,
                 operation = { client -> client.launchBillingFlow(activity, params) },
-                dispatcher = uiDispatcher,
-                maxAttempts = 1
+                dispatcher = uiDispatcher
             )
         } catch (ce: kotlinx.coroutines.CancellationException) {
             // Must come before the broad Exception catch below — otherwise a
@@ -285,6 +320,7 @@ internal class DefaultBillingRepository(
                     }
                 }
                 if (billingResult.responseCode != BillingResponseCode.OK) {
+                    BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "In-App Messages")
                     cont.resumeWith(
                         Result.failure(BillingException.fromResult(billingResult))
                     )
@@ -350,6 +386,7 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(mapBillingChoiceDetails(info))
                         } else {
+                            BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "Billing Choice Info")
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -378,6 +415,11 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(Unit)
                         } else {
+                            BillingLoggingUtils.logBillingFailure(
+                                logger,
+                                billingResult,
+                                operationContext = "Billing Program Information Dialog"
+                            )
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -429,68 +471,12 @@ internal class DefaultBillingRepository(
 
     @AnyThread
     private suspend fun <T> executeBillingOperation(
+        profile: RetryProfile,
         operation: suspend (client: BillingClient) -> T,
-        dispatcher: CoroutineDispatcher = ioDispatcher,
-        maxAttempts: Int = EXPONENTIAL_RETRY_MAX_TRIES
-    ): T {
-        return connectToClientAndCall { client ->
-            withContext(dispatcher) {
-                var result: T
-                var billingResult: BillingResult
-                var resultStatus: ResultStatus
-
-                var attemptCount = 0
-                // Per-call backoff state. Was previously held in the companion object,
-                // which silently shared (and trampled) state across concurrent operations.
-                var exponentialDelay = EXPONENTIAL_RETRY_INITIAL_DELAY
-
-                var retryType = RetryType.NONE
-                var prerequisiteSuccessful = false
-
-                do {
-                    attemptCount++
-
-                    logger.d("attempt $attemptCount starting")
-
-                    result = operation(client)
-                    billingResult = getBillingResult(result)
-                    resultStatus = getResultStatus(billingResult.responseCode)
-
-                    if (resultStatus != ResultStatus.SUCCESS && resultStatus != ResultStatus.CANCELED) {
-                        logger.d("attempt $attemptCount failed")
-
-                        retryType = BillingException.fromResult(billingResult).retryType
-                        prerequisiteSuccessful = attemptCount < maxAttempts &&
-                            handleRetryPrerequisite(retryType, exponentialDelay, dispatcher)
-                        if (retryType == RetryType.EXPONENTIAL_RETRY) {
-                            exponentialDelay *= EXPONENTIAL_RETRY_FACTOR
-                        }
-                    } else {
-                        retryType = RetryType.NONE
-                    }
-                } while (retryType != RetryType.NONE && attemptCount < maxAttempts && prerequisiteSuccessful)
-
-                logger.d("call completed")
-
-                if (resultStatus == ResultStatus.SUCCESS) {
-                    logger.d("Success: Operation successful")
-
-                    result
-                } else {
-                    BillingLoggingUtils.logBillingFailure(
-                        logger = logger,
-                        billingResult = billingResult,
-                        attemptCount = attemptCount,
-                        operationContext = "Billing Operation",
-                        additionalContext = mapOf(
-                            "RetryType" to retryType,
-                            "PrerequisiteSuccessful" to prerequisiteSuccessful
-                        )
-                    )
-
-                    throw BillingException.fromResult(billingResult)
-                }
-            }
+        dispatcher: CoroutineDispatcher = ioDispatcher
+    ): T = withContext(dispatcher) {
+        retryBillingCall(profile, logger, { getBillingResult(it) }) {
+            connectToClientAndCall { client -> operation(client) }
         }
     }
 
@@ -502,13 +488,14 @@ internal class DefaultBillingRepository(
         // this, first() would suspend forever with no error and no recovery path.
         val state = try {
             withTimeout(CONNECTION_TIMEOUT_MS) {
-                billingClientStorage.connectionFlow.first()
+                awaitConnection()
             }
         } catch (e: TimeoutCancellationException) {
             val timeoutResult = BillingResult.newBuilder()
                 .setResponseCode(BillingResponseCode.SERVICE_UNAVAILABLE)
                 .setDebugMessage("Billing connection didn't resolve within ${CONNECTION_TIMEOUT_MS}ms")
                 .build()
+            BillingLoggingUtils.logBillingFailure(logger, timeoutResult, operationContext = "Billing Connection")
             throw BillingException.fromResult(timeoutResult)
         }
         return when (state) {
@@ -517,67 +504,18 @@ internal class DefaultBillingRepository(
         }
     }
 
-    private suspend fun handleRetryPrerequisite(
-        retryType: RetryType,
-        currentExponentialDelay: Long,
-        dispatcher: CoroutineDispatcher
-    ): Boolean {
-        var retryPrerequisiteSuccessful = false
-
-        when (retryType) {
-            RetryType.SIMPLE_RETRY -> {
-                logger.d("Simple Retry")
-                delay(SIMPLE_RETRY_DELAY)
-                retryPrerequisiteSuccessful = true
+    private suspend fun awaitConnection(): InternalConnectionState {
+        val cached = billingClientStorage.connectionFlow.replayCache.lastOrNull()
+        val connection = billingClientStorage.connectionFlow.filterNotNull()
+        val state = connection.first()
+        when (state) {
+            is InternalConnectionState.Connected -> if (billingClientStorage.isLive(state.client)) return state
+            is InternalConnectionState.Failed -> {
+                if (state !== cached) return state
+                billingClientStorage.requestReconnect(state)
             }
-
-            RetryType.EXPONENTIAL_RETRY -> {
-                logger.d("Exponential Retry")
-                delay(currentExponentialDelay)
-
-                retryPrerequisiteSuccessful = true
-            }
-
-            RetryType.REQUERY_PURCHASE_RETRY -> {
-                logger.d("Requery Purchase Retry")
-
-                val inAppPurchasesParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
-                val subscriptionsParams = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
-
-                withContext(dispatcher) {
-                    try {
-                        async { queryPurchases(inAppPurchasesParams) }.await()
-                        async { queryPurchases(subscriptionsParams) }.await()
-
-                        retryPrerequisiteSuccessful = true
-
-                        logger.d("Requery Purchase Success")
-                    } catch (ex: Exception) {
-                        retryPrerequisiteSuccessful = false
-
-                        // Enhanced logging for requery purchase failures
-                        if (ex is BillingException) {
-                            ex.result?.let { billingResult ->
-                                BillingLoggingUtils.logBillingFailure(
-                                    logger = logger,
-                                    billingResult = billingResult,
-                                    operationContext = "Requery Purchase Retry",
-                                    additionalContext = mapOf(
-                                        "RetryType" to RetryType.REQUERY_PURCHASE_RETRY.name
-                                    )
-                                )
-                            } ?: logger.w("Requery Purchase Failure: BillingException with null result", ex)
-                        } else {
-                            logger.w("Requery Purchase Failure", ex)
-                        }
-                    }
-                }
-            }
-
-            else -> return true
         }
-
-        return retryPrerequisiteSuccessful
+        return connection.first { it !== state }
     }
 
     private fun <T> getBillingResult(result: T): BillingResult {
@@ -601,26 +539,7 @@ internal class DefaultBillingRepository(
         }
     }
 
-    private fun getResultStatus(responseCode: Int): ResultStatus {
-        return when (responseCode) {
-            BillingResponseCode.OK ->
-                ResultStatus.SUCCESS
-
-            BillingResponseCode.USER_CANCELED ->
-                ResultStatus.CANCELED
-
-            else ->
-                ResultStatus.ERROR
-        }
-    }
-
     companion object {
-        private const val EXPONENTIAL_RETRY_MAX_TRIES: Int = 4
-        private const val EXPONENTIAL_RETRY_INITIAL_DELAY: Long = 2000L
-        private const val EXPONENTIAL_RETRY_FACTOR: Int = 2
-
-        private const val SIMPLE_RETRY_DELAY: Long = 500L
-
         // Generous enough for slow Play Billing setups, short enough to surface a
         // hung connection rather than suspending the caller forever.
         private const val CONNECTION_TIMEOUT_MS: Long = 30_000L

@@ -1,5 +1,6 @@
 package com.kanetik.billing
 
+import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.kanetik.billing.exception.BillingException
 
@@ -17,17 +18,18 @@ import com.kanetik.billing.exception.BillingException
  * entitlement code:
  *
  *  - **[OwnedPurchases]** — owned-state updates. Variants ([OwnedPurchases.Live],
- *    [OwnedPurchases.Recovered]) report purchases the user owns that need
- *    acknowledgement / consume / entitlement grant. Hand each to
+ *    [OwnedPurchases.Recovered], [OwnedPurchases.Snapshot]) report purchases
+ *    the user owns that need acknowledgement / consume / entitlement grant. Hand each to
  *    [com.kanetik.billing.BillingActions.handlePurchase] and merge into your
- *    own entitlement state — these events are **incremental updates, not
- *    authoritative owned-state snapshots** (see each variant's KDoc for the
- *    specific shape). For managed entitlement state, use
+ *    own entitlement state — apart from [OwnedPurchases.Snapshot], these
+ *    events are **incremental updates, not authoritative owned-state
+ *    snapshots** (see each variant's KDoc for the specific shape). For managed entitlement state, use
  *    [com.kanetik.billing.entitlement.EntitlementCache].
  *  - **[FlowOutcome]** — purchase-flow attempt outcomes. Variants
  *    ([FlowOutcome.Pending], [FlowOutcome.Canceled],
  *    [FlowOutcome.ItemAlreadyOwned], [FlowOutcome.ItemUnavailable],
- *    [FlowOutcome.Failure], [FlowOutcome.UnknownResponse]) report what
+ *    [FlowOutcome.UserBillingError], [FlowOutcome.Failure],
+ *    [FlowOutcome.UnknownResponse]) report what
  *    *happened* on a single launch attempt. The `purchases` lists are
  *    typically empty (or, for `Pending`, purchases that haven't completed
  *    yet) and **must not** be written to an entitlement cache — doing so
@@ -51,10 +53,12 @@ import com.kanetik.billing.exception.BillingException
  *     when (event) {
  *         is OwnedPurchases.Live -> event.purchases.forEach { handleAndGrant(it) }
  *         is OwnedPurchases.Recovered -> event.purchases.forEach { handleAndGrant(it) }
+ *         is OwnedPurchases.Snapshot -> event.purchases.forEach { handleAndGrant(it) }
  *         is FlowOutcome.Pending -> showPendingNotice() // do NOT grant
  *         is FlowOutcome.Canceled -> {}
  *         is FlowOutcome.ItemAlreadyOwned -> restoreEntitlement()
  *         is FlowOutcome.ItemUnavailable -> showSoldOut()
+ *         is FlowOutcome.UserBillingError -> showBillingIssue()
  *         is FlowOutcome.Failure -> showError(event.exception.userFacingCategory)
  *         is FlowOutcome.UnknownResponse -> reportFailure(event.code)
  *         is PurchaseRevoked -> revokeEntitlement(event.purchaseToken, event.reason)
@@ -99,6 +103,10 @@ import com.kanetik.billing.exception.BillingException
  * current acked set — not the stale pre-ack snapshot. See the
  * [OwnedPurchases.Recovered] KDoc.
  *
+ * [OwnedPurchases.Snapshot] events also replay to a re-attached subscriber
+ * (`replay = 1`), unfiltered: the replayed snapshot can predate
+ * [OwnedPurchases.Live] events the subscriber has already handled.
+ *
  * [PurchaseRevoked] events flow through their own dedicated `replay = 16`
  * channel: revocations arriving before a subscriber attaches (the FCM
  * listener decoded the RTDN payload and called
@@ -115,14 +123,17 @@ public sealed interface PurchaseEvent
  * Owned-state events: purchases the user owns that need acknowledgement /
  * consume / entitlement grant.
  *
- * **These are incremental updates, not authoritative owned-state snapshots.**
- * Specifically:
+ * **These are incremental updates, not authoritative owned-state snapshots,
+ * except [Snapshot].** Specifically:
  *  - [Live] carries the `PURCHASED`-or-`UNSPECIFIED_STATE` subset of an `OK`
  *    callback (see [Live]'s KDoc); it is not "everything the user owns
- *    right now." Both [Live] and [Recovered] are filtered to non-empty
+ *    right now." [Live] and [Recovered] are filtered to non-empty
  *    before delivery.
  *  - [Recovered] carries only the `PURCHASED && !isAcknowledged` subset
  *    discovered by the auto-sweep — it is not the full owned set either.
+ *  - [Snapshot] carries every `PURCHASED` purchase (acknowledged or not) as
+ *    of a [com.kanetik.billing.BillingPurchaseUpdatesOwner.refreshPurchases]
+ *    call — the one variant that is a full owned-state snapshot.
  *
  * **Cache pattern: merge, do not replace.** Hand each event's purchases to
  * [com.kanetik.billing.BillingActions.handlePurchase] and merge granted
@@ -132,12 +143,15 @@ public sealed interface PurchaseEvent
  * doesn't see the full owned set (a [Live] event with `purchases.isEmpty()`
  * is never delivered — see [Live]). For managed entitlement state, use
  * [com.kanetik.billing.entitlement.EntitlementCache], which handles the
- * merge logic and grace policy internally.
+ * merge logic internally.
  *
- * Two variants, semantically identical for handling, distinct for UX:
+ * Three variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"
  *    UX from this branch.
  *  - [Recovered] — discovered by the library's auto-sweep on connect.
+ *    Background reconciliation; do not fire user-initiated UX.
+ *  - [Snapshot] — the result of a consumer-triggered
+ *    [com.kanetik.billing.BillingPurchaseUpdatesOwner.refreshPurchases] call.
  *    Background reconciliation; do not fire user-initiated UX.
  *
  * For each `PURCHASED`-state purchase: hand it to
@@ -174,7 +188,8 @@ public sealed class OwnedPurchases : PurchaseEvent {
 
     /**
      * `PURCHASED && !isAcknowledged` purchases discovered by the library's
-     * automatic sweep on each successful Play Billing connection.
+     * automatic sweep on each successful Play Billing connection, and by the
+     * extra sweep it runs after a failed acknowledge / consume.
      *
      * **Same handling as [Live]** — call
      * [com.kanetik.billing.BillingActions.handlePurchase] (with `consume = true`
@@ -248,10 +263,14 @@ public sealed class OwnedPurchases : PurchaseEvent {
      * mid-acknowledge leave purchases stranded — without a recovery sweep on
      * the next launch, the user paid and gets refunded with no entitlement.
      *
-     * Disabled via [com.kanetik.billing.BillingRepositoryCreator.create]'s
-     * `recoverPurchasesOnConnect = false` parameter (default is `true`).
+     * The connect-time sweep is disabled via
+     * [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect = false` parameter (default is `true`); the
+     * sweep after a failed acknowledge / consume runs either way.
      */
     public data class Recovered(override val purchases: List<Purchase>) : OwnedPurchases()
+
+    public data class Snapshot(override val purchases: List<Purchase>) : OwnedPurchases()
 }
 
 /**
@@ -267,14 +286,21 @@ public sealed class OwnedPurchases : PurchaseEvent {
  *  - [ItemAlreadyOwned] — non-consumable already owned; treat as already-granted
  *    (restore entitlement from your own records).
  *  - [ItemUnavailable] — product not available (region, country, etc.).
- *  - [Failure] — Play returned a typed-failure response code (network error,
- *    billing-unavailable, service unavailable, etc.). Carries the matching
+ *  - [UserBillingError] — Play reported a user-side billing problem during
+ *    the purchase attempt (payment declined, Play Store out of date,
+ *    unsupported country, purchases disabled by an enterprise admin, or Play
+ *    Store blocked by the OEM). Play has typically already shown the user
+ *    feedback about it; a generic "something went wrong, try again" message
+ *    is Google's own recommended handling.
+ *  - [Failure] — Play returned another typed-failure response code (network
+ *    error, service unavailable, etc.). Carries the matching
  *    [com.kanetik.billing.exception.BillingException] subtype so consumers can
  *    branch on `userFacingCategory` / `retryType` without re-deriving.
  *  - [UnknownResponse] — anything else (raw response code in [UnknownResponse.code]).
  */
 public sealed class FlowOutcome : PurchaseEvent {
     public abstract val purchases: List<Purchase>
+    public abstract val result: BillingResult
 
     /**
      * Purchases that completed at the protocol level but await confirmation
@@ -287,44 +313,83 @@ public sealed class FlowOutcome : PurchaseEvent {
      * the most common bug in PBL integrations — even Google's own samples
      * have gotten this wrong.
      */
-    public data class Pending(override val purchases: List<Purchase>) : FlowOutcome()
+    public data class Pending(
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is Pending && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /** User dismissed the purchase flow. `purchases` is typically empty. */
-    public data class Canceled(override val purchases: List<Purchase>) : FlowOutcome()
+    public data class Canceled(
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is Canceled && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * Non-consumable already owned. Treat as already-granted: restore
      * entitlement from your own records rather than surfacing an error.
      * `purchases` is typically empty.
      */
-    public data class ItemAlreadyOwned(override val purchases: List<Purchase>) : FlowOutcome()
+    public data class ItemAlreadyOwned(
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is ItemAlreadyOwned && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * Product not available for this user (region, country, configuration).
      * `purchases` is typically empty.
      */
-    public data class ItemUnavailable(override val purchases: List<Purchase>) : FlowOutcome()
+    public data class ItemUnavailable(
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is ItemUnavailable && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
+
+    public data class UserBillingError(
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean = other is UserBillingError && purchases == other.purchases
+        override fun hashCode(): Int = purchases.hashCode()
+    }
 
     /**
      * A purchase-flow callback that surfaced a typed [BillingException] subtype
-     * Play Billing classifies as a failure (network errors, billing-unavailable,
-     * service unavailable, etc.). Carries the original exception so consumers can
-     * branch on subtype, [BillingException.userFacingCategory], or
+     * Play Billing classifies as a failure (network error, service
+     * unavailable, etc. — `BILLING_UNAVAILABLE` routes to [UserBillingError]
+     * instead). Carries the original exception so consumers can branch on
+     * subtype, [BillingException.userFacingCategory], or
      * [BillingException.retryType] without re-deriving from response codes.
      *
      * `purchases` is whatever Play returned in the failing callback — typically
      * empty, but preserved here for symmetry with the other variants.
      *
      * Library-internal entitlement helpers (e.g. `EntitlementCache` in
-     * [com.kanetik.billing.entitlement]) consume this variant to drive
-     * grace-window logic on transient outages. Most consumer code can treat
+     * [com.kanetik.billing.entitlement]) treat this variant as a no-op — it
+     * carries no product id, so an existing grant can't be reliably
+     * attributed to the failing attempt. Most consumer code can treat
      * Failure the same way it would treat [UnknownResponse] — surface a
      * "couldn't reach Play, try again" message from [BillingException.userFacingCategory].
      */
     public data class Failure(
         public val exception: BillingException,
         override val purchases: List<Purchase>,
-    ) : FlowOutcome()
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean =
+            other is Failure && exception == other.exception && purchases == other.purchases
+        override fun hashCode(): Int = 31 * exception.hashCode() + purchases.hashCode()
+    }
 
     /**
      * Any response code outside the documented set above. Raw integer code
@@ -332,8 +397,13 @@ public sealed class FlowOutcome : PurchaseEvent {
      */
     public data class UnknownResponse(
         val code: Int,
-        override val purchases: List<Purchase>
-    ) : FlowOutcome()
+        override val purchases: List<Purchase>,
+        override val result: BillingResult,
+    ) : FlowOutcome() {
+        override fun equals(other: Any?): Boolean =
+            other is UnknownResponse && code == other.code && purchases == other.purchases
+        override fun hashCode(): Int = 31 * code + purchases.hashCode()
+    }
 }
 
 /**

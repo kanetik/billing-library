@@ -3,6 +3,7 @@ package com.kanetik.billing
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingClient.OnPurchasesUpdatedSubResponseCode
 import com.android.billingclient.api.BillingResult
+import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.logging.BillingLogger
 
 /**
@@ -34,9 +35,9 @@ internal object BillingLoggingUtils {
 
             // BillingResult.getDebugMessage() looks @NonNull from the Kotlin-side
             // platform type, but the no-arg `BillingResult()` constructor (used by
-            // CoroutinesBillingConnectionFactory's error-fallback path and by
-            // direct test instantiation) leaves the field actually null at runtime.
-            // Keep the safe call — `survives null debug message` test guards this.
+            // direct test instantiation, and constructible by any caller) leaves
+            // the field actually null at runtime. Keep the safe call — `survives
+            // null debug message` test guards this.
             billingResult.debugMessage?.takeIf { it.isNotBlank() }?.let {
                 add("Debug: '$it'")
             }
@@ -48,7 +49,7 @@ internal object BillingLoggingUtils {
     }
 
     /**
-     * Logs billing failures with enhanced context (sub-response codes etc.) at warn level.
+     * Logs billing failures with enhanced context (sub-response codes etc.).
      */
     fun logBillingFailure(
         logger: BillingLogger,
@@ -71,13 +72,14 @@ internal object BillingLoggingUtils {
             }
         }
 
-        logger.w("Billing failure - $fullContextBuilder")
+        val message = "Billing failure - $fullContextBuilder"
+        when (BillingException.fromResult(billingResult)) {
+            is BillingException.UserCanceledException -> logger.d(message)
+            is BillingException.DeveloperErrorException -> logger.e(message)
+            else -> logger.w(message)
+        }
     }
 
-    /**
-     * Logs billing-flow launch failures with extra emphasis on sub-response codes
-     * that explain why the flow failed (e.g. insufficient funds).
-     */
     fun logBillingFlowFailure(
         logger: BillingLogger,
         billingResult: BillingResult,
@@ -89,11 +91,6 @@ internal object BillingLoggingUtils {
             operationContext = "Launch Billing Flow",
             additionalContext = additionalContext
         )
-
-        val subResponseCode = billingResult.onPurchasesUpdatedSubResponseCode
-        if (subResponseCode == OnPurchasesUpdatedSubResponseCode.PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS) {
-            logger.w("Billing flow failed due to insufficient funds - user may need to add payment method or check balance")
-        }
     }
 
     private fun getResponseCodeDescription(responseCode: Int): String {

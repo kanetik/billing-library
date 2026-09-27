@@ -19,9 +19,15 @@ import com.kanetik.billing.exception.BillingException
  * Suspend-style operations against Google Play Billing.
  *
  * Every method waits for the underlying [com.android.billingclient.api.BillingClient]
- * connection (see [BillingConnector]), runs with internal retry / backoff for transient
- * failures, and surfaces hard failures as a typed [BillingException] subtype so
- * consumers can branch by [com.kanetik.billing.RetryType] without parsing strings.
+ * connection (see [BillingConnector]). Most surface a hard failure as a typed
+ * [BillingException] subtype so consumers can branch by
+ * [com.kanetik.billing.RetryType] without parsing strings — the exception is
+ * `isBillingChoiceAvailable`, which reports a non-OK response as
+ * `BillingChoiceAvailability.Unavailable` rather than throwing. Most methods
+ * also retry transient failures internally before throwing; [launchFlow],
+ * [showInAppMessages], `getBillingChoiceInfo`, and
+ * `showBillingProgramInformationDialog` make a single attempt with no retry
+ * loop instead.
  *
  * ## Wrapping suspend members for resilience
  *
@@ -176,14 +182,19 @@ public interface BillingActions {
      * }
      * ```
      *
-     * The auto-recovery sweep ([com.kanetik.billing.OwnedPurchases.Recovered])
-     * re-emits the unacknowledged purchase on the next successful connection,
-     * so a transient [HandlePurchaseResult.Failure] is recoverable; a
-     * granted-then-refunded purchase is not. **This recovery is conditional
-     * on [com.kanetik.billing.BillingRepositoryCreator.create]'s
-     * `recoverPurchasesOnConnect` parameter being left at its default (`true`)** —
-     * consumers that opt out are responsible for their own retry / reconciliation
-     * path (see [HandlePurchaseResult.Failure]).
+     * A failed acknowledge / consume makes the library re-emit the purchase
+     * as [com.kanetik.billing.OwnedPurchases.Recovered] in-session (at most
+     * three times in a row for the same purchase), regardless of
+     * `recoverPurchasesOnConnect`; handling that event is what
+     * retries it. The auto-recovery
+     * sweep ([com.kanetik.billing.OwnedPurchases.Recovered]) also re-emits
+     * the unacknowledged purchase on the next successful connection **when**
+     * [com.kanetik.billing.BillingRepositoryCreator.create]'s
+     * `recoverPurchasesOnConnect` parameter is left at its default (`true`).
+     * Either path makes a transient [HandlePurchaseResult.Failure]
+     * recoverable; a granted-then-refunded purchase is not. Consumers that
+     * opt out of `recoverPurchasesOnConnect` are responsible for their own
+     * connect-time reconciliation (see [HandlePurchaseResult.Failure]).
      *
      * Lower-level [consumePurchase] / [acknowledgePurchase] still throw
      * [com.kanetik.billing.exception.BillingException] directly — callers at
@@ -203,9 +214,12 @@ public interface BillingActions {
      *     [Purchase] objects this closes the recovery hole where
      *     calling acknowledge on an already-acked purchase surfaced
      *     `Failure(DeveloperErrorException)` and made "already acked"
-     *     indistinguishable from a real ack failure. Stale snapshots
-     *     (locally `isAcknowledged = false` but Play-side `true` —
-     *     e.g., a `Recovered` replay after a successful ack) still
+     *     indistinguishable from a real ack failure. The repository from
+     *     [com.kanetik.billing.BillingRepositoryCreator.create] also
+     *     returns [HandlePurchaseResult.AlreadyAcknowledged] for a token it
+     *     has itself acknowledged or consumed in this process, whatever the
+     *     [Purchase] object says. Other stale snapshots (locally
+     *     `isAcknowledged = false` but Play-side `true`) still
      *     surface as `Failure(DeveloperErrorException)` on re-handle;
      *     the recovery sweep won't re-issue an acknowledged purchase
      *     (it filters `PURCHASED && !isAcknowledged`), so the stale
@@ -238,7 +252,7 @@ public interface BillingActions {
      *   (for non-consumables).
      * @return [HandlePurchaseResult.Success] if the call landed,
      *   [HandlePurchaseResult.AlreadyAcknowledged] if `consume = false` and
-     *   [Purchase.isAcknowledged] was already `true` (no PBL call made),
+     *   the purchase is already acknowledged (no PBL call made),
      *   [HandlePurchaseResult.NotPurchased] if the purchase wasn't in PURCHASED
      *   state, [HandlePurchaseResult.NotOwned] if Play replied
      *   `ITEM_NOT_OWNED` from the ack / consume call (stale snapshot —
@@ -285,18 +299,10 @@ public interface BillingActions {
             @Suppress("DEPRECATION")
             throw threadDeath
         } catch (e: BillingException) {
-            // ITEM_NOT_OWNED is semantically distinct from the other
-            // BillingException subtypes: it's not an ack-call failure —
-            // ownership state is unchanged and there's nothing the library
-            // can retry to recover. Re-issuing the ack against the same
-            // non-owned Purchase will keep returning ITEM_NOT_OWNED. It's
-            // Play telling us ownership disagrees with the input. The
-            // library's RetryType.REQUERY_PURCHASE_RETRY budget has
-            // already been exhausted by the time the exception propagates
-            // here, so the consumer is the only one who can resolve it
-            // (defer to grace/revoke, re-query owned purchases). Surface
-            // it as its own variant rather than bucketing it with
-            // transient ack failures.
+            // ITEM_NOT_OWNED means ownership disagrees with the input, not
+            // that the ack/consume call itself failed — re-issuing it keeps
+            // returning ITEM_NOT_OWNED, so it gets its own variant rather
+            // than bucketing with transient ack failures.
             if (e is BillingException.ItemNotOwnedException) {
                 HandlePurchaseResult.NotOwned
             } else {
@@ -374,6 +380,7 @@ public interface BillingActions {
      *  - [FlowOutcome.Canceled][com.kanetik.billing.FlowOutcome.Canceled]
      *  - [FlowOutcome.ItemAlreadyOwned][com.kanetik.billing.FlowOutcome.ItemAlreadyOwned]
      *  - [FlowOutcome.ItemUnavailable][com.kanetik.billing.FlowOutcome.ItemUnavailable]
+     *  - [FlowOutcome.UserBillingError][com.kanetik.billing.FlowOutcome.UserBillingError]
      *  - [FlowOutcome.Failure][com.kanetik.billing.FlowOutcome.Failure]
      *  - [FlowOutcome.UnknownResponse][com.kanetik.billing.FlowOutcome.UnknownResponse]
      *
