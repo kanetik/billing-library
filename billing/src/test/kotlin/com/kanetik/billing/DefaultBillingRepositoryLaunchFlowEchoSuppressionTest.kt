@@ -131,6 +131,36 @@ class DefaultBillingRepositoryLaunchFlowEchoSuppressionTest {
     }
 
     @Test
+    fun `a connection failure that never reaches launchBillingFlow does not arm suppression`() = runTest {
+        var now = 0L
+        val play = FakePlay().apply {
+            // BILLING_UNAVAILABLE is not a retried connect code, so this fails the
+            // connection setup once and launchBillingFlow is never called.
+            connectCodes.addLast(BillingResponseCode.BILLING_UNAVAILABLE)
+        }
+        val repo = repositoryOver(play, clock = { now })
+        val events = mutableListOf<PurchaseEvent>()
+        backgroundScope.launch { repo.observePurchaseUpdates().collect { events += it } }
+        runCurrent()
+
+        val thrown = runCatching { repo.launchFlow(activity(), params()) }.exceptionOrNull()
+        assertThat(thrown).isInstanceOf(BillingException.BillingUnavailableException::class.java)
+        assertThat(play.calls(Op.LAUNCH_FLOW)).isEqualTo(0)
+
+        // An unrelated onPurchasesUpdated carrying the same code the connection
+        // failure threw arrives inside what would have been the suppression window.
+        // It must not be swallowed, since no launch attempt actually armed anything.
+        now += 12
+        play.purchasesUpdatedListeners.single().onPurchasesUpdated(
+            billingResult(BillingResponseCode.BILLING_UNAVAILABLE),
+            null
+        )
+        runCurrent()
+
+        assertThat(events.single()).isInstanceOf(FlowOutcome.UserBillingError::class.java)
+    }
+
+    @Test
     fun `a synchronous ITEM_ALREADY_OWNED echoed within the window is also suppressed`() = runTest {
         var now = 0L
         val play = FakePlay().apply { script(Op.LAUNCH_FLOW, BillingResponseCode.ITEM_ALREADY_OWNED) }

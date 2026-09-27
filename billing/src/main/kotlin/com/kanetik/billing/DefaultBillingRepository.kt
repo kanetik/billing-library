@@ -257,13 +257,17 @@ internal class DefaultBillingRepository(
             throw BillingException.fromResult(billingResult)
         }
 
+        var launchInvoked = false
         try {
             // launchFlow is a UI-initiated action; silently retrying the billing sheet
             // behind the user's back risks surprise pop-ups after they've moved on.
             // Single attempt — the user can tap Buy again if it didn't take.
             executeBillingOperation(
                 profile = RetryProfile.SINGLE_ATTEMPT,
-                operation = { client -> client.launchBillingFlow(activity, params) },
+                operation = { client ->
+                    launchInvoked = true
+                    client.launchBillingFlow(activity, params)
+                },
                 dispatcher = uiDispatcher
             )
         } catch (ce: kotlinx.coroutines.CancellationException) {
@@ -301,7 +305,9 @@ internal class DefaultBillingRepository(
             } else {
                 e
             }
-            billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode) }
+            if (launchInvoked) {
+                billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode) }
+            }
             throw billingException
         }
     }
