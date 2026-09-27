@@ -141,6 +141,7 @@ internal class BillingClientStorage(
      */
     internal fun markAcknowledged(token: String) {
         acknowledgedTokens.update { it + token }
+        synchronized(this) { failedAckCounts.remove(token) }
     }
 
     internal fun isMarkedAcknowledged(token: String): Boolean = token in acknowledgedTokens.value
@@ -346,7 +347,11 @@ internal class BillingClientStorage(
         _snapshotUpdates.emit(OwnedPurchases.Snapshot(owned))
     }
 
-    internal fun scheduleFailedAcknowledgeRetry() {
+    @Synchronized
+    internal fun scheduleFailedAcknowledgeRetry(purchaseToken: String) {
+        val failures = (failedAckCounts[purchaseToken] ?: 0) + 1
+        failedAckCounts[purchaseToken] = failures
+        if (failures > MAX_FAILED_ACK_RETRIES_PER_PURCHASE) return
         if (failedAcknowledgeRetryJob?.isActive == true) return
         failedAcknowledgeRetryJob = connectionShareScope.launch(ioDispatcher) {
             delay(RetryProfile.BACKGROUND.delayBeforeRetry(1))
@@ -362,6 +367,8 @@ internal class BillingClientStorage(
     }
 
     private var failedAcknowledgeRetryJob: Job? = null
+
+    private val failedAckCounts = HashMap<String, Int>()
 
     /**
      * Queries owned `INAPP` (and, if supported on this Play install, `SUBS`)
@@ -557,5 +564,6 @@ internal class BillingClientStorage(
 
     private companion object {
         const val SWEEP_MAX_ATTEMPTS = 2
+        const val MAX_FAILED_ACK_RETRIES_PER_PURCHASE = 3
     }
 }

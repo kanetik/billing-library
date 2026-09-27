@@ -79,7 +79,8 @@ public object BillingRepositoryCreator {
      *
      *   This flag gates only the connect-time sweep: a failed
      *   `acknowledgePurchase` / `consumePurchase` still re-emits the purchase
-     *   as [OwnedPurchases.Recovered] in-session regardless of this setting,
+     *   as [OwnedPurchases.Recovered] in-session regardless of this setting
+     *   (at most three times in a row for the same purchase),
      *   and only a collector that hands it to `handlePurchase` retries it —
      *   see [HandlePurchaseResult.Failure].
      * @param connectionRetryPolicy Bounded retry applied to transient

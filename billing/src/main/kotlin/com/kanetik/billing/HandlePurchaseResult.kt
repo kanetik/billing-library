@@ -173,7 +173,8 @@ public sealed class HandlePurchaseResult {
      * — where retry can't help — has its own variant.
      *
      * The library runs one extra recovery sweep shortly after a `Failure`
-     * here, regardless of `recoverPurchasesOnConnect`, and that sweep
+     * here, at most three times in a row for the same purchase, regardless
+     * of `recoverPurchasesOnConnect`, and that sweep
      * re-emits the still-unacknowledged purchase as
      * [com.kanetik.billing.OwnedPurchases.Recovered]. The library does not
      * re-issue the acknowledge / consume itself: re-call `handlePurchase`
@@ -186,8 +187,8 @@ public sealed class HandlePurchaseResult {
      *    your `Recovered` branch to retry.
      *  - **Opt-out (`recoverPurchasesOnConnect = false` on
      *    [com.kanetik.billing.BillingRepositoryCreator.create])**: only the
-     *    in-session re-emission applies, so you still need a `Recovered`
-     *    branch; the library will *not* re-emit the purchase on a fresh
+     *    in-session re-emission applies (at most three times in a row for
+     *    the same purchase), so you still need a `Recovered` branch; the library will *not* re-emit the purchase on a fresh
      *    connect. You're responsible for your own
      *    retry / reconciliation path beyond that — typically server-driven
      *    (validate against your backend; reconcile entitlement out of band).

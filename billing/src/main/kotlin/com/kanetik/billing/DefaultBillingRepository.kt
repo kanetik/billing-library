@@ -196,7 +196,9 @@ internal class DefaultBillingRepository(
         } catch (ce: kotlinx.coroutines.CancellationException) {
             throw ce
         } catch (e: BillingException) {
-            billingClientStorage.scheduleFailedAcknowledgeRetry()
+            if (e !is BillingException.ItemNotOwnedException) {
+                billingClientStorage.scheduleFailedAcknowledgeRetry(params.purchaseToken)
+            }
             throw e
         }
         // Record the token so the recovery sweep filters this purchase out of
@@ -214,7 +216,9 @@ internal class DefaultBillingRepository(
         } catch (ce: kotlinx.coroutines.CancellationException) {
             throw ce
         } catch (e: BillingException) {
-            billingClientStorage.scheduleFailedAcknowledgeRetry()
+            if (e !is BillingException.ItemNotOwnedException) {
+                billingClientStorage.scheduleFailedAcknowledgeRetry(params.purchaseToken)
+            }
             throw e
         }
         // Record the token only after a successful acknowledge. A failure

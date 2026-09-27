@@ -83,6 +83,75 @@ internal class FailedAcknowledgeRetryTest {
     }
 
     @Test
+    fun `a purchase that has failed three times stops scheduling sweeps without blocking another purchase`() = runTest {
+        val play = FakePlay().apply {
+            script(Op.IS_FEATURE_SUPPORTED, BillingResponseCode.FEATURE_NOT_SUPPORTED)
+            script(Op.ACKNOWLEDGE, BillingResponseCode.SERVICE_UNAVAILABLE)
+            script(Op.QUERY_PURCHASES, BillingResponseCode.OK)
+        }
+        val repository = repositoryOver(play)
+        val stuck = mockk<AcknowledgePurchaseParams>(relaxed = true) { every { purchaseToken } returns "stuck" }
+        val other = mockk<AcknowledgePurchaseParams>(relaxed = true) { every { purchaseToken } returns "other" }
+
+        repeat(4) {
+            timed { repository.acknowledgePurchase(stuck) }
+            advanceTimeBy(2001)
+        }
+        val sweepsForStuck = play.calls(Op.QUERY_PURCHASES)
+
+        timed { repository.acknowledgePurchase(other) }
+        advanceTimeBy(2001)
+
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(sweepsForStuck + 1)
+    }
+
+    @Test
+    fun `a failed acknowledge that Play answers ITEM_NOT_OWNED schedules no sweep`() = runTest {
+        val play = FakePlay().apply {
+            script(Op.IS_FEATURE_SUPPORTED, BillingResponseCode.FEATURE_NOT_SUPPORTED)
+            script(Op.ACKNOWLEDGE, BillingResponseCode.ITEM_NOT_OWNED)
+            script(Op.QUERY_PURCHASES, BillingResponseCode.OK)
+        }
+        val repository = repositoryOver(play)
+
+        timed { repository.acknowledgePurchase(mockk<AcknowledgePurchaseParams>(relaxed = true)) }
+        advanceTimeBy(2001)
+
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(0)
+    }
+
+    @Test
+    fun `consecutive failed acknowledges stop scheduling sweeps after three until an acknowledge succeeds`() = runTest {
+        val play = FakePlay().apply {
+            script(Op.IS_FEATURE_SUPPORTED, BillingResponseCode.FEATURE_NOT_SUPPORTED)
+            script(
+                Op.ACKNOWLEDGE,
+                BillingResponseCode.DEVELOPER_ERROR,
+                BillingResponseCode.DEVELOPER_ERROR,
+                BillingResponseCode.DEVELOPER_ERROR,
+                BillingResponseCode.DEVELOPER_ERROR,
+                BillingResponseCode.DEVELOPER_ERROR,
+                BillingResponseCode.OK,
+                BillingResponseCode.DEVELOPER_ERROR
+            )
+            script(Op.QUERY_PURCHASES, BillingResponseCode.OK)
+        }
+        val repository = repositoryOver(play)
+        val params = mockk<AcknowledgePurchaseParams>(relaxed = true)
+
+        repeat(5) {
+            timed { repository.acknowledgePurchase(params) }
+            advanceTimeBy(2001)
+        }
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(3)
+
+        timed { repository.acknowledgePurchase(params) }
+        timed { repository.acknowledgePurchase(params) }
+        advanceTimeBy(2001)
+        assertThat(play.calls(Op.QUERY_PURCHASES)).isEqualTo(4)
+    }
+
+    @Test
     fun `a scheduled sweep retry survives a transient reconnect racing its delay`() = runTest {
         val connections = mutableListOf<MutableSharedFlow<InternalConnectionState>>()
         val factory = object : BillingConnectionFactory {
@@ -115,7 +184,7 @@ internal class FailedAcknowledgeRetryTest {
         connections[0].tryEmit(InternalConnectionState.Connected(client))
         runCurrent()
 
-        storage.scheduleFailedAcknowledgeRetry()
+        storage.scheduleFailedAcknowledgeRetry("token")
 
         // A reconnect races the retry's delay: the shared connectionFlow drops back
         // to its transient `null` bootstrap value before the retry's delay elapses.
@@ -171,7 +240,7 @@ internal class FailedAcknowledgeRetryTest {
         )
         runCurrent()
 
-        storage.scheduleFailedAcknowledgeRetry()
+        storage.scheduleFailedAcknowledgeRetry("token")
         advanceTimeBy(2001)
 
         // Observing Failed must drive a reconnect rather than silently giving up.

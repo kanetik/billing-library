@@ -183,8 +183,9 @@ public interface BillingActions {
      * ```
      *
      * A failed acknowledge / consume makes the library re-emit the purchase
-     * as [com.kanetik.billing.OwnedPurchases.Recovered] in-session,
-     * regardless of `recoverPurchasesOnConnect`; handling that event is what
+     * as [com.kanetik.billing.OwnedPurchases.Recovered] in-session (at most
+     * three times in a row for the same purchase), regardless of
+     * `recoverPurchasesOnConnect`; handling that event is what
      * retries it. The auto-recovery
      * sweep ([com.kanetik.billing.OwnedPurchases.Recovered]) also re-emits
      * the unacknowledged purchase on the next successful connection **when**
