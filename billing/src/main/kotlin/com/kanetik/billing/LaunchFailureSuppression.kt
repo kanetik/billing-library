@@ -1,5 +1,7 @@
 package com.kanetik.billing
 
+import java.util.concurrent.atomic.AtomicLong
+
 internal class LaunchFailureSuppression(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
 ) {
@@ -8,12 +10,17 @@ internal class LaunchFailureSuppression(
     @Volatile
     private var armed: Armed? = null
 
-    fun arm(responseCode: Int) {
-        armed = Armed(responseCode, clock())
+    private val generation = AtomicLong(0L)
+
+    fun cancel(): Long {
+        armed = null
+        return generation.incrementAndGet()
     }
 
-    fun cancel() {
-        armed = null
+    fun arm(responseCode: Int, attempt: Long) {
+        if (attempt == generation.get()) {
+            armed = Armed(responseCode, clock())
+        }
     }
 
     fun consume(responseCode: Int): Boolean {

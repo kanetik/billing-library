@@ -251,7 +251,7 @@ class FlowPurchasesUpdatedListenerTest {
         var now = 0L
         val suppression = LaunchFailureSuppression { now }
         val listener = FlowPurchasesUpdatedListener(sink, captor, suppression)
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, suppression.cancel())
         now += 12
 
         listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), null)
@@ -276,7 +276,7 @@ class FlowPurchasesUpdatedListenerTest {
         var now = 0L
         val suppression = LaunchFailureSuppression { now }
         val listener = FlowPurchasesUpdatedListener(sink, BillingLogger.Noop, suppression)
-        suppression.arm(BillingResponseCode.ITEM_ALREADY_OWNED)
+        suppression.arm(BillingResponseCode.ITEM_ALREADY_OWNED, suppression.cancel())
         now += 12
 
         listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())
@@ -291,7 +291,7 @@ class FlowPurchasesUpdatedListenerTest {
         var now = 0L
         val suppression = LaunchFailureSuppression { now }
         val listener = FlowPurchasesUpdatedListener(sink, captor, suppression)
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, suppression.cancel())
         now += 12
 
         listener.onPurchasesUpdated(result(BillingResponseCode.ITEM_ALREADY_OWNED), emptyList())
@@ -309,7 +309,7 @@ class FlowPurchasesUpdatedListenerTest {
         var now = 0L
         val suppression = LaunchFailureSuppression { now }
         val listener = FlowPurchasesUpdatedListener(sink, BillingLogger.Noop, suppression)
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, suppression.cancel())
         now += 501
 
         listener.onPurchasesUpdated(result(BillingResponseCode.BILLING_UNAVAILABLE), emptyList())

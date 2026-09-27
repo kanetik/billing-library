@@ -50,13 +50,11 @@ internal class BillingClientStorage(
 ) {
     private val launchFailureSuppression = LaunchFailureSuppression(clock)
 
-    internal fun armLaunchFailureSuppression(responseCode: Int) {
-        launchFailureSuppression.arm(responseCode)
+    internal fun armLaunchFailureSuppression(responseCode: Int, attempt: Long) {
+        launchFailureSuppression.arm(responseCode, attempt)
     }
 
-    internal fun cancelLaunchFailureSuppression() {
-        launchFailureSuppression.cancel()
-    }
+    internal fun cancelLaunchFailureSuppression(): Long = launchFailureSuppression.cancel()
 
     /*
      * Four-channel architecture

@@ -245,7 +245,7 @@ internal class DefaultBillingRepository(
 
     @UiThread
     override suspend fun launchFlow(activity: Activity, params: BillingFlowParams) {
-        billingClientStorage.cancelLaunchFailureSuppression()
+        val attempt = billingClientStorage.cancelLaunchFailureSuppression()
 
         // Check that activity is still valid before launching billing flow
         if (activity.isFinishing || activity.isDestroyed) {
@@ -306,7 +306,7 @@ internal class DefaultBillingRepository(
                 e
             }
             if (launchInvoked) {
-                billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode) }
+                billingException.result?.let { billingClientStorage.armLaunchFailureSuppression(it.responseCode, attempt) }
             }
             throw billingException
         }

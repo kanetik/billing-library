@@ -11,7 +11,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
@@ -22,7 +23,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 500
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
@@ -33,7 +35,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 501
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isFalse()
@@ -44,7 +47,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.ITEM_ALREADY_OWNED)).isFalse()
@@ -55,7 +59,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 12
         suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)
 
@@ -70,7 +75,8 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         now += 12
         assertThat(suppression.consume(BillingResponseCode.ITEM_ALREADY_OWNED)).isFalse()
 
@@ -83,11 +89,41 @@ class LaunchFailureSuppressionTest {
         var now = 1_000L
         val suppression = LaunchFailureSuppression { now }
 
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE)
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
         suppression.cancel()
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isFalse()
+    }
+
+    @Test
+    fun `arm is a no-op once a newer attempt has already started`() {
+        // Models two overlapping launchFlow calls: the first captures its attempt
+        // token, a second call starts (and cancels) before the first's failure
+        // arms suppression - so the first's arm must not take effect against the
+        // now-current attempt.
+        var now = 1_000L
+        val suppression = LaunchFailureSuppression { now }
+
+        val staleAttempt = suppression.cancel()
+        suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, staleAttempt)
+        now += 12
+
+        assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isFalse()
+    }
+
+    @Test
+    fun `arm still takes effect when no newer attempt has started since`() {
+        var now = 1_000L
+        val suppression = LaunchFailureSuppression { now }
+
+        val attempt = suppression.cancel()
+        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        now += 12
+
+        assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
     }
 
     @Test
