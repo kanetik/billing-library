@@ -41,6 +41,16 @@ A failed sweep query, or a failed acknowledge / consume, is no longer only picke
 
 `BillingPurchaseUpdatesOwner.refreshPurchases()` queries every owned `PURCHASED` purchase — `INAPP` and, where supported, `SUBS` — **acknowledged purchases included**, and emits the result as `OwnedPurchases.Snapshot` on the same `observePurchaseUpdates()` stream. Handle it exactly like `Live` / `Recovered`: hand each purchase to `handlePurchase`. An already-acknowledged purchase short-circuits to `HandlePurchaseResult.AlreadyAcknowledged`, which is a grant signal.
 
+Like `queryPurchases` and the library's other query methods, it throws a typed `BillingException` if the query doesn't recover after retrying — see [Error handling](error-handling.md). Wrap the call from `onResume`:
+
+```kotlin
+try {
+    billing.refreshPurchases()
+} catch (e: BillingException) {
+    logger.w("refreshPurchases failed", e)
+}
+```
+
 Call it from:
 
 - `onResume` (or the equivalent point in your navigation/lifecycle layer) — Play's own guidance for restoring ownership after the app was backgrounded during a purchase.
