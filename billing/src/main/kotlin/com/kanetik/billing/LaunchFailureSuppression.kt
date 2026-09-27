@@ -1,34 +1,33 @@
 package com.kanetik.billing
 
+import com.android.billingclient.api.BillingClient.BillingResponseCode
 import java.util.concurrent.atomic.AtomicLong
 
 internal class LaunchFailureSuppression(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
 ) {
-    private data class Armed(val responseCode: Int, val armedAtMs: Long)
-
     @Volatile
-    private var armed: Armed? = null
+    private var armedAtMs: Long? = null
 
     private val generation = AtomicLong(0L)
 
     fun cancel(): Long {
-        armed = null
+        armedAtMs = null
         return generation.incrementAndGet()
     }
 
-    fun arm(responseCode: Int, attempt: Long) {
+    fun arm(attempt: Long) {
         if (attempt == generation.get()) {
-            armed = Armed(responseCode, clock())
+            armedAtMs = clock()
         }
     }
 
     fun consume(responseCode: Int): Boolean {
-        val pending = armed ?: return false
-        val withinWindow = clock() - pending.armedAtMs <= WINDOW_MS
-        val matches = withinWindow && pending.responseCode == responseCode
+        val armedAt = armedAtMs ?: return false
+        val withinWindow = clock() - armedAt <= WINDOW_MS
+        val matches = withinWindow && responseCode == BillingResponseCode.BILLING_UNAVAILABLE
         if (matches || !withinWindow) {
-            armed = null
+            armedAtMs = null
         }
         return matches
     }

@@ -12,7 +12,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
@@ -24,7 +24,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 500
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
@@ -36,7 +36,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 501
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isFalse()
@@ -48,7 +48,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.ITEM_ALREADY_OWNED)).isFalse()
@@ -60,7 +60,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 12
         suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)
 
@@ -76,7 +76,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 12
         assertThat(suppression.consume(BillingResponseCode.ITEM_ALREADY_OWNED)).isFalse()
 
@@ -90,7 +90,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         suppression.cancel()
         now += 12
 
@@ -108,7 +108,7 @@ class LaunchFailureSuppressionTest {
 
         val staleAttempt = suppression.cancel()
         suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, staleAttempt)
+        suppression.arm(staleAttempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isFalse()
@@ -120,7 +120,7 @@ class LaunchFailureSuppressionTest {
         val suppression = LaunchFailureSuppression { now }
 
         val attempt = suppression.cancel()
-        suppression.arm(BillingResponseCode.BILLING_UNAVAILABLE, attempt)
+        suppression.arm(attempt)
         now += 12
 
         assertThat(suppression.consume(BillingResponseCode.BILLING_UNAVAILABLE)).isTrue()
