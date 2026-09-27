@@ -47,7 +47,7 @@ Upstream's prefix was `com.luszczuk.makebillingeasy`; we renamed to `com.kanetik
 
 ### Connection contract
 
-`BillingConnector.connectToBilling()` returns `SharedFlow<BillingConnectionResult>`. `Success` is a `data object` (no `BillingClient` leak — keeps the live PBL client out of public API). The library's internal use of the live `BillingClient` flows through an internal `InternalConnectionState` sealed type — consumers never see it.
+`BillingConnector.connectToBilling()` returns `Flow<BillingConnectionResult>`. `Success` is a `data object` (no `BillingClient` leak — keeps the live PBL client out of public API). The library's internal use of the live `BillingClient` flows through an internal `InternalConnectionState` sealed type — consumers never see it.
 
 ### Purchase updates
 
@@ -103,10 +103,6 @@ Single artifact + package separation is enough. Ext is ~400 LOC of clean Kotlin;
 
 Designing subs helpers without a real-app driver tends to produce bad ergonomics. Wakey is one-time-IAP only; we'll know what subs ergonomics should look like once Wakey or app-revenue-tracker wires subs into a real app. Pass-through API works in the meantime — consumers can build subs flows with raw `QueryPurchasesParams` / `BillingFlowParams`.
 
-### Why `SharedFlow` (not `Flow`) on the public connection / purchase-update API
-
-SharedFlow communicates the "always hot + shared" contract through the type system; lets consumers peek `replayCache` without observing the flow. The only downside (more specific type complicates fakes) is solved by `:billing-testing`'s upcoming fake — consumers can lean on that artifact rather than rolling their own.
-
 ### Why `connectionResultFlow.Success` is a `data object` (not `data class(client: BillingClient)`)
 
 Exposing the live `BillingClient` would leak a non-versioned PBL implementation type into our public ABI, and would tempt consumers into bypassing the library's retry/timeout/error-mapping logic. Internal coordination uses an internal `InternalConnectionState` sealed type that does carry the client; the public flow projects to the safe shape.
@@ -139,11 +135,10 @@ These were considered during the architectural review and PBL research; document
 | `@Jvm*` annotations for Java interop | Locked-in decision: Kotlin-first. 2026 Android lib ecosystem is Kotlin-dominant; @Jvm* noise isn't worth the source-clutter cost unless Java consumers actually appear and complain. |
 | Server-side / RTDN integration in the library | Out of scope for a client library. RTDN is fundamentally a Cloud Pub/Sub server concern. README documents the boundary and points to Google's RTDN docs. |
 | `BillingException` subtypes as `data class` | PBL's `BillingResult` lacks content-based equality, so data-class `equals` would still be identity-based on the result field — no consumer benefit. The toString improvement (which was the real readability win) was achieved via an `override fun toString()` on the sealed superclass instead. |
-| `getConnectionState()` direct accessor for v0.1.0 | `SharedFlow<BillingConnectionResult>` + `replay = 1` already lets consumers do `flow.replayCache.firstOrNull()` to peek at the current state. Adding a separate API for the same info is bloat. (Listed in the [Roadmap](roadmap.md) as a future-if-demanded enhancement.) |
+| `getConnectionState()` direct accessor for v0.1.0 | `connectToBilling().first()` already returns the current state. Adding a separate API for the same info is bloat. (Listed in the [Roadmap](roadmap.md) as a future-if-demanded enhancement.) |
 | `getBillingConfigAsync` exposure for v0.1.0 | Niche feature for region-specific UX. Defer until requested. |
 | `BillingActions.handlePurchase(purchase, isConsumable: (Purchase) -> Boolean)` predicate-lambda variant | We *did* add `handlePurchase(purchase, consume: Boolean)`. Rejected the *predicate-lambda* form — devs already know the consume/acknowledge decision at the call site; passing a `Boolean` is clearer than passing a function. Predicate would only be useful for batch processing, which the consumer can do with their own loop. |
 | Consumer-rules.pro keep for full library package | Kept only the two `BillingLogger` impl objects. Other types are reachable via consumer code (typed exception subtypes, sealed variants) so R8 follows them naturally. PBL and kotlinx-coroutines ship their own consumer-rules already. |
-| Returning `Flow` (not `SharedFlow`) from `connectToBilling` / `observePurchaseUpdates` | See "why SharedFlow" above. |
 
 ## Test strategy
 

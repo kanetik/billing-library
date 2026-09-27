@@ -38,7 +38,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -60,7 +59,7 @@ internal class DefaultBillingRepository(
     // don't exercise availability keep their previous behavior.
     private val playStoreEnvironment: PlayStoreEnvironment = PlayStoreEnvironment { true }
 ) : BillingRepository {
-    override fun connectToBilling(): SharedFlow<BillingConnectionResult> {
+    override fun connectToBilling(): Flow<BillingConnectionResult> {
         return billingClientStorage.connectionResultFlow
     }
 

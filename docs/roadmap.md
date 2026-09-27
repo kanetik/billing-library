@@ -280,7 +280,7 @@ Tracked but not committed. Most are build-when-asked.
 | Pre-order full lifecycle helpers | demand-driven | PBL 8.1+ `OneTimePurchaseOfferDetails.preorderDetails`. v0.2.0 docs cover the manual path; helpers are post-v0.2.0. |
 | `getBillingConfigAsync` exposure | demand-driven | Region-specific UX customization. Niche; defer until requested. |
 | Connection grace-window tunable | demand-driven | The 60s `WhileSubscribed` is currently hardcoded. Could surface as a creator parameter if a consumer needs different timing. |
-| `getConnectionState()` direct accessor | demand-driven | PBL exposes `ConnectionState` (OK / CONNECTING / DISCONNECTED / DISCONNECTING). Our `SharedFlow<BillingConnectionResult>` collapses to Success/Error. If consumers want to render "connecting…" UI, expose the finer state. |
+| `getConnectionState()` direct accessor | demand-driven | PBL exposes `ConnectionState` (OK / CONNECTING / DISCONNECTED / DISCONNECTING). Our `connectToBilling()` collapses to Success/Error. If consumers want to render "connecting…" UI, expose the finer state. |
 | Java consumer interop pass (`@JvmStatic`, `@JvmOverloads`, etc.) | rejected for now | Skipped per Kotlin-first decision; revisit only if Java consumers complain. |
 | ABI stability tooling (binary-compatibility-validator) | scheduled for ~1.0 | Approaching 1.0: integrate the plugin to track public-ABI changes between versions. |
 | Compose-aware lifecycle helpers | demand-driven | If a consumer wants `rememberBillingRepository(...)` Compose-side affordances, build then. |

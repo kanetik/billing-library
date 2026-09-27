@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -296,10 +297,20 @@ internal class BillingClientStorage(
     /**
      * Public-facing connection state for [BillingConnector.connectToBilling]. Mapped from
      * [connectionFlow] so the live [com.android.billingclient.api.BillingClient] doesn't
-     * leak into the consumer-facing API. Re-shared so it carries proper SharedFlow
-     * semantics (replay/buffering) independent of [connectionFlow]'s upstream.
+     * leak into the consumer-facing API.
      */
-    val connectionResultFlow: SharedFlow<BillingConnectionResult> = connectionFlow
+    val connectionResultFlow: Flow<BillingConnectionResult> = flow {
+        val staleError = sharedConnectionResults.replayCache.lastOrNull() as? BillingConnectionResult.Error
+        emitAll(
+            sharedConnectionResults
+                .onSubscription {
+                    (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
+                }
+                .filter { it !== staleError }
+        )
+    }
+
+    private val sharedConnectionResults: SharedFlow<BillingConnectionResult> = connectionFlow
         .mapNotNull { state ->
             when (state) {
                 is InternalConnectionState.Connected -> BillingConnectionResult.Success
@@ -308,9 +319,6 @@ internal class BillingClientStorage(
             }
         }
         .shareIn(connectionShareScope, replay = 1, started = sharingStrategy)
-        .onSubscription {
-            (connectionFlow.replayCache.lastOrNull() as? InternalConnectionState.Failed)?.let(::requestReconnect)
-        }
 
     fun isLive(client: BillingClient): Boolean = liveClient.get() === client
 
