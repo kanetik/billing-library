@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -347,7 +348,7 @@ internal class BillingClientStorage(
         if (failedAcknowledgeRetryJob?.isActive == true) return
         failedAcknowledgeRetryJob = connectionShareScope.launch(ioDispatcher) {
             delay(RetryProfile.BACKGROUND.delayBeforeRetry(1))
-            val state = connectionFlow.first()
+            val state = connectionFlow.filterNotNull().first()
             if (state is InternalConnectionState.Connected) {
                 sweepUnacknowledgedPurchases(state.client)
             }
