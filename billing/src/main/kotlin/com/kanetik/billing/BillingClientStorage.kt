@@ -46,7 +46,7 @@ internal class BillingClientStorage(
     private val connectionShareScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val recoverPurchasesOnConnect: Boolean = true,
-    clock: () -> Long = System::currentTimeMillis
+    clock: () -> Long = { System.nanoTime() / 1_000_000L }
 ) {
     private val launchFailureSuppression = LaunchFailureSuppression(clock)
 

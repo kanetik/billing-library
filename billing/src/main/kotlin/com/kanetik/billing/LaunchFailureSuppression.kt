@@ -1,7 +1,7 @@
 package com.kanetik.billing
 
 internal class LaunchFailureSuppression(
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000L }
 ) {
     private data class Armed(val responseCode: Int, val armedAtMs: Long)
 
