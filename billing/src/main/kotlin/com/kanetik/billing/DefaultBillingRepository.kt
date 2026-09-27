@@ -305,6 +305,7 @@ internal class DefaultBillingRepository(
                     }
                 }
                 if (billingResult.responseCode != BillingResponseCode.OK) {
+                    BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "In-App Messages")
                     cont.resumeWith(
                         Result.failure(BillingException.fromResult(billingResult))
                     )
@@ -370,6 +371,7 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(mapBillingChoiceDetails(info))
                         } else {
+                            BillingLoggingUtils.logBillingFailure(logger, billingResult, operationContext = "Billing Choice Info")
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -398,6 +400,11 @@ internal class DefaultBillingRepository(
                         if (billingResult.responseCode == BillingResponseCode.OK) {
                             cont.resume(Unit)
                         } else {
+                            BillingLoggingUtils.logBillingFailure(
+                                logger,
+                                billingResult,
+                                operationContext = "Billing Program Information Dialog"
+                            )
                             cont.resumeWith(
                                 Result.failure(BillingException.fromResult(billingResult))
                             )
@@ -473,6 +480,7 @@ internal class DefaultBillingRepository(
                 .setResponseCode(BillingResponseCode.SERVICE_UNAVAILABLE)
                 .setDebugMessage("Billing connection didn't resolve within ${CONNECTION_TIMEOUT_MS}ms")
                 .build()
+            BillingLoggingUtils.logBillingFailure(logger, timeoutResult, operationContext = "Billing Connection")
             throw BillingException.fromResult(timeoutResult)
         }
         return when (state) {

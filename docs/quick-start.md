@@ -92,6 +92,6 @@ A few topics are worth picking up before you ship, especially if Play Billing is
 
 - [Purchase recovery](guides/purchase-recovery.md) — what `PurchaseEvent`'s two tiers actually are, why acknowledgement is a three-day cliff, and what the library's auto-sweep does for you. The most important page in this set.
 - [Error handling](guides/error-handling.md) — typed exceptions, the eight `BillingErrorCategory` UI buckets, and the retry strategy the library runs before throwing.
-- [EntitlementCache](guides/entitlement-cache.md) — opt-in state machine that answers "is the user entitled right now," with a grace window for transient Play outages and signed/tamper-resistant storage if your threat model needs it.
+- [EntitlementCache](guides/entitlement-cache.md) — opt-in state machine that answers "is the user entitled right now," with signed/tamper-resistant storage if your threat model needs it.
 - [Signature verification](guides/signature-verification.md) — proving an incoming `Purchase` actually came from Google.
 - [Testing](testing.md) — the three-levels approach (static SKUs / license tester / Play Billing Lab).

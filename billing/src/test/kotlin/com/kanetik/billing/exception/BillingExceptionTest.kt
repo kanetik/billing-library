@@ -115,8 +115,8 @@ class BillingExceptionTest {
 
     @Test
     fun `bare BillingResult constructor yields a buildable message`() {
-        // BillingResult() (no-arg) is used in the connection-factory error fallback;
-        // debugMessage is null in that path. Verify our message-building survives it.
+        // BillingResult() (no-arg) leaves debugMessage null. Verify our
+        // message-building survives it.
         val ex = BillingException.UnknownException(BillingResult())
         // No throw is the assertion — accessing .message must succeed even when
         // PBL leaves debugMessage unset.

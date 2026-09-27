@@ -138,7 +138,7 @@ public sealed interface PurchaseEvent
  * doesn't see the full owned set (a [Live] event with `purchases.isEmpty()`
  * is never delivered — see [Live]). For managed entitlement state, use
  * [com.kanetik.billing.entitlement.EntitlementCache], which handles the
- * merge logic and grace policy internally.
+ * merge logic internally.
  *
  * Three variants, semantically identical for handling, distinct for UX:
  *  - [Live] — completed via the active purchase flow. Fire confetti / "thanks!"
@@ -367,8 +367,9 @@ public sealed class FlowOutcome : PurchaseEvent {
      * empty, but preserved here for symmetry with the other variants.
      *
      * Library-internal entitlement helpers (e.g. `EntitlementCache` in
-     * [com.kanetik.billing.entitlement]) consume this variant to drive
-     * grace-window logic on transient outages. Most consumer code can treat
+     * [com.kanetik.billing.entitlement]) treat this variant as a no-op — it
+     * carries no product id, so an existing grant can't be reliably
+     * attributed to the failing attempt. Most consumer code can treat
      * Failure the same way it would treat [UnknownResponse] — surface a
      * "couldn't reach Play, try again" message from [BillingException.userFacingCategory].
      */

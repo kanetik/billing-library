@@ -110,7 +110,7 @@ import java.nio.ByteBuffer
  *         }
  *     },
  * )
- * val cache = EntitlementCache(purchasesUpdates, storage, gracePolicy, productKeySelector)
+ * val cache = EntitlementCache(purchasesUpdates, storage, productKeySelector)
  * ```
  *
  * @param delegate the underlying [EntitlementStorage] that holds the snapshot

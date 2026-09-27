@@ -8,6 +8,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.google.common.truth.Truth.assertThat
 import com.kanetik.billing.exception.BillingException
 import com.kanetik.billing.factory.DefaultBillingClientFactory
+import com.kanetik.billing.logging.BillingLogger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -18,6 +19,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -242,6 +244,23 @@ class DefaultBillingRepositoryReconnectTest {
     }
 
     @Test
+    fun `a connect that never calls back logs the timeout exactly once`() = runTest {
+        val play = FakePlay().apply { connectCodes.addLast(null) }
+        val captor = CapturingLogger()
+        val repo = DefaultBillingRepository(
+            billingClientStorage = storageOver(play),
+            logger = captor,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            uiDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
+
+        runCatching { repo.perform(Op.QUERY_PURCHASES) }
+
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
     fun `after a hung connect times out the next operation starts a fresh connection`() = runTest {
         val play = FakePlay().apply { connectCodes.addLast(null) }
         val repo = repositoryOver(play)
@@ -347,6 +366,18 @@ class DefaultBillingRepositoryReconnectTest {
             verify { builder.enableAutoServiceReconnection() }
         } finally {
             unmockkStatic(BillingClient::class)
+        }
+    }
+
+    private class CapturingLogger : BillingLogger {
+        val warnings = mutableListOf<String>()
+        val errors = mutableListOf<String>()
+        override fun d(message: String, throwable: Throwable?) = Unit
+        override fun w(message: String, throwable: Throwable?) {
+            warnings += message
+        }
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message
         }
     }
 }

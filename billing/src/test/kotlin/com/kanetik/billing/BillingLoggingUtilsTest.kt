@@ -29,8 +29,8 @@ class BillingLoggingUtilsTest {
 
     @Test
     fun `createDetailedBillingContext survives null debug message`() {
-        // BillingResult() (no-arg) leaves debugMessage null — exercised by the
-        // CoroutinesBillingConnectionFactory error-fallback path.
+        // BillingResult() (no-arg) leaves debugMessage null despite the
+        // Kotlin-side platform type looking @NonNull.
         val ctx = BillingLoggingUtils.createDetailedBillingContext(
             billingResult = BillingResult()
         )

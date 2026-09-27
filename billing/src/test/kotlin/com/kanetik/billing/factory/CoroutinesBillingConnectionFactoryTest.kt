@@ -109,6 +109,85 @@ class CoroutinesBillingConnectionFactoryTest {
     }
 
     @Test
+    fun `a terminal non-transient connection failure is logged exactly once`() = runTest {
+        val attempts = AtomicInteger()
+        val captor = CapturingLogger()
+        val client = mockk<BillingClient>(relaxed = true)
+        every { client.startConnection(any()) } answers {
+            attempts.incrementAndGet()
+            firstArg<BillingClientStateListener>().onBillingSetupFinished(result(BillingResponseCode.BILLING_UNAVAILABLE))
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = clientFactoryReturning(client),
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = captor
+        )
+
+        factory.createBillingConnectionFlow(noopListener()).first()
+
+        assertThat(captor.warnings).hasSize(1)
+        assertThat(captor.errors).isEmpty()
+    }
+
+    @Test
+    fun `a client factory throw is wrapped, surfaced as Failed, and logged exactly once at error`() = runTest {
+        val captor = CapturingLogger()
+        val boom = IllegalStateException("factory exploded")
+        val throwingFactory = object : BillingClientFactory {
+            override fun createBillingClient(
+                context: Context,
+                listener: PurchasesUpdatedListener
+            ): BillingClient = throw boom
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = throwingFactory,
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = captor
+        )
+
+        val state = factory.createBillingConnectionFlow(noopListener()).first()
+
+        assertThat(state).isInstanceOf(InternalConnectionState.Failed::class.java)
+        assertThat((state as InternalConnectionState.Failed).exception)
+            .isInstanceOf(BillingException.WrappedException::class.java)
+        assertThat(captor.errors).hasSize(1)
+        // Not isSameInstanceAs(boom): kotlinx.coroutines' stacktrace recovery can
+        // hand `.catch` a recovered copy of the thrown exception rather than the
+        // literal instance, so identity isn't preserved across the suspend
+        // boundary -- message and type are.
+        val loggedThrowable = captor.errors.single().second
+        assertThat(loggedThrowable).isInstanceOf(IllegalStateException::class.java)
+        assertThat(loggedThrowable?.message).isEqualTo("factory exploded")
+        assertThat(captor.warnings).isEmpty()
+    }
+
+    @Test
+    fun `a client factory throwing a BillingException subtype directly is logged too`() = runTest {
+        val captor = CapturingLogger()
+        val thrown = BillingException.DeveloperErrorException(result(BillingResponseCode.DEVELOPER_ERROR))
+        val throwingFactory = object : BillingClientFactory {
+            override fun createBillingClient(
+                context: Context,
+                listener: PurchasesUpdatedListener
+            ): BillingClient = throw thrown
+        }
+        val factory = CoroutinesBillingConnectionFactory(
+            context = mockk(relaxed = true),
+            billingClientFactory = throwingFactory,
+            retryPolicy = ConnectionRetryPolicy(),
+            logger = captor
+        )
+
+        val state = factory.createBillingConnectionFlow(noopListener()).first()
+
+        assertThat((state as InternalConnectionState.Failed).exception).isSameInstanceAs(thrown)
+        assertThat(captor.errors).hasSize(1)
+        assertThat(captor.warnings).isEmpty()
+    }
+
+    @Test
     fun `None policy surfaces the first transient failure immediately`() = runTest {
         val attempts = AtomicInteger()
         val factory = factoryFor(
@@ -251,4 +330,16 @@ class CoroutinesBillingConnectionFactoryTest {
 
     private fun result(responseCode: Int): BillingResult =
         BillingResult.newBuilder().setResponseCode(responseCode).build()
+
+    private class CapturingLogger : BillingLogger {
+        val warnings = mutableListOf<Pair<String, Throwable?>>()
+        val errors = mutableListOf<Pair<String, Throwable?>>()
+        override fun d(message: String, throwable: Throwable?) = Unit
+        override fun w(message: String, throwable: Throwable?) {
+            warnings += message to throwable
+        }
+        override fun e(message: String, throwable: Throwable?) {
+            errors += message to throwable
+        }
+    }
 }

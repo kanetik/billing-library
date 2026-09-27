@@ -5,6 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PurchasesUpdatedListener
+import com.kanetik.billing.BillingLoggingUtils
 import com.kanetik.billing.ConnectionRetryPolicy
 import com.kanetik.billing.InternalConnectionState
 import com.kanetik.billing.RetryType
@@ -112,7 +113,9 @@ internal class CoroutinesBillingConnectionFactory(
 
             if (!retriesRemaining || !retryType.isTransientForConnection()) {
                 // Terminal: non-transient classification, or the retry budget
-                // is spent. Surface the error to the consumer.
+                // is spent. Surface the error to the consumer. Not logged
+                // here -- convertExceptionIntoErrorResult logs it once,
+                // centrally, for every source of a Failed connection state.
                 close(exception)
                 return
             }
@@ -181,8 +184,8 @@ internal class CoroutinesBillingConnectionFactory(
         }
     }
 
-    private fun convertExceptionIntoErrorResult(error: Throwable) = InternalConnectionState.Failed(
-        exception = when (error) {
+    private fun convertExceptionIntoErrorResult(error: Throwable): InternalConnectionState.Failed {
+        val exception = when (error) {
             is BillingException -> error
             // A non-PBL throwable reached the connection flow (e.g. a custom
             // BillingClientFactory threw, or PBL surfaced a non-billing error).
@@ -192,7 +195,14 @@ internal class CoroutinesBillingConnectionFactory(
             // failures misleading in logs / Crashlytics.
             else -> BillingException.WrappedException(error)
         }
-    )
+        val classifiedResult = exception.result
+        if (classifiedResult != null) {
+            BillingLoggingUtils.logBillingFailure(logger, classifiedResult, operationContext = "Billing Connection")
+        } else {
+            logger.e("Billing connection failed with an unexpected error", error)
+        }
+        return InternalConnectionState.Failed(exception = exception)
+    }
 
     private companion object {
         const val SETUP_TIMEOUT_MS: Long = 30_000L

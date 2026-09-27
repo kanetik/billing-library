@@ -2,7 +2,7 @@
 
 Consumable products are different from non-consumable unlocks in a way that matters for how you track them:
 
-- A **non-consumable unlock** ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is `Granted | InGrace | Revoked` — exactly what [`EntitlementCache`](entitlement-cache.md) is built for.
+- A **non-consumable unlock** ("Pro toolkit", "ad removal") is one purchase that grants permanent access to a feature. The right state machine is `Granted | Revoked` — exactly what [`EntitlementCache`](entitlement-cache.md) is built for.
 - A **consumable** ("100 coins", "5 gallons of fuel") is a one-shot credit. Each successful purchase adds N units to a wallet; gameplay (or whatever) spends them down; when the wallet is empty, the user buys again — same SKU, fresh purchase, fresh token. There's no "is the user entitled?" state — there's only a running balance.
 
 `EntitlementCache` deliberately does **not** track wallet balances. This page is the pattern for the cache-on-the-side that does.
