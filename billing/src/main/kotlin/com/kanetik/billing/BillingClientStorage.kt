@@ -348,7 +348,11 @@ internal class BillingClientStorage(
         if (failedAcknowledgeRetryJob?.isActive == true) return
         failedAcknowledgeRetryJob = connectionShareScope.launch(ioDispatcher) {
             delay(RetryProfile.BACKGROUND.delayBeforeRetry(1))
-            val state = connectionFlow.filterNotNull().first()
+            var state = connectionFlow.filterNotNull().first()
+            if (state is InternalConnectionState.Failed) {
+                requestReconnect(state)
+                state = connectionFlow.filterNotNull().first { it !== state }
+            }
             if (state is InternalConnectionState.Connected) {
                 sweepUnacknowledgedPurchases(state.client)
             }

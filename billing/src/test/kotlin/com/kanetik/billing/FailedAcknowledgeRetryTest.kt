@@ -132,4 +132,55 @@ internal class FailedAcknowledgeRetryTest {
 
         assertThat(queryCalls).isEqualTo(1)
     }
+
+    @Test
+    fun `a scheduled sweep retry reconnects instead of giving up on an observed Failed state`() = runTest {
+        val connections = mutableListOf<MutableSharedFlow<InternalConnectionState>>()
+        val factory = object : BillingConnectionFactory {
+            override fun createBillingConnectionFlow(
+                listener: PurchasesUpdatedListener
+            ): Flow<InternalConnectionState> {
+                val flow = MutableSharedFlow<InternalConnectionState>(replay = 1, extraBufferCapacity = 4)
+                connections += flow
+                return flow
+            }
+        }
+        val storage = BillingClientStorage(
+            billingFactory = factory,
+            logger = BillingLogger.Noop,
+            connectionShareScope = backgroundScope,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+            recoverPurchasesOnConnect = false
+        )
+        backgroundScope.launch { storage.connectionFlow.collect {} }
+        runCurrent()
+
+        var queryCalls = 0
+        val client = mockk<BillingClient>(relaxed = true)
+        every { client.isFeatureSupported(any()) } returns billingResult(BillingResponseCode.FEATURE_NOT_SUPPORTED)
+        val listenerSlot = slot<PurchasesResponseListener>()
+        every { client.queryPurchasesAsync(any<QueryPurchasesParams>(), capture(listenerSlot)) } answers {
+            queryCalls++
+            listenerSlot.captured.onQueryPurchasesResponse(billingResult(BillingResponseCode.OK), emptyList())
+        }
+
+        // The connection is already Failed when the retry's delay elapses -- not the
+        // transient null bootstrap, a genuine cached failure.
+        connections[0].tryEmit(
+            InternalConnectionState.Failed(BillingException.ServiceUnavailableException(billingResult(BillingResponseCode.SERVICE_UNAVAILABLE)))
+        )
+        runCurrent()
+
+        storage.scheduleFailedAcknowledgeRetry()
+        advanceTimeBy(2001)
+
+        // Observing Failed must drive a reconnect rather than silently giving up.
+        assertThat(connections.size).isEqualTo(2)
+        assertThat(queryCalls).isEqualTo(0)
+
+        connections[1].tryEmit(InternalConnectionState.Connected(client))
+        runCurrent()
+
+        assertThat(queryCalls).isEqualTo(1)
+    }
 }
