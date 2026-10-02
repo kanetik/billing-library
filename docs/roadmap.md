@@ -51,11 +51,15 @@ The article treats order IDs as state-machine identifiers, and flags that prepai
 
 **Value if done:** near-zero beyond documentation — the field is already reachable. Captured only so the review is complete. The genuinely useful related note (no order ID until a pending/prepaid payment confirms — don't gate state-machine logic on its presence) is already on the v0.2.0 pending-purchase docs list below.
 
+### Opt-in absence-based revocation + grace in `EntitlementCache` — *planned* ([#90](https://github.com/kanetik/billing-library/issues/90))
+
+Today the cache is grant-only and has no grace: an app without an RTDN → FCM pipeline revokes refunded purchases itself, following the recipe in [Server-driven revocation](guides/server-driven-revocation.md#other-emit-triggers) ("authoritative-empty `queryPurchases`"), and has to persist revoked tokens around [#80](https://github.com/kanetik/billing-library/issues/80). #90 moves that recipe into the cache as an opt-in mode with an optional grace period. The default stays grant-only. A real consumer (app-revenue-tracker) is waiting on it, so unlike the items above it isn't speculative. The snapshot format change is shared with #80.
+
 ---
 
 ## v0.2.0 — Subscriptions + testing artifact
 
-Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.
+Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is the second: it went freemium and ships on the library (0.1.6 as of 2026-10-02). Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.
 
 **Scope discipline:** v0.2.0 is for *new capabilities only*. If a quality-of-life
 or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.
@@ -149,9 +153,9 @@ New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:
 - README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example
 - Adopt in Wakey's debug flavor where `DebugConfig.mockUserType` currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds
 
-### app-revenue-tracker adoption — *planned*
+### app-revenue-tracker adoption — *in progress*
 
-Second real consumer once that app goes freemium. Almost certainly surfaces design issues that Wakey didn't, since the use cases differ (tracker is metric-driven; Wakey is feature-gating).
+Status (2026-10-02): the app is freemium and ships on 0.1.6 for its purchase flow. Its `EntitlementCache` adoption (kanetik/app-revenue-tracker#45) waits on [#90](https://github.com/kanetik/billing-library/issues/90) below, because the app relies on absence-based revocation and the 0.1.6 cache is grant-only.
 
 ### v0.2.0 docs additions — *planned*
 
