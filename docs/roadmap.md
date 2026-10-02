@@ -155,7 +155,7 @@ New Gradle module published as `com.kanetik.billing:billing-testing:0.2.0`:
 
 ### app-revenue-tracker adoption — *in progress*
 
-Status (2026-10-02): the app is freemium and ships on 0.1.6 for its purchase flow. Its `EntitlementCache` adoption (kanetik/app-revenue-tracker#45) waits on [#90](https://github.com/kanetik/billing-library/issues/90) below, because the app relies on absence-based revocation and the 0.1.6 cache is grant-only.
+Status (2026-10-02): the app is freemium and ships on 0.1.6 for its purchase flow. Its `EntitlementCache` adoption (kanetik/app-revenue-tracker#45) waits on [#90](https://github.com/kanetik/billing-library/issues/90), because the app relies on absence-based revocation and the 0.1.6 cache is grant-only.
 
 ### v0.2.0 docs additions — *planned*
 
