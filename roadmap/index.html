@@ -1319,6 +1319,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#opt-in-absence-based-revocation-grace-in-entitlementcache-planned-90" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opt-in absence-based revocation + grace in EntitlementCache — planned (#90)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1398,10 +1409,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#app-revenue-tracker-adoption-planned" class="md-nav__link">
+  <a href="#app-revenue-tracker-adoption-in-progress" class="md-nav__link">
     <span class="md-ellipsis">
       
-        app-revenue-tracker adoption — planned
+        app-revenue-tracker adoption — in progress
       
     </span>
   </a>
@@ -1684,6 +1695,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#opt-in-absence-based-revocation-grace-in-entitlementcache-planned-90" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opt-in absence-based revocation + grace in EntitlementCache — planned (#90)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1763,10 +1785,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#app-revenue-tracker-adoption-planned" class="md-nav__link">
+  <a href="#app-revenue-tracker-adoption-in-progress" class="md-nav__link">
     <span class="md-ellipsis">
       
-        app-revenue-tracker adoption — planned
+        app-revenue-tracker adoption — in progress
       
     </span>
   </a>
@@ -1959,9 +1981,11 @@
 <h3 id="order-id-accessor-optional-low-priority-likely-wont-do">Order-ID accessor — <em>optional (low priority, likely won't do)</em><a class="headerlink" href="#order-id-accessor-optional-low-priority-likely-wont-do" title="Permanent link">&para;</a></h3>
 <p>The article treats order IDs as state-machine identifiers, and flags that prepaid / pending purchases have no order ID until the payment confirms. But PBL already exposes <code>purchase.orderId</code> directly on the <code>Purchase</code> the consumer holds, so there's essentially nothing to add.</p>
 <p><strong>Value if done:</strong> near-zero beyond documentation — the field is already reachable. Captured only so the review is complete. The genuinely useful related note (no order ID until a pending/prepaid payment confirms — don't gate state-machine logic on its presence) is already on the v0.2.0 pending-purchase docs list below.</p>
+<h3 id="opt-in-absence-based-revocation-grace-in-entitlementcache-planned-90">Opt-in absence-based revocation + grace in <code>EntitlementCache</code> — <em>planned</em> (<a href="https://github.com/kanetik/billing-library/issues/90">#90</a>)<a class="headerlink" href="#opt-in-absence-based-revocation-grace-in-entitlementcache-planned-90" title="Permanent link">&para;</a></h3>
+<p>Today the cache is grant-only and has no grace: an app without an RTDN → FCM pipeline revokes refunded purchases itself, following the recipe in <a href="../guides/server-driven-revocation/#other-emit-triggers">Server-driven revocation</a> ("authoritative-empty <code>queryPurchases</code>"), and has to persist revoked tokens around <a href="https://github.com/kanetik/billing-library/issues/80">#80</a>. #90 moves that recipe into the cache as an opt-in mode with an optional grace period. The default stays grant-only. A real consumer (app-revenue-tracker) is waiting on it, so unlike the items above it isn't speculative. The snapshot format change is shared with #80.</p>
 <hr />
 <h2 id="v020-subscriptions-testing-artifact">v0.2.0 — Subscriptions + testing artifact<a class="headerlink" href="#v020-subscriptions-testing-artifact" title="Permanent link">&para;</a></h2>
-<p>Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is queued as the second consumer once it goes freemium. Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.</p>
+<p>Targeted after v0.1.x has shipped to two real consumers. Wakey is the first — the makebillingeasy → kanetik-billing migration has landed; on-device validation is in progress. app-revenue-tracker is the second: it went freemium and ships on the library (0.1.6 as of 2026-10-02). Designing subs helpers without a real-app driver tends to produce bad ergonomics, so this phase waits for that signal.</p>
 <p><strong>Scope discipline:</strong> v0.2.0 is for <em>new capabilities only</em>. If a quality-of-life
 or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.</p>
 <h3 id="subscription-helpers-planned">Subscription helpers — <em>planned</em><a class="headerlink" href="#subscription-helpers-planned" title="Permanent link">&para;</a></h3>
@@ -2059,8 +2083,8 @@ or bug-fix item shows up while planning subs, it ships in a 0.1.x patch instead.
 <li>README section "Testing with FakeBillingRepository" with a JUnit example + Hilt debug-flavor DI example</li>
 <li>Adopt in Wakey's debug flavor where <code>DebugConfig.mockUserType</code> currently short-circuits the real billing repo — gives the real plumbing coverage even in mocked-entitlement debug builds</li>
 </ul>
-<h3 id="app-revenue-tracker-adoption-planned">app-revenue-tracker adoption — <em>planned</em><a class="headerlink" href="#app-revenue-tracker-adoption-planned" title="Permanent link">&para;</a></h3>
-<p>Second real consumer once that app goes freemium. Almost certainly surfaces design issues that Wakey didn't, since the use cases differ (tracker is metric-driven; Wakey is feature-gating).</p>
+<h3 id="app-revenue-tracker-adoption-in-progress">app-revenue-tracker adoption — <em>in progress</em><a class="headerlink" href="#app-revenue-tracker-adoption-in-progress" title="Permanent link">&para;</a></h3>
+<p>Status (2026-10-02): the app is freemium and ships on 0.1.6 for its purchase flow. Its <code>EntitlementCache</code> adoption (kanetik/app-revenue-tracker#45) waits on <a href="https://github.com/kanetik/billing-library/issues/90">#90</a>, because the app relies on absence-based revocation and the 0.1.6 cache is grant-only.</p>
 <h3 id="v020-docs-additions-planned">v0.2.0 docs additions — <em>planned</em><a class="headerlink" href="#v020-docs-additions-planned" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Pending-purchase docs: order-ID timing for prepaid plans (no order ID until completion)</li>
